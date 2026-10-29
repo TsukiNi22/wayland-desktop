@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- wayland-desktop style: Miku - live wallpaper (wd-wallpaper): Miku and her 39, a ring of spectrum turning around
      the 39, notes rising with the music, teal and pink twin-tail ribbons, a light sweeping the stripes, a retro radio
-     to click (39.39 FM: famous Miku songs) and the sticky note of the POC: click it for the MIKU MIKU BEAM (countdown,
-     ray from her eyes, leeks, synthesized sound and voice) -->
+     to click (39.39 FM: famous Miku songs) and the sticky note of the POC: click it for the MIKU MIKU BEAM (Now
+     Loading, the three lights of the count and its subtitles, then the beam of its official video, a personal copy
+     cut once by wd-wallpaper) -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -45,7 +46,6 @@ let note = { x: 0, y: 0, w: 0, h: 0 };
 let beam = null;
 let audio = null;
 let lift = 0;
-const leeks = [];
 
 // the note of the POC; it is also the hidden button of the beam
 function drawNote(dt) {
@@ -82,66 +82,41 @@ function drawNote(dt) {
     wd.cursor(over || radio.rects.some(wd.hit));
 }
 
-// synthesized sounds (WebAudio, started by the click)
-function tone(frequency, start, length, type = "square", gain = 0.12, to = null) {
-    const osc = audio.createOscillator();
-    const amp = audio.createGain();
-    const at = audio.currentTime + start;
-
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, at);
-    if (to) {
-        osc.frequency.exponentialRampToValueAtTime(to, at + length);
-    }
-    amp.gain.setValueAtTime(0.0001, at);
-    amp.gain.exponentialRampToValueAtTime(gain, at + 0.02);
-    amp.gain.exponentialRampToValueAtTime(0.0001, at + length);
-    osc.connect(amp).connect(audio.destination);
-    osc.start(at);
-    osc.stop(at + length + 0.05);
-}
-
-function burst(start, length) {
-    const buffer = audio.createBuffer(1, audio.sampleRate * length, audio.sampleRate);
-    const data = buffer.getChannelData(0);
-    const source = audio.createBufferSource();
-    const filter = audio.createBiquadFilter();
-    const amp = audio.createGain();
-    const at = audio.currentTime + start;
-
-    for (let i = 0; i < data.length; i++) {
-        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    }
-    source.buffer = buffer;
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(6000, at);
-    filter.frequency.exponentialRampToValueAtTime(300, at + length);
-    amp.gain.value = 0.18;
-    source.connect(filter).connect(amp).connect(audio.destination);
-    source.start(at);
-}
-
-// 1 enable, 2, 3, ready?, go!, then the beam: each step its text, sound and voice (espeak-ng through wd-wallpaper)
-const STEPS = [
-    { at: 0, big: "1", small: "ENABLE", say: "one. enable!", sound: () => tone(660, 0, 0.18) },
-    { at: 0.9, big: "2", small: "", say: "two!", sound: () => tone(660, 0, 0.18) },
-    { at: 1.8, big: "3", small: "", say: "three!", sound: () => tone(660, 0, 0.18) },
-    { at: 2.7, big: "READY?", small: "", say: "ready?", sound: () => tone(380, 0, 0.7, "sawtooth", 0.08, 1300) },
-    { at: 3.6, big: "GO!", small: "", say: "go!", sound: () => tone(1320, 0, 0.35) },
-    { at: 4.2, big: "", small: "", say: "miku miku beeeeeeam!", sound: () => {
-        burst(0, 2.6);
-        [261.6, 329.6, 392, 523.3, 659.3, 784].forEach((f, i) => tone(f, i * 0.06, 2.2, "sawtooth", 0.05));
-        tone(140, 0, 2.4, "sine", 0.25, 38);
-    } },
-];
+// The beam of "M@GICAL☆CURE! LOVE ♥ SHOT!" (SAWTOWNE feat. Hatsune Miku): its part of the official video (radio.json
+// "media", cut once by wd-wallpaper from 1:25.28 of the video, a personal copy) gives the sound and the clock; on that
+// clock, before the video shows: its subtitles, the "Now Loading..." card, the three lights of the count with their
+// flashes (measured on the cuts of the video); from "Ready?" (its next cut) on, the video itself: MIKU MIKU BEAAAAM!!
+const LINES = [[0, 2.15, "and now it's time..."], [2.2, 4.75, "for the moment you've been waiting for!"], [4.88, 6, "One!"],
+    [6.04, 7.2, "Two!"], [7.24, 8.36, "Three——!!!"]];
+const COUNT = [4.88, 6.04, 7.24];
+const READY = 8.36;
+const END = 19.3;
+let beamVideo = null;
+let analyser = null;
 
 function fire() {
     if (beam) {
         return;
     }
-    audio = audio || new AudioContext();
-    audio.resume();
-    beam = { time: 0, step: -1 };
+    beamVideo = beamVideo || wd.video("beam", { audio: true });
+    beam = { start: performance.now(), data: null };
+    if (!beamVideo) {
+        return;
+    }
+    try {
+        if (!analyser) {
+            audio = new AudioContext();
+            analyser = audio.createAnalyser();
+            analyser.fftSize = 512;
+            audio.createMediaElementSource(beamVideo).connect(analyser).connect(audio.destination);
+        }
+        audio.resume();
+        beam.data = new Uint8Array(analyser.fftSize);
+    } catch (error) {
+        beam.data = null;
+    }
+    beamVideo.currentTime = 0;
+    beamVideo.play();
 }
 
 addEventListener("click", event => {
@@ -150,25 +125,189 @@ addEventListener("click", event => {
     }
 });
 
-function drawLeek(x, y, size, angle) {
+// time of the video (or of the clock without it) and its loudness 0-1
+function beamTime() {
+    return beamVideo && !beamVideo.paused ? beamVideo.currentTime : (performance.now() - beam.start) / 1000;
+}
+
+function loudness() {
+    if (!beam.data) {
+        return 0.6 + 0.4 * Math.abs(Math.sin(performance.now() / 90));
+    }
+    analyser.getByteTimeDomainData(beam.data);
+    let sum = 0;
+
+    for (const v of beam.data) {
+        sum += ((v - 128) / 128) ** 2;
+    }
+    return Math.min(1, Math.sqrt(sum / beam.data.length) * 3.5);
+}
+
+function bigText(text, x, y, size, pop, angle = -0.06) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-    ctx.fillStyle = "#f4fbe9";
+    ctx.scale(pop, pop);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `italic 900 ${size}px "Adwaita Sans", sans-serif`;
+    for (let i = 7; i > 0; i--) {
+        ctx.fillStyle = i > 4 ? "#062627" : "#0d4f4c";
+        ctx.fillText(text, i * size * 0.012, i * size * 0.012);
+    }
+    ctx.lineWidth = size * 0.09;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#ffffff";
+    ctx.strokeText(text, 0, 0);
+    const fill = ctx.createLinearGradient(0, -size / 2, 0, size / 2);
+
+    fill.addColorStop(0, `rgb(${TEAL.join(", ")})`);
+    fill.addColorStop(0.55, "#e9fffd");
+    fill.addColorStop(1, `rgb(${PINK.join(", ")})`);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+}
+
+// an elastic pop: 0 -> 1 with a small overshoot
+function popIn(k) {
+    return k <= 0 ? 0 : (k >= 1 ? 1 : 1 + Math.pow(2, -10 * k) * Math.sin((k * 10 - 0.75) * (2 * Math.PI / 3)));
+}
+
+const LOADING = [[255, 170, 90], [255, 120, 170], [190, 235, 80], [90, 225, 235], [200, 130, 245], [255, 225, 90]];
+const LIGHTS = [[230, 40, 70], [255, 200, 40], [110, 210, 60]];
+
+function ease(k) {
+    const x = Math.max(0, Math.min(1, k));
+
+    return x * x * (3 - 2 * x);
+}
+
+function flower(x, y, r, petal) {
+    ctx.strokeStyle = "#6cc04a";
+    ctx.lineWidth = r * 0.22;
     ctx.beginPath();
-    ctx.roundRect(-size * 0.12, 0, size * 0.24, size * 0.55, size * 0.1);
-    ctx.fill();
-    ctx.fillStyle = "#a8e063";
-    ctx.fillRect(-size * 0.12, -size * 0.15, size * 0.24, size * 0.2);
-    ctx.fillStyle = "#3f9b35";
+    ctx.moveTo(x, y + r * 0.6);
+    ctx.lineTo(x, y + r * 2.3);
+    ctx.stroke();
+    ctx.fillStyle = petal;
+    for (let i = 0; i < 8; i++) {
+        const a = i / 8 * Math.PI * 2;
+
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.fillStyle = "#ffd84a";
     ctx.beginPath();
-    ctx.moveTo(-size * 0.12, -size * 0.12);
-    ctx.lineTo(-size * 0.32, -size * 0.75);
-    ctx.lineTo(0, -size * 0.2);
-    ctx.lineTo(size * 0.3, -size * 0.8);
-    ctx.lineTo(size * 0.12, -size * 0.12);
-    ctx.closePath();
+    ctx.arc(x, y, r * 0.36, 0, Math.PI * 2);
     ctx.fill();
+}
+
+// "Now Loading...": the card of the video, its middle flower changing color
+function drawLoading(t, alpha) {
+    const w = 470 * u;
+    const h = 250 * u;
+    const color = LOADING[Math.floor(t / 0.8) % LOADING.length];
+    const k = popIn(t / 0.4);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(wd.width * 0.56, wd.height * 0.42);
+    ctx.scale(k, k);
+    ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+    ctx.shadowBlur = 24 * u;
+    ctx.fillStyle = `rgb(${color.map(c => Math.round(c + (255 - c) * 0.35)).join(", ")})`;
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 26 * u);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    // a halftone of dots, bigger toward the bottom right
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    for (let y = -h / 2; y < h / 2; y += 14 * u) {
+        for (let x = -w / 2; x < w / 2; x += 14 * u) {
+            const r = (0.5 + (x + w / 2) / w + (y + h / 2) / h) * 1.6 * u;
+
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+    flower(-w * 0.28, -h * 0.16, 34 * u, "rgba(255, 255, 255, 0.92)");
+    flower(0, -h * 0.16, 34 * u, `rgb(${color.join(", ")})`);
+    flower(w * 0.28, -h * 0.16, 34 * u, "rgba(255, 255, 255, 0.92)");
+    ctx.font = `italic 800 ${22 * u}px "Adwaita Sans", sans-serif`;
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "end";
+    ctx.fillText("Now Loading" + ".".repeat(Math.floor(t * 3) % 4), w / 2 - 22 * u, h / 2 - 20 * u);
+    ctx.textAlign = "start";
+    // the dotted line fills up to the count
+    ctx.setLineDash([3 * u, 6 * u]);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.lineWidth = 2 * u;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + 22 * u, h / 2 - 27 * u);
+    ctx.lineTo(-w / 2 + 22 * u + (w - 222 * u) * Math.min(1, t / COUNT[0]), h / 2 - 27 * u);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+}
+
+// the countdown of the video: three lights, red, yellow and green, lit on 1, 2 and 3
+function drawLights(t, alpha) {
+    const r = 56 * u;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    COUNT.forEach((at, i) => {
+        const k = popIn((t - at) / 0.35);
+
+        if (k <= 0) {
+            return;
+        }
+        ctx.save();
+        ctx.translate(wd.width * 0.56 + (i - 1) * r * 2.7, wd.height * 0.42);
+        ctx.scale(k, k);
+        ctx.shadowColor = `rgb(${LIGHTS[i].join(", ")})`;
+        ctx.shadowBlur = 34 * u;
+        ctx.fillStyle = `rgb(${LIGHTS[i].join(", ")})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = "transparent";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 6 * u;
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.3, -r * 0.4, r * 0.32, r * 0.18, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = `italic 900 ${r * 1.1}px "Adwaita Sans", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(String(i + 1), 0, 4 * u);
+        ctx.restore();
+    });
+    ctx.restore();
+}
+
+// a subtitle as in the video: white, outlined, at the bottom
+function subtitle(text, y, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `700 ${wd.height * 0.034}px "Adwaita Sans", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = wd.height * 0.008;
+    ctx.strokeStyle = "rgba(20, 20, 30, 0.9)";
+    ctx.strokeText(text, wd.width / 2, y);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(text, wd.width / 2, y);
     ctx.restore();
 }
 
@@ -176,108 +315,54 @@ function drawBeam(dt) {
     if (!beam) {
         return;
     }
-    beam.time += dt;
-    const t = beam.time;
+    const t = beamTime();
 
-    while (beam.step + 1 < STEPS.length && t >= STEPS[beam.step + 1].at) {
-        const step = STEPS[++beam.step];
-
-        step.sound();
-        wd.say(step.say);
-        if (beam.step === STEPS.length - 1) {
-            for (let i = 0; i < 39; i++) {
-                leeks.push({ x: random() * wd.width, y: -random() * wd.height * 0.6, speed: (300 + random() * 400) * u,
-                    spin: (random() - 0.5) * 6, angle: random() * 6, size: (36 + random() * 30) * u });
-            }
-        }
-    }
-    const fire_at = STEPS[STEPS.length - 1].at;
-    const step = STEPS[beam.step];
-
-    // countdown: dimmed screen, the number pops
-    if (t < fire_at) {
-        const k = t - step.at;
-        const pop = 1 + 0.4 * Math.exp(-k * 9);
-
-        ctx.fillStyle = `rgba(11, 43, 44, ${Math.min(0.55, t * 2)})`;
-        ctx.fillRect(0, 0, wd.width, wd.height);
-        ctx.save();
-        ctx.translate(wd.width / 2, wd.height * 0.45);
-        ctx.scale(pop, pop);
-        ctx.textAlign = "center";
-        ctx.font = `italic 900 ${Math.round(wd.height * 0.2)}px "Adwaita Sans", sans-serif`;
-        ctx.lineWidth = 10 * u;
-        ctx.strokeStyle = `rgb(${PINK.join(", ")})`;
-        ctx.fillStyle = "#ffffff";
-        ctx.strokeText(step.big, 0, 0);
-        ctx.fillText(step.big, 0, 0);
-        if (step.small) {
-            ctx.font = `800 ${Math.round(wd.height * 0.05)}px "JetBrains Mono", monospace`;
-            ctx.fillStyle = `rgb(${TEAL.join(", ")})`;
-            ctx.fillText(step.small, 0, wd.height * 0.08);
-        }
-        ctx.restore();
-        ctx.textAlign = "start";
+    if (t >= END || (beamVideo && beamVideo.ended)) {
+        beam = null;
         return;
     }
-    // the beam: from her eyes to the edge, flash, shake, leeks
-    const k = t - fire_at;
-    const grow = Math.min(1, k / 0.35);
-    const fade = Math.max(0, Math.min(1, (3.2 - k) / 0.8));
-    const eyeX = wd.width * 0.235;
-    const eyeY = wd.height * 0.165;
-    const height = (110 + 40 * Math.sin(k * 30)) * u * fade;
-    const ray = ctx.createLinearGradient(0, eyeY - height / 2, 0, eyeY + height / 2);
+    const level = loudness();
+    const shown = beamVideo && beamVideo.readyState >= 2 && t >= READY;
 
-    ray.addColorStop(0, "rgba(57, 197, 187, 0)");
-    ray.addColorStop(0.25, "rgba(57, 197, 187, 0.9)");
-    ray.addColorStop(0.5, "#ffffff");
-    ray.addColorStop(0.75, "rgba(225, 40, 133, 0.9)");
-    ray.addColorStop(1, "rgba(225, 40, 133, 0)");
-    ctx.save();
-    if (k < 1.2) {
-        ctx.translate((random() - 0.5) * 16 * u, (random() - 0.5) * 16 * u);
-    }
-    ctx.shadowColor = `rgb(${TEAL.join(", ")})`;
-    ctx.shadowBlur = 50 * u;
-    ctx.fillStyle = ray;
-    ctx.beginPath();
-    ctx.roundRect(eyeX, eyeY - height / 2, (wd.width - eyeX) * grow, height, [0, height / 2, height / 2, 0]);
-    ctx.fill();
-    ctx.restore();
-    if (k < 0.4) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * (1 - k / 0.4)})`;
+    if (!shown) {
+        // the count: the screen darkens, the loading card fills, then the lights, a flash on each, the subtitles
+        ctx.fillStyle = `rgba(4, 22, 23, ${Math.min(0.55, t * 0.25)})`;
         ctx.fillRect(0, 0, wd.width, wd.height);
-    }
-    for (let i = leeks.length - 1; i >= 0; i--) {
-        const leek = leeks[i];
-
-        leek.y += leek.speed * dt;
-        leek.angle += leek.spin * dt;
-        if (leek.y > wd.height + 80 * u) {
-            leeks.splice(i, 1);
-            continue;
+        if (t < COUNT[0] + 0.1) {
+            drawLoading(t, Math.min(1, (COUNT[0] + 0.1 - t) / 0.2));
         }
-        drawLeek(leek.x, leek.y, leek.size, leek.angle);
+        if (t >= COUNT[0]) {
+            drawLights(t, 1);
+        }
+        for (const at of COUNT) {
+            if (t >= at && t < at + 0.25) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * (1 - (t - at) / 0.25)})`;
+                ctx.fillRect(0, 0, wd.width, wd.height);
+            }
+        }
+        for (const [from, to, text] of LINES) {
+            if (t >= from && t < to) {
+                subtitle(text, wd.height * 0.88, Math.min(1, (t - from) / 0.12, (to - t) / 0.12));
+            }
+        }
+        // no video (not made yet): the words of the beam over a violet light, on the clock
+        if (!beamVideo && t >= READY) {
+            ctx.fillStyle = `rgba(90, 70, 255, ${0.35 + 0.25 * level})`;
+            ctx.fillRect(0, 0, wd.width, wd.height);
+            bigText("MIKU MIKU BEAAAAM!!", wd.width / 2, wd.height / 2, wd.height * 0.11, popIn((t - READY) / 0.4), -0.05);
+        }
+        return;
     }
-    ctx.save();
-    ctx.globalAlpha = fade;
-    ctx.translate(wd.width * 0.55, wd.height * 0.32);
-    ctx.scale(Math.min(1, k * 4), Math.min(1, k * 4));
-    ctx.textAlign = "center";
-    ctx.font = `italic 900 ${Math.round(wd.height * 0.09)}px "Adwaita Sans", sans-serif`;
-    ctx.lineWidth = 8 * u;
-    ctx.strokeStyle = `rgb(${PINK.join(", ")})`;
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = `rgb(${TEAL.join(", ")})`;
-    ctx.shadowOffsetX = 6 * u;
-    ctx.shadowOffsetY = 6 * u;
-    ctx.strokeText("MIKU MIKU BEAAAAM!!!", 0, 0);
-    ctx.fillText("MIKU MIKU BEAAAAM!!!", 0, 0);
-    ctx.restore();
-    if (k > 4 && !leeks.length) {
-        beam = null;
-    }
+    // the video, cut in on "Ready?", faded out at the end (its own subtitles, hands, beam and static)
+    const scale = Math.max(wd.width / beamVideo.videoWidth, wd.height / beamVideo.videoHeight);
+    const w = beamVideo.videoWidth * scale;
+    const h = beamVideo.videoHeight * scale;
+
+    ctx.globalAlpha = Math.min(1, (END - t) / 0.4);
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, wd.width, wd.height);
+    ctx.drawImage(beamVideo, (wd.width - w) / 2, (wd.height - h) / 2, w, h);
+    ctx.globalAlpha = 1;
 }
 
 function rounded(x, y, w, h, r) {
@@ -469,7 +554,7 @@ function drawRadio(t) {
             ctx.fill();
         }
     }
-    radio.buttons(ctx, lcd.x + lcd.w + 6 * u - 4 * 16 * u * 2.6, p.y + p.h - 44 * u, 14 * u, {
+    radio.buttons(ctx, lcd.x + lcd.w - (radio.actions.length - 1) * 14 * u * 2.6 - 28 * u, p.y + p.h - 44 * u, 14 * u, {
         accent: `rgb(${PINK.join(", ")})`, onAccent: "#ffffff", button: "rgba(57, 197, 187, 0.18)",
         hover: "rgba(57, 197, 187, 0.45)", icon: "#e9fffd",
     });
