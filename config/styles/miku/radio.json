@@ -72,6 +72,57 @@
             "subtitle": "Thank You",
             "search": "39 sasakure.UK DECO*27 初音ミク",
             "offline": false
+        },
+        {
+            "title": "桜日和とタイムマシン",
+            "subtitle": "Sakura Biyori and Time Machine (with Ado)",
+            "url": "https://www.youtube.com/watch?v=nIWZfhpnq6M",
+            "offline": false
+        },
+        {
+            "title": "Miku",
+            "subtitle": "Anamanaguchi",
+            "url": "https://www.youtube.com/watch?v=NocXEwsJGOQ",
+            "offline": false
+        },
+        {
+            "title": "Ievan Polkka",
+            "subtitle": "Miku Polka",
+            "url": "https://www.youtube.com/watch?v=z5Ub37hEQFo",
+            "offline": false
+        },
+        {
+            "title": "㋰責任集合体",
+            "subtitle": "OUTLAWS (Kasane Teto)",
+            "url": "https://www.youtube.com/watch?v=c5_0NPftdlY",
+            "offline": false
+        },
+        {
+            "title": "ガッチュー！",
+            "subtitle": "I GOT YOU! (Giga)",
+            "url": "https://www.youtube.com/watch?v=Dq2HJl5vKbY",
+            "offline": false
+        },
+        {
+            "title": "テトリス",
+            "subtitle": "Tetoris (Kasane Teto)",
+            "url": "https://www.youtube.com/watch?v=Soy4jGPHr3g",
+            "offline": false
         }
-    ]
+    ],
+    "media": {
+        "beam": {
+            "url": "https://www.youtube.com/watch?v=LaEgpNBt-bQ",
+            "sections": [
+                [
+                    85.28,
+                    104.62
+                ]
+            ],
+            "video": true,
+            "height": 720,
+            "fps": 30,
+            "title": "MIKU MIKU BEAM, M@GICAL☆CURE! LOVE ♥ SHOT! (SAWTOWNE feat. Hatsune Miku), its video"
+        }
+    }
 }

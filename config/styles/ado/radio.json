@@ -72,6 +72,79 @@
             "subtitle": "Yoru no Pierrot",
             "search": "【Ado】夜のピエロ",
             "offline": false
+        },
+        {
+            "title": "Value",
+            "subtitle": "Value",
+            "url": "https://www.youtube.com/watch?v=5iAQF_q6FSk",
+            "offline": false
+        },
+        {
+            "title": "ビバリウム",
+            "subtitle": "Vivarium",
+            "url": "https://www.youtube.com/watch?v=YvYii6dluM8",
+            "offline": false
+        },
+        {
+            "title": "初夏",
+            "subtitle": "Shoka",
+            "url": "https://www.youtube.com/watch?v=GORsp0gc2Nc",
+            "offline": false
+        },
+        {
+            "title": "永遠のあくる日",
+            "subtitle": "Eien no Akuruhi",
+            "url": "https://www.youtube.com/watch?v=ZHAnZTVF_10",
+            "offline": false
+        },
+        {
+            "title": "いばら",
+            "subtitle": "Ibara",
+            "url": "https://www.youtube.com/watch?v=oy2WTnhVT2w",
+            "offline": false
+        },
+        {
+            "title": "キライ・キライ・ジガヒダイ！",
+            "subtitle": "Kirai Kirai Jiga Hidai",
+            "url": "https://www.youtube.com/watch?v=gmJiYoRhO5g",
+            "offline": false
         }
-    ]
+    ],
+    "media": {
+        "stage": {
+            "url": "https://www.youtube.com/watch?v=H-UbEcmIKSc",
+            "sections": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    38.5,
+                    43.5
+                ],
+                [
+                    119,
+                    129
+                ],
+                [
+                    130,
+                    136
+                ],
+                [
+                    148.5,
+                    153.5
+                ],
+                [
+                    195.5,
+                    200
+                ]
+            ],
+            "video": true,
+            "audio": false,
+            "height": 540,
+            "fps": 24,
+            "bitrate": "1500k",
+            "title": "the Ado Box on stage, 心という名の不可解 at K-Arena Yokohama 2024 (Ado, official live video)"
+        }
+    }
 }

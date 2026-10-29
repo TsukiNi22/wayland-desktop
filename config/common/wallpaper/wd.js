@@ -10,6 +10,10 @@
 //                     the wallpaper lets them through)
 //   wd.radio, wd.radioCommand(action, extra)       state and control of the radio played by wd-wallpaper (mpv)
 //   wd.player(), wd.marquee(...), wd.cursor(on)    the radio of the style drawn by the page, scrolling text, hand pointer
+//                     (a page without its own player gets a small one when its radio is shown: wd-style radio show,
+//                     its colors from wd.radioLook = { panel, border, fg, muted, accent, onAccent, font, mono, corner })
+//   wd.video(key, { audio, loop })   a media of the page (radio.json "media": a clip made by wd-wallpaper), paused
+//                     with the wallpaper; null until it is made
 // The body fades in over the still wallpaper (or the previous page), then tells wd-wallpaper it is ready
 "use strict";
 
@@ -37,10 +41,14 @@ const wd = (() => {
         lastAudio: -1e9,
         fps: 24,
         mouse: { x: -1, y: -1 },
-        radio: { available: params.get("radio") === "1", playing: false, paused: false, title: "", index: 0, station: "" },
+        radio: { available: params.get("radio") === "1", playing: false, paused: false, title: "", index: 0, station: "",
+            loop: false },
         station: null,
+        radioLook: {},
     };
     const contexts = [];
+    // the media of the page (videos), paused while the wallpaper doesn't show
+    const videos = [];
 
     // levels from wd-wallpaper (cava, 0-1000)
     window.wdAudio = values => {
@@ -53,6 +61,13 @@ const wd = (() => {
     // how much of the wallpaper shows (wd-wallpaper): the frame rate follows
     window.wdPower = fps => {
         state.fps = fps;
+        for (const { element, loop } of videos) {
+            if (fps <= 0 && !element.paused) {
+                element.pause();
+            } else if (fps > 0 && loop && element.paused) {
+                element.play().catch(() => {});
+            }
+        }
     };
 
     // radio state and station of the style (radio.json + the tracks kept offline) from wd-wallpaper
@@ -73,20 +88,20 @@ const wd = (() => {
         }
     }
 
-    // the only parts of the wallpaper that take the clicks: rects {x, y, w, h} in page pixels
+    // the only parts of the wallpaper that take the clicks: rects {x, y, w, h} in page pixels (the small radio adds its own)
+    let pageRects = [];
+    let radioRect = null;
+
     function clickable(rects) {
-        post({ type: "input", rects: rects.map(r => [Math.floor(r.x), Math.floor(r.y), Math.ceil(r.w), Math.ceil(r.h)]) });
+        pageRects = rects;
+        post({ type: "input", rects: rects.concat(radioRect ? [radioRect] : [])
+            .map(r => [Math.floor(r.x), Math.floor(r.y), Math.ceil(r.w), Math.ceil(r.h)]) });
     }
 
     function hit(rect) {
         const { x, y } = state.mouse;
 
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
-    }
-
-    // a line said aloud by wd-wallpaper (espeak-ng)
-    function say(text) {
-        post({ type: "say", text: text });
     }
 
     // play (station, index), toggle, next, prev, stop
@@ -188,6 +203,7 @@ const wd = (() => {
                 t += Math.min(dt, 0.1);
                 update(t, Math.min(dt, 0.1));
                 draw(t, Math.min(dt, 0.1));
+                drawRadio(t);
             }
             requestAnimationFrame(frame);
         };
@@ -201,6 +217,31 @@ const wd = (() => {
         const element = new Image();
 
         element.src = src;
+        return element;
+    }
+
+    // a media of the page: a <video> (muted unless audio), looping or not, paused with the wallpaper
+    function video(key, options = {}) {
+        const src = state.station && state.station.media ? state.station.media[key] : null;
+
+        if (!src) {
+            return null;
+        }
+        const element = document.createElement("video");
+
+        element.src = src;
+        element.muted = !options.audio;
+        element.loop = !!options.loop;
+        element.playsInline = true;
+        element.preload = "auto";
+        // in the document (tiny, behind the page): WebKit only runs and paints a video that is in it
+        Object.assign(element.style, { position: "fixed", left: "0", top: "0", width: "2px", height: "2px", opacity: "0.01",
+            zIndex: "-1", pointerEvents: "none" });
+        document.body.appendChild(element);
+        videos.push({ element: element, loop: !!options.loop });
+        if (options.loop && state.fps > 0) {
+            element.play().catch(() => {});
+        }
         return element;
     }
 
@@ -236,13 +277,18 @@ const wd = (() => {
         ctx.restore();
     }
 
-    // The radio drawn by the page: player() plays the station of the style (its radio.json, given by wd-wallpaper with
-    // the tracks kept offline); the page draws its decor, then player.buttons(ctx, x, y, size, colors) (previous,
-    // play / pause, next, stop), the clicks are handled here
-    function player() {
+    // The radio drawn by the page: player() plays the station of the style (its radio.json and the user's tracks, given
+    // by wd-wallpaper with the tracks kept offline); the page draws its decor, then player.buttons(ctx, x, y, size,
+    // colors) (previous, play / pause, next, stop, loop the track, save it offline (a save dialog) or back online,
+    // import audio files (a dialog)), the clicks are handled here
+    let ownPlayer = false;
+
+    function player(embedded = false) {
+        ownPlayer = ownPlayer || !embedded;
         const self = {
             index: 0,
             rects: [],
+            actions: ["prev", "play", "next", "stop", "loop", "offline", "import"],
             tracks: () => (state.station ? state.station.tracks : []),
             playing: () => state.radio.playing && state.station !== null && state.radio.station === state.station.station,
             position: () => (self.playing() ? state.radio.index : self.index) % Math.max(1, self.tracks().length),
@@ -250,11 +296,15 @@ const wd = (() => {
             title: () => {
                 const track = self.current();
 
-                return self.playing() && state.radio.title ? state.radio.title : `${track.title}  \u2014  ${track.subtitle}`;
+                return self.playing() && state.radio.title ? state.radio.title
+                    : track.title + (track.subtitle ? `  \u2014  ${track.subtitle}` : "");
             },
             status: () => {
                 if (!state.radio.available && !self.current().cached) {
                     return "needs mpv + yt-dlp";
+                }
+                if (self.current().downloading) {
+                    return "\u2913  downloading\u2026";
                 }
                 if (!self.playing()) {
                     return self.current().cached ? "\u25b6  click play  \u00b7  offline" : "\u25b6  click play";
@@ -272,6 +322,15 @@ const wd = (() => {
                         index: self.index, title: "" });
                 } else if (action === "stop") {
                     radioCommand("stop");
+                } else if (action === "offline" && state.station) {
+                    radioCommand("offline", { station: state.station.station, index: self.position() });
+                } else if (action === "import" && state.station) {
+                    radioCommand("import", { station: state.station.station });
+                } else if (action === "loop") {
+                    if (self.playing()) {
+                        radioCommand("loop");
+                        state.radio.loop = !state.radio.loop;
+                    }
                 } else if (self.playing()) {
                     radioCommand(action);
                 } else {
@@ -279,26 +338,32 @@ const wd = (() => {
                 }
             },
             buttons: (ctx, x, y, size, colors) => {
-                const actions = ["prev", "play", "next", "stop"];
-
-                self.rects = actions.map((action, i) => ({ action: action, x: x + i * size * 2.6, y: y, w: size * 2, h: size * 2 }));
+                self.rects = self.actions.map((action, i) => ({ action: action, x: x + i * size * 2.6, y: y, w: size * 2, h: size * 2 }));
                 for (const rect of self.rects) {
                     const cx = rect.x + size;
                     const cy = rect.y + size;
                     const main = rect.action === "play";
                     const over = hit(rect);
 
-                    ctx.fillStyle = main ? colors.accent : (over ? colors.hover : colors.button);
+                    const on = rect.action === "loop" && self.playing() && state.radio.loop;
+
+                    ctx.fillStyle = main || on ? colors.accent : (over ? colors.hover : colors.button);
                     ctx.beginPath();
                     ctx.arc(cx, cy, size * (over ? 1.08 : 1), 0, Math.PI * 2);
                     ctx.fill();
-                    ctx.fillStyle = main ? colors.onAccent : colors.icon;
-                    icon(ctx, rect.action === "play" && self.playing() && !state.radio.paused ? "pause" : rect.action,
-                        cx, cy, size * 0.42);
+                    ctx.fillStyle = main || on ? colors.onAccent : colors.icon;
+                    icon(ctx, rect.action === "play" && self.playing() && !state.radio.paused ? "pause"
+                        : (rect.action === "offline" ? self.keeping() : rect.action), cx, cy, size * 0.42);
                 }
             },
         };
 
+        // the offline button: a check when the track is kept offline, dots while it downloads, else an arrow down
+        self.keeping = () => {
+            const track = self.current();
+
+            return track.downloading ? "busy" : (track.offline && track.cached ? "saved" : "download");
+        };
         addEventListener("click", event => {
             const target = self.rects.find(rect => event.clientX >= rect.x && event.clientX <= rect.x + rect.w
                 && event.clientY >= rect.y && event.clientY <= rect.y + rect.h);
@@ -332,9 +397,111 @@ const wd = (() => {
         } else if (name === "prev") {
             triangle(0.9, -0.4);
             ctx.fillRect(x - r * 0.75, y - r, r * 0.3, r * 2);
+        } else if (name === "loop") {
+            ctx.save();
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.lineWidth = r * 0.28;
+            ctx.beginPath();
+            ctx.arc(x, y, r * 0.72, -0.3, Math.PI * 1.55);
+            ctx.stroke();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.moveTo(x + r * 0.95, y - r * 0.55);
+            ctx.lineTo(x + r * 0.35, y - r * 0.05);
+            ctx.lineTo(x + r * 0.35, y - r * 0.95);
+            ctx.closePath();
+            ctx.fill();
+        } else if (name === "import") {
+            ctx.fillRect(x - r * 0.16, y - r * 0.85, r * 0.32, r * 1.7);
+            ctx.fillRect(x - r * 0.85, y - r * 0.16, r * 1.7, r * 0.32);
+        } else if (name === "download") {
+            ctx.fillRect(x - r * 0.18, y - r, r * 0.36, r * 1.1);
+            ctx.beginPath();
+            ctx.moveTo(x - r * 0.7, y - r * 0.05);
+            ctx.lineTo(x + r * 0.7, y - r * 0.05);
+            ctx.lineTo(x, y + r * 0.65);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillRect(x - r * 0.85, y + r * 0.8, r * 1.7, r * 0.25);
+        } else if (name === "saved") {
+            ctx.save();
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.lineWidth = r * 0.36;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            ctx.moveTo(x - r * 0.7, y);
+            ctx.lineTo(x - r * 0.15, y + r * 0.55);
+            ctx.lineTo(x + r * 0.75, y - r * 0.55);
+            ctx.stroke();
+            ctx.restore();
+        } else if (name === "busy") {
+            for (let i = 0; i < 3; i++) {
+                ctx.globalAlpha = 0.35 + 0.65 * (Math.floor(performance.now() / 250) % 3 === i ? 1 : 0);
+                ctx.beginPath();
+                ctx.arc(x + (i - 1) * r * 0.7, y, r * 0.24, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
         } else {
             ctx.fillRect(x - r * 0.75, y - r * 0.75, r * 1.5, r * 1.5);
         }
+    }
+
+    // The small radio of a page without its own: a panel in a corner when the radio of the style is shown
+    let builtIn = null;
+    let radioLayer = null;
+
+    function drawRadio(t) {
+        const shown = !ownPlayer && state.station && state.station.shown;
+
+        if (!shown) {
+            if (radioRect) {
+                radioRect = null;
+                radioLayer.clearRect(0, 0, state.width, state.height);
+                builtIn.rects = [];
+                clickable(pageRects);
+            }
+            return;
+        }
+        builtIn = builtIn || player(true);
+        if (!radioLayer) {
+            radioLayer = canvas("wd-radio");
+            Object.assign(radioLayer.canvas.style, { position: "fixed", inset: "0", width: "100%", height: "100%",
+                zIndex: "5", pointerEvents: "none" });
+        }
+        const look = Object.assign({ panel: "rgba(12, 14, 18, 0.86)", border: "rgba(255, 255, 255, 0.16)", fg: "#e9edf2",
+            muted: "#98a2b0", accent: "#5aa9ff", onAccent: "#0e1217", font: '"Adwaita Sans", sans-serif',
+            mono: '"JetBrains Mono", monospace', corner: 14 }, state.radioLook);
+        const w = 420;
+        const h = 116;
+        const x = 40;
+        const y = state.height - h - 40;
+        const g = radioLayer;
+
+        if (!radioRect || radioRect.x !== x || radioRect.y !== y) {
+            radioRect = { x: x, y: y, w: w, h: h };
+            clickable(pageRects);
+        }
+        g.clearRect(0, 0, state.width, state.height);
+        g.fillStyle = look.panel;
+        g.strokeStyle = look.border;
+        g.lineWidth = 1;
+        g.beginPath();
+        g.roundRect(x, y, w, h, look.corner);
+        g.fill();
+        g.stroke();
+        g.font = `700 11px ${look.mono}`;
+        g.fillStyle = look.accent;
+        g.fillText((state.station.name || "RADIO").toUpperCase(), x + 18, y + 24);
+        g.fillStyle = look.muted;
+        g.fillText(builtIn.status(), x + 18 + g.measureText((state.station.name || "RADIO").toUpperCase()).width + 16, y + 24);
+        g.font = `600 15px ${look.font}`;
+        g.fillStyle = look.fg;
+        marquee(g, builtIn.title(), x + 18, y + 50, w - 36, t);
+        builtIn.buttons(g, x + 18, y + 66, 14, { accent: look.accent, onAccent: look.onAccent,
+            button: "rgba(255, 255, 255, 0.08)", hover: "rgba(255, 255, 255, 0.2)", icon: look.fg });
+        cursor(builtIn.rects.some(hit));
     }
 
     // small helpers for the pages
@@ -354,6 +521,6 @@ const wd = (() => {
     document.addEventListener("mouseleave", () => Object.assign(state.mouse, { x: -1, y: -1 }));
     document.body.style.opacity = "0";
     document.body.style.transition = "opacity 0.9s ease-out";
-    return Object.assign(state, { canvas, run, image, cover, rand, clickable, hit, radioCommand, marquee, player, cursor,
-        say });
+    return Object.assign(state, { canvas, run, image, video, cover, rand, clickable, hit, radioCommand, marquee, player,
+        cursor });
 })();
