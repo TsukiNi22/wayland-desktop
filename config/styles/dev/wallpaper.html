@@ -17,6 +17,10 @@
 <script>
 "use strict";
 
+// the small radio of wd.js (hidden by default: wd-style radio show, Super+Shift+M)
+wd.radioLook = { panel: "rgba(10, 29, 18, 0.9)", border: "#1c4a2e", fg: "#b8f5cf", muted: "#2f7a4f", accent: "#39ff88",
+    onAccent: "#040705", font: '"JetBrains Mono", monospace', corner: 0 };
+
 const GREEN = "#39ff88";
 const DIM = "#1c4a2e";
 const AMBER = "#ffb000";
@@ -32,12 +36,16 @@ let bytes = [];
 let scroll = 0;
 let shift = 0;
 let values = registers.map(() => Math.floor(random() * 0xffffffff));
+// right edge of the hex dump: the terrain starts after it (never over the text)
+let dumpRight = 0;
 
 function hex(value, size) {
     return value.toString(16).padStart(size, "0");
 }
 
 function layout() {
+    ctx.font = font;
+    dumpRight = 118 + ctx.measureText("0").width * 70;
     bytes = Array.from({ length: 200 * 16 }, () => Math.floor(random() * 256));
     crt.clearRect(0, 0, wd.width, wd.height);
     crt.fillStyle = "rgba(0, 0, 0, 0.18)";
@@ -128,13 +136,14 @@ function drawTerrain(t, dt) {
         }
         history.unshift(row);
     }
-    const left = wd.width * 0.4;
-    const width = wd.width * 0.58;
-    const horizon = wd.height * 0.38;
+    // the front row spans from the end of the dump to the right edge, the far rows narrow toward its middle
+    const left = dumpRight + 40;
+    const width = wd.width - 24 - left;
+    const horizon = wd.height * 0.4;
     const floor = wd.height * 0.95;
     const project = (i, depth, level) => {
         const z = 1 + depth * 0.09;
-        const x = left + width / 2 + ((i / (wd.bars - 1)) - 0.5) * width / z * 1.4;
+        const x = left + width / 2 + ((i / (wd.bars - 1)) - 0.5) * width / z;
         const y = horizon + (floor - horizon) / z - level * wd.height * 0.32 / z;
 
         return [x, y];
@@ -186,7 +195,7 @@ function drawTerrain(t, dt) {
 // =========================
 function drawRegisters(t) {
     const x = wd.width - 360;
-    const y = 70;
+    const y = 112;
 
     if (wd.beat > 0.9 || random() < 0.05) {
         values = values.map(v => random() < 0.4 ? Math.floor(random() * 0xffffffff) : v);
