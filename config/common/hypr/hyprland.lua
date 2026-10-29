@@ -16,6 +16,10 @@ local function load(name)
     end
 end
 
+local function style(command)
+    return hl.dsp.exec_cmd(wd_style .. " " .. command)
+end
+
 ------------------
 ---- MONITORS ----
 ------------------
@@ -24,21 +28,23 @@ hl.monitor({
     output   = "",
     mode     = "preferred",
     position = "auto",
-    scale    = "auto",
+    scale    = 1, -- "auto" picks 1.5 on many 1080p laptops: big and blurry XWayland apps (override in user.lua)
 })
 
 -------------------
 ---- AUTOSTART ----
 -------------------
 
--- wd-style start: links of the active style, waybar and the wallpaper
+-- wd-style start: links of the active style, wallpaper, waybar, notifications (mako) and the overview (quickshell)
 hl.on("hyprland.start", function()
     hl.exec_cmd(wd_style .. " start")
-    hl.exec_cmd("mako")
 end)
 
+hl.env("XCURSOR_THEME", "Adwaita")
+hl.env("HYPRCURSOR_THEME", "Adwaita")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
+hl.env("QS_ICON_THEME", "Adwaita")
 
 ---------------
 ---- INPUT ----
@@ -53,9 +59,23 @@ hl.config({
         },
     },
 
+    general = {
+        resize_on_border = true,
+        snap = {
+            enabled = true,
+        },
+    },
+
     misc = {
-        force_default_wallpaper = 0,
-        disable_hyprland_logo   = true,
+        force_default_wallpaper  = 0,
+        disable_hyprland_logo    = true,
+        animate_manual_resizes   = true,
+        animate_mouse_windowdragging = true,
+        focus_on_activate        = true,
+    },
+
+    binds = {
+        allow_workspace_cycles = true,
     },
 
     dwindle = {
@@ -68,10 +88,17 @@ hl.config({
     },
 })
 
+-- touchpad: 3 fingers sideways change of workspace, 4 fingers up the overview
 hl.gesture({
     fingers   = 3,
     direction = "horizontal",
     action    = "workspace",
+})
+
+hl.gesture({
+    fingers   = 4,
+    direction = "up",
+    action    = function() hl.exec_cmd(wd_style .. " overview") end,
 })
 
 ---------------------
@@ -89,9 +116,19 @@ hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("hyprctl dispatch 'hl.dsp.exit()'"))
 
--- styles: menu / next (wd-style)
-hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd(wd_style .. " menu"))
-hl.bind(mainMod .. " + ALT + W", hl.dsp.exec_cmd(wd_style .. " next"))
+-- GNOME: Super alone (released without another key) the overview, Super twice or Super+A the applications
+hl.bind(mainMod .. " + SUPER_L", style("overview"), { release = true })
+hl.bind(mainMod .. " + A", style("apps"))
+
+-- styles: menu / next, power menu, live or still wallpaper (wd-style)
+hl.bind(mainMod .. " + SHIFT + W", style("menu"))
+hl.bind(mainMod .. " + ALT + W", style("next"))
+hl.bind(mainMod .. " + X", style("power"))
+hl.bind(mainMod .. " + SHIFT + B", style("wallpaper toggle"))
+
+-- notifications: show the last one again / dismiss them all
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("makoctl restore"))
+hl.bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("makoctl dismiss --all"))
 
 -- focus and move with the arrows
 for _, direction in ipairs({ "left", "right", "up", "down" }) do
@@ -106,6 +143,28 @@ for i = 1, 10 do
     hl.bind(mainMod .. " + " .. key, hl.dsp.focus({ workspace = i }))
     hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
 end
+
+-- GNOME: previous / next workspace (Ctrl+Alt+arrows, Super+Page_Up/Down, Super+Alt+arrows), with the window (+ Shift)
+local neighbours = {
+    { keys = { "CTRL + ALT + left", "CTRL + ALT + up", mainMod .. " + Page_Up", mainMod .. " + ALT + left" },      workspace = "r-1" },
+    { keys = { "CTRL + ALT + right", "CTRL + ALT + down", mainMod .. " + Page_Down", mainMod .. " + ALT + right" }, workspace = "r+1" },
+}
+
+for _, neighbour in ipairs(neighbours) do
+    for _, key in ipairs(neighbour.keys) do
+        local mods, name = key:match("^(.*) %+ ([^ ]+)$")
+
+        hl.bind(key, hl.dsp.focus({ workspace = neighbour.workspace }))
+        hl.bind(mods .. " + SHIFT + " .. name, hl.dsp.window.move({ workspace = neighbour.workspace }))
+    end
+end
+
+-- back to the last workspace, windows of the workspace (Alt+Tab), scratchpad
+hl.bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "previous" }))
+hl.bind("ALT + Tab", hl.dsp.window.cycle_next())
+hl.bind("ALT + SHIFT + Tab", hl.dsp.window.cycle_next({ next = false }))
+hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("scratchpad"))
+hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:scratchpad" }))
 
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
 hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
@@ -126,6 +185,55 @@ hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
+
+-------------------------
+---- WINDOWS, LAYERS ----
+-------------------------
+
+-- small tools float in the middle, picture in picture stays on top
+hl.window_rule({
+    name   = "wd-float-tools",
+    match  = { class = "^(pavucontrol|org.pulseaudio.pavucontrol|nm-connection-editor|blueman-manager|org.gnome.Calculator|xdg-desktop-portal-gtk)$" },
+    float  = true,
+    center = true,
+    size   = "900 600",
+})
+
+-- the monitor and settings opened from the bar (wd-style monitor / settings)
+hl.window_rule({
+    name   = "wd-float-popups",
+    match  = { class = "^(wd-float)$" },
+    float  = true,
+    center = true,
+    size   = "1100 680",
+})
+
+hl.window_rule({
+    name  = "wd-pip",
+    match = { title = "^(Picture-in-Picture|Picture in picture)$" },
+    float = true,
+    pin   = true,
+    keep_aspect_ratio = true,
+})
+
+-- the bar, the menus, the notifications and the overview blur what is behind them
+for _, namespace in ipairs({ "waybar", "wofi", "notifications", "wd-overview" }) do
+    hl.layer_rule({
+        name         = "wd-blur-" .. namespace,
+        match        = { namespace = namespace },
+        blur         = true,
+        ignore_alpha = 0.2,
+    })
+end
+
+-- the overview and the live wallpaper animate themselves
+for _, namespace in ipairs({ "wd-overview", "wd-wallpaper" }) do
+    hl.layer_rule({
+        name    = "wd-no-anim-" .. namespace,
+        match   = { namespace = namespace },
+        no_anim = true,
+    })
+end
 
 ---------------------
 ---- STYLE, USER ----

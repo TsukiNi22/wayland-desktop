@@ -4,16 +4,25 @@
 #   current [--label]    the active style (--label: icon + name, for the waybar module)
 #   set <style>          switch to a style
 #   next | prev          switch to the next / previous style
-#   menu                 choose a style in a wofi menu
-#   start                links of the active style, waybar and the wallpaper (run when Hyprland starts)
-# Switch the wayland-desktop style live: links the files of the style, reloads Hyprland, restarts waybar and the
-# wallpaper, reloads kitty
+#   menu                 choose a style in a wofi menu (run again: closes it)
+#   overview | apps      GNOME-like overview / applications grid (quickshell, else the wofi launcher)
+#   wallpaper [mode]     live (animated, follows the music) | still | toggle
+#   power                lock, log out, suspend, reboot or shut down in a wofi menu
+#   monitor              system monitor (btop, htop or top) in a floating terminal
+#   settings <panel>     network, sound or power settings (GNOME settings when installed)
+#   cava                 music bars for the waybar module (empty when silent)
+#   start                links of the active style and the session programs (run when Hyprland starts)
+# Switch the wayland-desktop style live: links the files of the style, reloads Hyprland, restarts waybar, the
+# wallpaper and the notifications, reloads kitty; the overview follows by itself (theme.json)
 set -euo pipefail
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 DATA_DIR="$CONFIG_DIR/wayland-desktop"
 STYLES_DIR="$DATA_DIR/styles"
 CURRENT_FILE="$DATA_DIR/current"
+WALLPAPER_FILE="$DATA_DIR/wallpaper-mode"
+WALLPAPER_BIN="$DATA_DIR/bin/wd-wallpaper"
+SHELL_CONFIG="wayland-desktop"
 
 # =========================
 # Styles
@@ -40,16 +49,56 @@ current() {
 # Style at <offset> from the current one, cycling: neighbour <offset>
 neighbour() {
     local -a list
+    local active
     local index=0
     local i
 
     mapfile -t list < <(styles)
+    active=$(current)
     for i in "${!list[@]}"; do
-        if [[ "${list[$i]}" == "$(current)" ]]; then
+        if [[ "${list[$i]}" == "$active" ]]; then
             index=$i
         fi
     done
     echo "${list[$(((index + $1 + ${#list[@]}) % ${#list[@]}))]}"
+}
+
+# =========================
+# Session programs
+# =========================
+in_hyprland() {
+    [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]
+}
+
+# PIDs of <program> started by this Hyprland session (another session keeps its own): session_pids <program>
+session_pids() {
+    local pid
+
+    for pid in $(pgrep -x "$1" || true); do
+        if tr '\0' '\n' < "/proc/$pid/environ" 2> /dev/null \
+            | grep -qx "HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-}"; then
+            echo "$pid"
+        fi
+    done
+}
+
+stop() {
+    local pid
+
+    for pid in $(session_pids "$1"); do
+        kill "$pid" 2> /dev/null || true
+    done
+}
+
+# Restart a program detached from this script: restart <program> [arg...]
+restart() {
+    stop "$1"
+    sleep 0.15
+    setsid -f "$@" > /dev/null 2>&1
+}
+
+has() {
+    command -v "$1" > /dev/null
 }
 
 # =========================
@@ -60,31 +109,73 @@ link() {
     local style="$1"
     local dir="$STYLES_DIR/$style"
 
-    mkdir -p "$CONFIG_DIR/hypr" "$CONFIG_DIR/waybar" "$CONFIG_DIR/wofi" "$CONFIG_DIR/kitty"
+    mkdir -p "$CONFIG_DIR/hypr" "$CONFIG_DIR/waybar" "$CONFIG_DIR/wofi" "$CONFIG_DIR/kitty" "$CONFIG_DIR/mako"
     ln -sfn "$dir/hypr.lua" "$CONFIG_DIR/hypr/style.lua"
     ln -sfn "$dir/hyprlock.conf" "$CONFIG_DIR/hypr/hyprlock.conf"
     ln -sfn "$dir/waybar.jsonc" "$CONFIG_DIR/waybar/config.jsonc"
     ln -sfn "$dir/waybar.css" "$CONFIG_DIR/waybar/style.css"
     ln -sfn "$dir/wofi.css" "$CONFIG_DIR/wofi/style.css"
     ln -sfn "$dir/kitty.conf" "$CONFIG_DIR/kitty/theme.conf"
+    ln -sfn "$dir/mako.conf" "$CONFIG_DIR/mako/config"
+    cp "$dir/theme.json" "$DATA_DIR/theme.json"
     echo "$style" > "$CURRENT_FILE"
 }
 
-in_hyprland() {
-    [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]
+wallpaper_mode() {
+    cat "$WALLPAPER_FILE" 2> /dev/null || echo live
 }
 
-restart() {
-    pkill -x "$1" 2> /dev/null || true
-    sleep 0.2
-    setsid -f "$@" > /dev/null 2>&1
+# The live wallpaper needs its page, python GTK 3, WebKit 4.1 and gtk-layer-shell
+live_ready() {
+    [[ -f "$STYLES_DIR/$1/wallpaper.html" && -x "$WALLPAPER_BIN" ]] \
+        && python3 -c 'import gi; gi.require_version("WebKit2", "4.1"); gi.require_version("GtkLayerShell", "0.1")' \
+            2> /dev/null
+}
+
+wallpaper() {
+    local style="$1"
+    local pids
+
+    if [[ "$(wallpaper_mode)" == "live" ]] && live_ready "$style"; then
+        pids=$(session_pids wd-wallpaper)
+        if [[ -n "$pids" ]]; then
+            # already running: it fades to the page of the new style
+            kill -USR1 $pids 2> /dev/null || true
+        else
+            # the still image at once, the live page fades in over it and stops it (wd-wallpaper)
+            restart swaybg -m fill -i "$STYLES_DIR/$style/wallpaper.jpg"
+            stop wd-wallpaper
+            setsid -f "$WALLPAPER_BIN" > /dev/null 2>&1
+        fi
+    else
+        restart swaybg -m fill -i "$STYLES_DIR/$style/wallpaper.jpg"
+        stop wd-wallpaper
+    fi
+}
+
+# The overview (quickshell) reads theme.json by itself: started once, never restarted
+start_shell() {
+    if has quickshell && [[ -z "$(session_pids quickshell)" ]]; then
+        setsid -f quickshell -c "$SHELL_CONFIG" > /dev/null 2>&1
+    fi
 }
 
 session() {
     local style="$1"
 
+    wallpaper "$style"
     restart waybar
-    restart swaybg -m fill -i "$STYLES_DIR/$style/wallpaper.jpg"
+    # mako may have been started by D-Bus (outside of this session): reload whichever one runs
+    if has makoctl && makoctl reload > /dev/null 2>&1; then
+        :
+    elif has mako; then
+        restart mako
+    fi
+    start_shell
+}
+
+notify() {
+    notify-send -a wd-style "$@" 2> /dev/null || true
 }
 
 set_style() {
@@ -99,33 +190,174 @@ set_style() {
         hyprctl reload > /dev/null
         session "$style"
         pkill -USR1 -x kitty 2> /dev/null || true
-        notify-send -a wd-style "$(meta "$style" ICON) $(meta "$style" NAME)" "wayland-desktop style" 2> /dev/null || true
+        sleep 0.3
+        notify "$(meta "$style" ICON)  $(meta "$style" NAME)" "$(meta "$style" DESC)"
+    fi
+}
+
+set_wallpaper() {
+    local mode="${1:-toggle}"
+
+    if [[ "$mode" == "toggle" ]]; then
+        mode=$([[ "$(wallpaper_mode)" == "live" ]] && echo still || echo live)
+    fi
+    if [[ "$mode" != "live" && "$mode" != "still" ]]; then
+        echo "wd-style: wallpaper live | still | toggle" >&2
+        return 1
+    fi
+    echo "$mode" > "$WALLPAPER_FILE"
+    if in_hyprland; then
+        wallpaper "$(current)"
+        if [[ "$mode" == "live" ]] && ! live_ready "$(current)"; then
+            notify "Live wallpaper unavailable" "Needs python3-gobject, webkit2gtk 4.1 and gtk-layer-shell"
+        else
+            notify "Wallpaper: $mode"
+        fi
     fi
 }
 
 # =========================
-# Menu
+# Menus
 # =========================
+# A wofi list: pick <prompt> <width> <line...> (prints the chosen line); a second call closes the open menu
+pick() {
+    local prompt="$1"
+    local width="$2"
+    shift 2
+
+    if pkill -x wofi 2> /dev/null; then
+        return 1
+    fi
+    printf '%s\n' "$@" | wofi --dmenu --prompt "$prompt" --cache-file /dev/null --insensitive \
+        --width "$width" --lines "$#" --location center
+}
+
 menu() {
     local -a list
-    local lines=""
+    local -a lines=()
+    local active
     local choice
     local style
+    local mark
 
     mapfile -t list < <(styles)
     if [[ ${#list[@]} -lt 2 ]]; then
-        notify-send -a wd-style "One style installed" "Install every style to switch: install.sh all" 2> /dev/null || true
+        notify "One style installed" "Every style and the switcher: ./install.sh all"
         return 0
     fi
+    active=$(current)
     for style in "${list[@]}"; do
-        lines+="$(meta "$style" ICON)  $(meta "$style" NAME)$([[ "$style" == "$(current)" ]] && echo "  ●")"$'\n'
+        mark=""
+        if [[ "$style" == "$active" ]]; then
+            mark="  ●"
+        fi
+        lines+=("$(meta "$style" ICON)  $(meta "$style" NAME)$mark     $(meta "$style" DESC)")
     done
-    choice=$(printf '%s' "$lines" | wofi --dmenu --prompt "Style" --cache-file /dev/null --lines "$((${#list[@]} + 1))") || return 0
+    choice=$(pick "Style" 660 "${lines[@]}") || return 0
     for style in "${list[@]}"; do
         if [[ "$choice" == "$(meta "$style" ICON)  $(meta "$style" NAME)"* ]]; then
             set_style "$style"
         fi
     done
+}
+
+power() {
+    local choice
+
+    choice=$(pick "Power" 300 "  Lock" "  Log out" "  Suspend" "  Reboot" "  Shut down") || return 0
+    case "$choice" in
+        *Lock) hyprlock ;;
+        *"Log out") hyprctl dispatch 'hl.dsp.exit()' > /dev/null ;;
+        *Suspend) systemctl suspend ;;
+        *Reboot) systemctl reboot ;;
+        *"Shut down") systemctl poweroff ;;
+    esac
+}
+
+# Overview through quickshell (started when missing), else the wofi launcher: overview <overview | apps>
+overview() {
+    local pid
+    local try
+
+    if has quickshell; then
+        start_shell
+        for try in 1 2 3 4 5 6 7 8 9 10; do
+            pid=$(session_pids quickshell | head -n 1)
+            if [[ -n "$pid" ]] && quickshell ipc --pid "$pid" call overview "$1" > /dev/null 2>&1; then
+                return 0
+            fi
+            sleep 0.2
+        done
+    fi
+    if ! pkill -x wofi 2> /dev/null; then
+        wofi --show drun
+    fi
+}
+
+monitor() {
+    local tool
+
+    for tool in btop htop top; do
+        if has "$tool"; then
+            exec kitty --class wd-float -e "$tool"
+        fi
+    done
+}
+
+settings() {
+    local panel="$1"
+
+    if has gnome-control-center; then
+        XDG_CURRENT_DESKTOP=GNOME exec gnome-control-center "$panel"
+    fi
+    case "$panel" in
+        network)
+            if has nm-connection-editor; then
+                exec nm-connection-editor
+            fi
+            exec kitty --class wd-float -e nmtui
+            ;;
+        sound)
+            if has pavucontrol; then
+                exec pavucontrol
+            fi
+            exec kitty --class wd-float -e bash -c 'wpctl status; read -rsn 1'
+            ;;
+        *) exec kitty --class wd-float -e bash -c 'upower -d | less' ;;
+    esac
+}
+
+# cava bars as one line of blocks per frame, an empty line when silent (the waybar module hides itself)
+cava_bar() {
+    local config="${XDG_RUNTIME_DIR:-/tmp}/wd-cava-bar.conf"
+
+    if ! has cava; then
+        exec sleep infinity
+    fi
+    cat > "$config" << EOF
+[general]
+framerate = 30
+bars = 12
+sleep_timer = 3
+
+[input]
+method = pulse
+source = auto
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 7
+bar_delimiter = 59
+frame_delimiter = 10
+
+[smoothing]
+monstercat = 1
+noise_reduction = 77
+EOF
+    trap 'kill 0' EXIT
+    cava -p "$config" | LC_ALL=C.UTF-8 sed -u 's/;//g; /^0*$/s/.*//; y/01234567/▁▂▃▄▅▆▇█/'
 }
 
 # =========================
@@ -135,7 +367,7 @@ case "${1:-}" in
     list) styles ;;
     current)
         if [[ "${2:-}" == "--label" ]]; then
-            echo "$(meta "$(current)" ICON) $(meta "$(current)" NAME)"
+            echo "$(meta "$(current)" ICON)  $(meta "$(current)" NAME)"
         else
             current
         fi
@@ -144,12 +376,19 @@ case "${1:-}" in
     next) set_style "$(neighbour 1)" ;;
     prev) set_style "$(neighbour -1)" ;;
     menu) menu ;;
+    overview) overview toggle ;;
+    apps) overview apps ;;
+    wallpaper) set_wallpaper "${2:-toggle}" ;;
+    power) power ;;
+    monitor) monitor ;;
+    settings) settings "${2:-network}" ;;
+    cava) cava_bar ;;
     start)
         link "$(current)"
         session "$(current)"
         ;;
     *)
-        sed -n '2,9s/^# \?//p' "$0"
+        sed -n '2,16s/^# \?//p' "$0"
         exit 1
         ;;
 esac
