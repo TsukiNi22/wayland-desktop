@@ -1,0 +1,49 @@
+/* wayland-desktop style: Photographer - waybar */
+
+* {
+    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+tooltip {
+    color: #ece8e1;
+    background: #1b1a18;
+    border: 1px solid #34312c;
+}
+
+window#waybar {
+    color: #8a857c;
+    background: transparent;
+}
+
+#custom-style {
+    padding: 0 12px;
+    color: #d9a441;
+    font-family: "Noto Serif", serif;
+    font-style: italic;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    color: #8a857c;
+    background: transparent;
+}
+
+#workspaces button.active {
+    color: #ece8e1;
+    border-bottom: 1px solid #d9a441;
+}
+
+#clock {
+    color: #ece8e1;
+    font-family: "Noto Serif", serif;
+    font-style: italic;
+    font-size: 15px;
+}
+
+#cpu, #memory, #network, #pulseaudio, #battery, #tray {
+    padding: 0 10px;
+}

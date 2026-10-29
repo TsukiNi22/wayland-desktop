@@ -1,0 +1,38 @@
+/* wayland-desktop style: Dev / low level - wofi (launcher and style menu) */
+
+window {
+    font-family: "JetBrains Mono", "Noto Sans CJK JP", sans-serif;
+    font-size: 14px;
+    color: #b8f5cf;
+    background: rgba(10, 29, 18, 0.95);
+    border: 2px solid #39ff88;
+    border-radius: 0px;
+}
+
+#input {
+    margin: 10px;
+    padding: 8px 12px;
+    color: #b8f5cf;
+    background: #040705;
+    border: 1px solid #1c4a2e;
+    border-radius: 0px;
+}
+
+#inner-box, #outer-box, #scroll {
+    background: transparent;
+}
+
+#entry {
+    margin: 2px 10px;
+    padding: 6px 10px;
+    border-radius: 0px;
+}
+
+#entry:selected {
+    color: #040705;
+    background: #39ff88;
+}
+
+#text:selected {
+    color: #040705;
+}

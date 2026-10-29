@@ -1,0 +1,38 @@
+/* wayland-desktop style: Photographer - wofi (launcher and style menu) */
+
+window {
+    font-family: "JetBrains Mono", "Noto Sans CJK JP", sans-serif;
+    font-size: 14px;
+    color: #ece8e1;
+    background: rgba(27, 26, 24, 0.95);
+    border: 1px solid #d9a441;
+    border-radius: 4px;
+}
+
+#input {
+    margin: 10px;
+    padding: 8px 12px;
+    color: #ece8e1;
+    background: #121110;
+    border: 1px solid #34312c;
+    border-radius: 0px;
+}
+
+#inner-box, #outer-box, #scroll {
+    background: transparent;
+}
+
+#entry {
+    margin: 2px 10px;
+    padding: 6px 10px;
+    border-radius: 0px;
+}
+
+#entry:selected {
+    color: #121110;
+    background: #d9a441;
+}
+
+#text:selected {
+    color: #121110;
+}

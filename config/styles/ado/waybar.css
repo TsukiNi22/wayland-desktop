@@ -1,0 +1,70 @@
+/* wayland-desktop style: Ado / blue rose - waybar */
+
+* {
+    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+tooltip {
+    color: #eaf1ff;
+    background: #0b1430;
+    border: 1px solid #223a7a;
+}
+
+window#waybar {
+    color: #eaf1ff;
+    background: transparent;
+}
+
+.modules-left > widget > *, .modules-center > widget > *, .modules-right > widget > * {
+    margin: 0 2px;
+    padding: 0 14px;
+    border-radius: 18px;
+    background: rgba(11, 20, 48, 0.82);
+    border: 1px solid rgba(34, 58, 122, 0.9);
+}
+
+#custom-style {
+    color: #050814;
+    background: linear-gradient(90deg, #2f6bff, #9fc3ff);
+    font-weight: bold;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    color: #8ea3cc;
+    background: transparent;
+    border: none;
+    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+}
+
+#workspaces button.active {
+    min-width: 34px;
+    color: #050814;
+    background: #2f6bff;
+    border-radius: 18px;
+}
+
+#workspaces button:hover {
+    color: #eaf1ff;
+    background: rgba(47, 107, 255, 0.25);
+}
+
+#clock {
+    font-weight: bold;
+}
+
+#cpu, #memory {
+    color: #2f6bff;
+}
+
+#battery.warning {
+    color: #ff4fa3;
+}
+
+#battery.critical, #pulseaudio.muted {
+    color: #ff2a4a;
+}

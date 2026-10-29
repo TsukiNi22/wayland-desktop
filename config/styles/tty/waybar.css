@@ -1,0 +1,57 @@
+/* wayland-desktop style: Terminal / better-tty - waybar */
+
+* {
+    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+tooltip {
+    color: #e0def4;
+    background: #1f1d2e;
+    border: 1px solid #403d52;
+}
+
+window#waybar {
+    color: #908caa;
+    background: #1f1d2e;
+}
+
+#custom-style {
+    padding: 0 12px;
+    color: #191724;
+    background: #f6c177;
+    font-weight: bold;
+}
+
+#workspaces button {
+    padding: 0 12px;
+    color: #908caa;
+    background: transparent;
+}
+
+#workspaces button.active {
+    color: #e0def4;
+    background: #26233a;
+}
+
+#window {
+    color: #6e6a86;
+}
+
+#cpu, #memory, #pulseaudio, #battery, #clock {
+    padding: 0 12px;
+}
+
+#clock {
+    color: #f6c177;
+}
+
+#custom-host {
+    padding: 0 12px;
+    color: #191724;
+    background: #ebbcba;
+    font-weight: bold;
+}

@@ -1,0 +1,66 @@
+// wayland-desktop style: Photographer - waybar (the lines marked wd-switcher are removed when a single style is installed)
+{
+    "layer": "top",
+    "position": "top",
+    "height": 38,
+    "margin": "8 10 0 10",
+    "spacing": 6,
+    "modules-left": [
+        "custom/style", // wd-switcher
+        "hyprland/workspaces",
+        "hyprland/window"
+    ],
+    "modules-center": ["clock"],
+    "modules-right": ["cpu", "memory", "network", "pulseaudio", "battery", "tray"],
+
+    "custom/style": { // wd-switcher-begin
+        "exec": "~/.local/bin/wd-style current --label",
+        "interval": "once",
+        "signal": 8,
+        "on-click": "~/.local/bin/wd-style menu",
+        "on-scroll-up": "~/.local/bin/wd-style next",
+        "on-scroll-down": "~/.local/bin/wd-style prev",
+        "tooltip": false
+    }, // wd-switcher-end
+    "hyprland/workspaces": {
+        "format": "{name}",
+        "on-click": "activate"
+    },
+    "hyprland/window": {
+        "format": "{title}",
+        "max-length": 48,
+        "separate-outputs": true
+    },
+    "clock": {
+        "format": "{:%H:%M · %A %d %B}",
+        "tooltip-format": "<tt>{calendar}</tt>"
+    },
+    "cpu": {
+        "format": "cpu {usage}%",
+        "interval": 2
+    },
+    "memory": {
+        "format": "mem {percentage}%",
+        "interval": 5
+    },
+    "network": {
+        "format-wifi": "{essid}",
+        "format-ethernet": "eth",
+        "format-disconnected": "offline",
+        "tooltip-format": "{ifname} {ipaddr}"
+    },
+    "pulseaudio": {
+        "format": "vol {volume}",
+        "format-muted": "vol muted",
+        "format-icons": { "default": ["", "", ""] },
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+    },
+    "battery": {
+        "format": "{capacity}%",
+        "format-icons": ["", "", "", "", ""],
+        "states": { "warning": 25, "critical": 12 }
+    },
+    "tray": {
+        "spacing": 8
+    }
+}

@@ -1,0 +1,70 @@
+/* wayland-desktop style: Miku - waybar */
+
+* {
+    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+tooltip {
+    color: #e9fffd;
+    background: #0f3a3b;
+    border: 1px solid #1f6f6a;
+}
+
+window#waybar {
+    color: #e9fffd;
+    background: transparent;
+}
+
+.modules-left > widget > *, .modules-center > widget > *, .modules-right > widget > * {
+    margin: 0 2px;
+    padding: 0 14px;
+    border-radius: 8px;
+    background: rgba(15, 58, 59, 0.82);
+    border: 1px solid rgba(31, 111, 106, 0.9);
+}
+
+#custom-style {
+    color: #0b2b2c;
+    background: linear-gradient(90deg, #39c5bb, #e12885);
+    font-weight: bold;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    color: #86b9b5;
+    background: transparent;
+    border: none;
+    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+}
+
+#workspaces button.active {
+    min-width: 34px;
+    color: #0b2b2c;
+    background: #39c5bb;
+    border-radius: 8px;
+}
+
+#workspaces button:hover {
+    color: #e9fffd;
+    background: rgba(57, 197, 187, 0.25);
+}
+
+#clock {
+    font-weight: bold;
+}
+
+#cpu, #memory {
+    color: #39c5bb;
+}
+
+#battery.warning {
+    color: #ffd166;
+}
+
+#battery.critical, #pulseaudio.muted {
+    color: #e12885;
+}
