@@ -1,0 +1,155 @@
+#!/bin/bash
+# Usage: wd-style <command>
+#   list                 the installed styles
+#   current [--label]    the active style (--label: icon + name, for the waybar module)
+#   set <style>          switch to a style
+#   next | prev          switch to the next / previous style
+#   menu                 choose a style in a wofi menu
+#   start                links of the active style, waybar and the wallpaper (run when Hyprland starts)
+# Switch the wayland-desktop style live: links the files of the style, reloads Hyprland, restarts waybar and the
+# wallpaper, reloads kitty
+set -euo pipefail
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+DATA_DIR="$CONFIG_DIR/wayland-desktop"
+STYLES_DIR="$DATA_DIR/styles"
+CURRENT_FILE="$DATA_DIR/current"
+
+# =========================
+# Styles
+# =========================
+styles() {
+    find "$STYLES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2> /dev/null | sort
+}
+
+# Value of a key of the style.env of a style: meta <style> <key>
+meta() {
+    sed -n "s/^$2=\"\(.*\)\"$/\1/p" "$STYLES_DIR/$1/style.env"
+}
+
+current() {
+    local style
+
+    style=$(cat "$CURRENT_FILE" 2> /dev/null || true)
+    if [[ -z "$style" || ! -d "$STYLES_DIR/$style" ]]; then
+        style=$(styles | head -n 1)
+    fi
+    echo "$style"
+}
+
+# Style at <offset> from the current one, cycling: neighbour <offset>
+neighbour() {
+    local -a list
+    local index=0
+    local i
+
+    mapfile -t list < <(styles)
+    for i in "${!list[@]}"; do
+        if [[ "${list[$i]}" == "$(current)" ]]; then
+            index=$i
+        fi
+    done
+    echo "${list[$(((index + $1 + ${#list[@]}) % ${#list[@]}))]}"
+}
+
+# =========================
+# Apply
+# =========================
+# The managed files are links to the files of the style
+link() {
+    local style="$1"
+    local dir="$STYLES_DIR/$style"
+
+    mkdir -p "$CONFIG_DIR/hypr" "$CONFIG_DIR/waybar" "$CONFIG_DIR/wofi" "$CONFIG_DIR/kitty"
+    ln -sfn "$dir/hypr.lua" "$CONFIG_DIR/hypr/style.lua"
+    ln -sfn "$dir/hyprlock.conf" "$CONFIG_DIR/hypr/hyprlock.conf"
+    ln -sfn "$dir/waybar.jsonc" "$CONFIG_DIR/waybar/config.jsonc"
+    ln -sfn "$dir/waybar.css" "$CONFIG_DIR/waybar/style.css"
+    ln -sfn "$dir/wofi.css" "$CONFIG_DIR/wofi/style.css"
+    ln -sfn "$dir/kitty.conf" "$CONFIG_DIR/kitty/theme.conf"
+    echo "$style" > "$CURRENT_FILE"
+}
+
+in_hyprland() {
+    [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]
+}
+
+restart() {
+    pkill -x "$1" 2> /dev/null || true
+    sleep 0.2
+    setsid -f "$@" > /dev/null 2>&1
+}
+
+session() {
+    local style="$1"
+
+    restart waybar
+    restart swaybg -m fill -i "$STYLES_DIR/$style/wallpaper.jpg"
+}
+
+set_style() {
+    local style="$1"
+
+    if [[ ! -d "$STYLES_DIR/$style" ]]; then
+        echo "wd-style: no style '$style' (installed: $(styles | tr '\n' ' '))" >&2
+        return 1
+    fi
+    link "$style"
+    if in_hyprland; then
+        hyprctl reload > /dev/null
+        session "$style"
+        pkill -USR1 -x kitty 2> /dev/null || true
+        notify-send -a wd-style "$(meta "$style" ICON) $(meta "$style" NAME)" "wayland-desktop style" 2> /dev/null || true
+    fi
+}
+
+# =========================
+# Menu
+# =========================
+menu() {
+    local -a list
+    local lines=""
+    local choice
+    local style
+
+    mapfile -t list < <(styles)
+    if [[ ${#list[@]} -lt 2 ]]; then
+        notify-send -a wd-style "One style installed" "Install every style to switch: install.sh all" 2> /dev/null || true
+        return 0
+    fi
+    for style in "${list[@]}"; do
+        lines+="$(meta "$style" ICON)  $(meta "$style" NAME)$([[ "$style" == "$(current)" ]] && echo "  ●")"$'\n'
+    done
+    choice=$(printf '%s' "$lines" | wofi --dmenu --prompt "Style" --cache-file /dev/null --lines "$((${#list[@]} + 1))") || return 0
+    for style in "${list[@]}"; do
+        if [[ "$choice" == "$(meta "$style" ICON)  $(meta "$style" NAME)"* ]]; then
+            set_style "$style"
+        fi
+    done
+}
+
+# =========================
+# Program
+# =========================
+case "${1:-}" in
+    list) styles ;;
+    current)
+        if [[ "${2:-}" == "--label" ]]; then
+            echo "$(meta "$(current)" ICON) $(meta "$(current)" NAME)"
+        else
+            current
+        fi
+        ;;
+    set) set_style "${2:?wd-style set <style>}" ;;
+    next) set_style "$(neighbour 1)" ;;
+    prev) set_style "$(neighbour -1)" ;;
+    menu) menu ;;
+    start)
+        link "$(current)"
+        session "$(current)"
+        ;;
+    *)
+        sed -n '2,9s/^# \?//p' "$0"
+        exit 1
+        ;;
+esac
