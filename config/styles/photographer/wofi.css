@@ -1,38 +1,64 @@
-/* wayland-desktop style: Photographer - wofi (launcher and style menu) */
+/* wayland-desktop style: Photographer - wofi (launcher and menus); the window stays transparent, the box is
+   rounded */
 
 window {
-    font-family: "JetBrains Mono", "Noto Sans CJK JP", sans-serif;
+    font-family: "Noto Serif", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 14px;
     color: #ece8e1;
-    background: rgba(27, 26, 24, 0.95);
+    background: transparent;
+}
+
+#outer-box {
+    padding: 14px;
+    background: rgba(27, 26, 24, 0.93);
     border: 1px solid #d9a441;
-    border-radius: 4px;
+    border-radius: 10px;
 }
 
 #input {
-    margin: 10px;
-    padding: 8px 12px;
+    margin: 0 0 12px 0;
+    padding: 10px 14px;
     color: #ece8e1;
-    background: #121110;
+    background: rgba(18, 17, 16, 0.9);
     border: 1px solid #34312c;
-    border-radius: 0px;
+    border-radius: 6px;
+    caret-color: #d9a441;
 }
 
-#inner-box, #outer-box, #scroll {
+#input:focus {
+    border-color: #d9a441;
+    box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.25);
+}
+
+#inner-box, #scroll {
     background: transparent;
 }
 
 #entry {
-    margin: 2px 10px;
-    padding: 6px 10px;
-    border-radius: 0px;
+    margin: 2px 0;
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: all 0.2s ease-out;
+}
+
+#entry image {
+    margin-right: 10px;
+}
+
+#entry:hover {
+    background: rgba(217, 164, 65, 0.15);
 }
 
 #entry:selected {
-    color: #121110;
     background: #d9a441;
+    box-shadow: 0 0 12px rgba(217, 164, 65, 0.35);
+}
+
+#text {
+    color: #ece8e1;
 }
 
 #text:selected {
     color: #121110;
+    font-weight: bold;
 }

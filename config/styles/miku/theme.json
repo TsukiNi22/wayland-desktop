@@ -1,0 +1,18 @@
+{
+    "style": "miku",
+    "name": "Miku",
+    "font": "Adwaita Sans",
+    "mono": "JetBrains Mono",
+    "radius": 14,
+    "motion": "back",
+    "bg": "#0b2b2c",
+    "surface": "#0f3a3b",
+    "overlay": "#134849",
+    "border": "#1f6f6a",
+    "fg": "#e9fffd",
+    "muted": "#86b9b5",
+    "accent": "#39c5bb",
+    "accent2": "#e12885",
+    "urgent": "#ff4fa3",
+    "accentText": "#0b2b2c"
+}

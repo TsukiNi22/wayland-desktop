@@ -1,0 +1,18 @@
+{
+    "style": "ado",
+    "name": "Ado / blue rose",
+    "font": "Adwaita Sans",
+    "mono": "JetBrains Mono",
+    "radius": 18,
+    "motion": "back",
+    "bg": "#050814",
+    "surface": "#0b1430",
+    "overlay": "#10204a",
+    "border": "#223a7a",
+    "fg": "#eaf1ff",
+    "muted": "#8ea3cc",
+    "accent": "#2f6bff",
+    "accent2": "#9fc3ff",
+    "urgent": "#ff2a4a",
+    "accentText": "#050814"
+}

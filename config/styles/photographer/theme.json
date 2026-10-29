@@ -1,0 +1,18 @@
+{
+    "style": "photographer",
+    "name": "Photographer",
+    "font": "Noto Serif",
+    "mono": "JetBrains Mono",
+    "radius": 10,
+    "motion": "soft",
+    "bg": "#121110",
+    "surface": "#1b1a18",
+    "overlay": "#24221f",
+    "border": "#34312c",
+    "fg": "#ece8e1",
+    "muted": "#8a857c",
+    "accent": "#d9a441",
+    "accent2": "#e07a5f",
+    "urgent": "#e07a5f",
+    "accentText": "#121110"
+}

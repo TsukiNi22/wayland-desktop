@@ -1,38 +1,64 @@
-/* wayland-desktop style: Dev / low level - wofi (launcher and style menu) */
+/* wayland-desktop style: Dev / low level - wofi (launcher and menus); the window stays transparent, the box is
+   rounded */
 
 window {
-    font-family: "JetBrains Mono", "Noto Sans CJK JP", sans-serif;
+    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 14px;
     color: #b8f5cf;
-    background: rgba(10, 29, 18, 0.95);
+    background: transparent;
+}
+
+#outer-box {
+    padding: 14px;
+    background: rgba(10, 29, 18, 0.93);
     border: 2px solid #39ff88;
-    border-radius: 0px;
+    border-radius: 6px;
 }
 
 #input {
-    margin: 10px;
-    padding: 8px 12px;
+    margin: 0 0 12px 0;
+    padding: 10px 14px;
     color: #b8f5cf;
-    background: #040705;
+    background: rgba(4, 7, 5, 0.9);
     border: 1px solid #1c4a2e;
-    border-radius: 0px;
+    border-radius: 4px;
+    caret-color: #39ff88;
 }
 
-#inner-box, #outer-box, #scroll {
+#input:focus {
+    border-color: #39ff88;
+    box-shadow: 0 0 0 2px rgba(57, 255, 136, 0.25);
+}
+
+#inner-box, #scroll {
     background: transparent;
 }
 
 #entry {
-    margin: 2px 10px;
-    padding: 6px 10px;
-    border-radius: 0px;
+    margin: 2px 0;
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: all 0.2s ease-out;
+}
+
+#entry image {
+    margin-right: 10px;
+}
+
+#entry:hover {
+    background: rgba(57, 255, 136, 0.15);
 }
 
 #entry:selected {
-    color: #040705;
     background: #39ff88;
+    box-shadow: 0 0 12px rgba(57, 255, 136, 0.35);
+}
+
+#text {
+    color: #b8f5cf;
 }
 
 #text:selected {
     color: #040705;
+    font-weight: bold;
 }

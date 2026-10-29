@@ -1,7 +1,7 @@
 /* wayland-desktop style: System - waybar */
 
 * {
-    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-family: "Adwaita Sans", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 13px;
     min-height: 0;
     border: none;
@@ -10,8 +10,14 @@
 
 tooltip {
     color: #d6dde7;
-    background: #151b23;
+    background: rgba(21, 27, 35, 0.97);
     border: 1px solid #2a3441;
+    border-radius: 14px;
+}
+
+tooltip label {
+    padding: 4px 6px;
+    color: #d6dde7;
 }
 
 window#waybar {
@@ -19,46 +25,13 @@ window#waybar {
     background: transparent;
 }
 
-.modules-left > widget > *, .modules-center > widget > *, .modules-right > widget > * {
-    margin: 0 2px;
-    padding: 0 14px;
-    border-radius: 12px;
-    background: rgba(21, 27, 35, 0.82);
-    border: 1px solid rgba(42, 52, 65, 0.9);
-}
-
-#custom-style {
-    color: #0e1217;
-    background: linear-gradient(90deg, #5aa9ff, #5fd38d);
-    font-weight: bold;
-}
-
-#workspaces button {
-    padding: 0 8px;
-    color: #7b8798;
-    background: transparent;
-    border: none;
-    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
-}
-
-#workspaces button.active {
-    min-width: 34px;
-    color: #0e1217;
-    background: #5aa9ff;
-    border-radius: 12px;
-}
-
-#workspaces button:hover {
-    color: #d6dde7;
-    background: rgba(90, 169, 255, 0.25);
-}
-
-#clock {
-    font-weight: bold;
-}
-
-#cpu, #memory {
+#custom-cava {
+    font-family: "JetBrains Mono";
     color: #5aa9ff;
+}
+
+#mpris.paused {
+    color: #7b8798;
 }
 
 #battery.warning {
@@ -67,4 +40,135 @@ window#waybar {
 
 #battery.critical, #pulseaudio.muted {
     color: #ff6b6b;
+}
+
+#idle_inhibitor.activated {
+    color: #f2c14e;
+}
+
+.modules-left > widget > *, .modules-center > widget > *, .modules-right > widget > * {
+    margin: 0 3px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: rgba(21, 27, 35, 0.78);
+    border: 1px solid rgba(42, 52, 65, 0.9);
+    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+}
+
+/* the groups are not pills themselves: their modules are, so an empty group (no music) leaves nothing behind */
+#music, #session {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+}
+
+#mpris, #custom-cava, #custom-power, #custom-lock, #custom-suspend {
+    margin: 0 3px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: rgba(21, 27, 35, 0.78);
+    border: 1px solid rgba(42, 52, 65, 0.9);
+    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+}
+
+.modules-left > widget > *:hover, .modules-center > widget > *:hover, .modules-right > widget > *:hover,
+#mpris:hover, #custom-power:hover {
+    background: rgba(28, 35, 48, 0.92);
+    border-color: rgba(90, 169, 255, 0.6);
+}
+
+#custom-overview, #custom-style {
+    color: #0e1217;
+    background: linear-gradient(90deg, #5aa9ff, #5fd38d);
+    border-color: transparent;
+    font-weight: bold;
+}
+
+#custom-overview {
+    padding: 0 13px;
+    font-size: 15px;
+}
+
+#custom-overview:hover, #custom-style:hover {
+    background: linear-gradient(90deg, #5fd38d, #5aa9ff);
+    box-shadow: 0 0 12px rgba(90, 169, 255, 0.55);
+}
+
+#workspaces {
+    padding: 0 8px;
+}
+
+/* the theme gives buttons a min-height of 24px: the dots set theirs, or the bar grows */
+#workspaces button {
+    min-width: 9px;
+    min-height: 10px;
+    margin: 12px 3px;
+    padding: 0;
+    border: none;
+    border-radius: 99px;
+    background: rgba(123, 135, 152, 0.45);
+    font-size: 1px;
+    transition: all 0.35s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+}
+
+#workspaces button label {
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    font-size: 1px;
+}
+
+#workspaces button.empty {
+    background: rgba(123, 135, 152, 0.2);
+}
+
+#workspaces button.active {
+    min-width: 30px;
+    background: linear-gradient(90deg, #5aa9ff, #5fd38d);
+    box-shadow: 0 0 8px rgba(90, 169, 255, 0.6);
+}
+
+#workspaces button.urgent {
+    background: #ff6b6b;
+}
+
+#workspaces button:hover {
+    min-width: 16px;
+    background: rgba(90, 169, 255, 0.7);
+}
+
+#window {
+    color: #7b8798;
+}
+
+#clock {
+    font-weight: bold;
+}
+
+#mpris {
+    color: #5fd38d;
+}
+
+#cpu, #memory {
+    color: #5aa9ff;
+}
+
+#custom-power {
+    color: #ff6b6b;
+    font-size: 14px;
+}
+
+#custom-lock, #custom-suspend {
+    color: #5aa9ff;
+}
+
+#custom-lock:hover, #custom-suspend:hover {
+    color: #0e1217;
+    background: #5aa9ff;
+}
+
+#custom-power:hover {
+    color: #0e1217;
+    background: #ff6b6b;
 }

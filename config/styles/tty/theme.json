@@ -1,0 +1,18 @@
+{
+    "style": "tty",
+    "name": "Terminal / better-tty",
+    "font": "JetBrains Mono",
+    "mono": "JetBrains Mono",
+    "radius": 10,
+    "motion": "snap",
+    "bg": "#191724",
+    "surface": "#1f1d2e",
+    "overlay": "#26233a",
+    "border": "#403d52",
+    "fg": "#e0def4",
+    "muted": "#908caa",
+    "accent": "#c4a7e7",
+    "accent2": "#ebbcba",
+    "urgent": "#eb6f92",
+    "accentText": "#191724"
+}

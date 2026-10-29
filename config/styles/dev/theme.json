@@ -1,0 +1,18 @@
+{
+    "style": "dev",
+    "name": "Dev / low level",
+    "font": "JetBrains Mono",
+    "mono": "JetBrains Mono",
+    "radius": 6,
+    "motion": "snap",
+    "bg": "#040705",
+    "surface": "#0a1d12",
+    "overlay": "#0f2a1a",
+    "border": "#1c4a2e",
+    "fg": "#b8f5cf",
+    "muted": "#4f9a6f",
+    "accent": "#39ff88",
+    "accent2": "#ffb000",
+    "urgent": "#ff4f5e",
+    "accentText": "#040705"
+}

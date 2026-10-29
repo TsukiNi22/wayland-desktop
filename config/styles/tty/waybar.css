@@ -1,7 +1,7 @@
 /* wayland-desktop style: Terminal / better-tty - waybar */
 
 * {
-    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 13px;
     min-height: 0;
     border: none;
@@ -10,48 +10,146 @@
 
 tooltip {
     color: #e0def4;
-    background: #1f1d2e;
+    background: rgba(31, 29, 46, 0.97);
     border: 1px solid #403d52;
+    border-radius: 10px;
+}
+
+tooltip label {
+    padding: 4px 6px;
+    color: #e0def4;
 }
 
 window#waybar {
-    color: #908caa;
-    background: #1f1d2e;
+    color: #e0def4;
+    background: transparent;
 }
 
-#custom-style {
-    padding: 0 12px;
+#custom-cava {
+    font-family: "JetBrains Mono";
+    color: #c4a7e7;
+}
+
+#mpris.paused {
+    color: #908caa;
+}
+
+#battery.warning {
+    color: #f6c177;
+}
+
+#battery.critical, #pulseaudio.muted {
+    color: #eb6f92;
+}
+
+#idle_inhibitor.activated {
+    color: #f6c177;
+}
+
+window#waybar > box {
+    padding: 3px;
+    background: rgba(31, 29, 46, 0.95);
+    border: 1px solid #26233a;
+    border-radius: 10px;
+}
+
+#custom-overview, #custom-style, #workspaces button, #window, #mpris, #custom-cava, #cpu, #memory, #pulseaudio,
+#battery, #clock, #custom-host, #custom-power, #custom-lock, #custom-suspend {
+    margin: 0 2px;
+    padding: 0 10px;
+    border-radius: 7px;
+    transition: all 0.2s ease-out;
+}
+
+#custom-overview {
     color: #191724;
     background: #f6c177;
     font-weight: bold;
 }
 
+#custom-style {
+    color: #191724;
+    background: #ebbcba;
+    font-weight: bold;
+}
+
+#custom-overview:hover, #custom-style:hover {
+    background: #c4a7e7;
+}
+
 #workspaces button {
-    padding: 0 12px;
     color: #908caa;
     background: transparent;
 }
 
+#workspaces button.empty {
+    color: #403d52;
+}
+
 #workspaces button.active {
+    color: #191724;
+    background: #c4a7e7;
+    font-weight: bold;
+}
+
+#workspaces button:hover {
     color: #e0def4;
     background: #26233a;
 }
 
-#window {
-    color: #6e6a86;
+#mpris {
+    color: #9ccfd8;
 }
 
-#cpu, #memory, #pulseaudio, #battery, #clock {
-    padding: 0 12px;
+#cpu {
+    color: #191724;
+    background: #31748f;
+}
+
+#memory {
+    color: #191724;
+    background: #9ccfd8;
+}
+
+#pulseaudio {
+    color: #191724;
+    background: #c4a7e7;
+}
+
+#battery {
+    color: #191724;
+    background: #f6c177;
 }
 
 #clock {
-    color: #f6c177;
-}
-
-#custom-host {
-    padding: 0 12px;
     color: #191724;
     background: #ebbcba;
     font-weight: bold;
+}
+
+#custom-host {
+    color: #e0def4;
+    background: #26233a;
+}
+
+#cpu:hover, #memory:hover, #pulseaudio:hover, #battery:hover, #clock:hover {
+    background: #e0def4;
+}
+
+#pulseaudio.muted {
+    color: #191724;
+    background: #eb6f92;
+}
+
+#custom-power {
+    color: #eb6f92;
+}
+
+#custom-lock, #custom-suspend {
+    color: #c4a7e7;
+}
+
+#custom-power:hover, #custom-lock:hover, #custom-suspend:hover {
+    color: #191724;
+    background: #eb6f92;
 }

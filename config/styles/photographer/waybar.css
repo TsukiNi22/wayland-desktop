@@ -1,7 +1,7 @@
 /* wayland-desktop style: Photographer - waybar */
 
 * {
-    font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", sans-serif;
+    font-family: "Noto Serif", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 13px;
     min-height: 0;
     border: none;
@@ -10,40 +10,104 @@
 
 tooltip {
     color: #ece8e1;
-    background: #1b1a18;
+    background: rgba(27, 26, 24, 0.97);
     border: 1px solid #34312c;
+    border-radius: 10px;
+}
+
+tooltip label {
+    padding: 4px 6px;
+    color: #ece8e1;
 }
 
 window#waybar {
-    color: #8a857c;
+    color: #ece8e1;
     background: transparent;
 }
 
-#custom-style {
-    padding: 0 12px;
+#custom-cava {
+    font-family: "JetBrains Mono";
     color: #d9a441;
-    font-family: "Noto Serif", serif;
+}
+
+#mpris.paused {
+    color: #8a857c;
+}
+
+#battery.warning {
+    color: #d9a441;
+}
+
+#battery.critical, #pulseaudio.muted {
+    color: #e07a5f;
+}
+
+#idle_inhibitor.activated {
+    color: #d9a441;
+}
+
+window#waybar > box {
+    padding: 0 8px;
+    background: linear-gradient(180deg, rgba(18, 17, 16, 0.55), rgba(18, 17, 16, 0.0));
+    border-radius: 10px;
+}
+
+#custom-overview, #custom-style, #workspaces button, #window, #clock, #mpris, #custom-cava, #pulseaudio, #network,
+#battery, #tray, #custom-power, #custom-lock, #custom-suspend {
+    margin: 4px 2px;
+    padding: 0 10px;
+    color: #8a857c;
+    border-radius: 10px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    transition: all 0.4s ease-in-out;
+}
+
+#custom-overview {
+    color: #d9a441;
+    font-size: 16px;
+}
+
+#custom-style {
+    color: #d9a441;
     font-style: italic;
 }
 
 #workspaces button {
-    padding: 0 8px;
-    color: #8a857c;
     background: transparent;
+}
+
+#workspaces button.empty {
+    color: rgba(138, 133, 124, 0.5);
 }
 
 #workspaces button.active {
     color: #ece8e1;
-    border-bottom: 1px solid #d9a441;
+    box-shadow: inset 0 -2px #d9a441;
+    border-radius: 0;
+}
+
+#custom-overview:hover, #custom-style:hover, #workspaces button:hover, #clock:hover, #mpris:hover,
+#pulseaudio:hover, #network:hover, #battery:hover, #custom-lock:hover, #custom-suspend:hover {
+    color: #ece8e1;
+    background: rgba(27, 26, 24, 0.7);
 }
 
 #clock {
     color: #ece8e1;
-    font-family: "Noto Serif", serif;
     font-style: italic;
-    font-size: 15px;
+    font-size: 16px;
 }
 
-#cpu, #memory, #network, #pulseaudio, #battery, #tray {
-    padding: 0 10px;
+#mpris {
+    color: #ece8e1;
+    font-style: italic;
+}
+
+#custom-power {
+    color: #d9a441;
+}
+
+#custom-power:hover {
+    color: #121110;
+    background: #d9a441;
 }

@@ -1,0 +1,18 @@
+{
+    "style": "system",
+    "name": "System",
+    "font": "Adwaita Sans",
+    "mono": "JetBrains Mono",
+    "radius": 14,
+    "motion": "overshoot",
+    "bg": "#0e1217",
+    "surface": "#151b23",
+    "overlay": "#1c2330",
+    "border": "#2a3441",
+    "fg": "#d6dde7",
+    "muted": "#7b8798",
+    "accent": "#5aa9ff",
+    "accent2": "#5fd38d",
+    "urgent": "#ff6b6b",
+    "accentText": "#0e1217"
+}
