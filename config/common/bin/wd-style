@@ -8,8 +8,9 @@
 #   overview | apps      GNOME-like overview / applications grid (quickshell, else the wofi launcher)
 #   wallpaper [mode]     live (animated, follows the music) | still | toggle
 #   cursor [mode]        on (animated cursors of the style, the default) | off (normal) | toggle
-#   radio <command>      the tracks of the radio of a style: list [style] | add <style> <url|file|search> [title
-#                        [subtitle]] | remove <style> <index> | offline <style> <index|all> [on|off] | folder <style>
+#   radio <command>      the radio of a style (its folder: mp3 files + online.md): list [style] | add <style>
+#                        <url|mp3|search> [title [subtitle]] | remove <style> <index> | offline <style> <index|all>
+#                        [on|off] | folder <style> | show | hide | toggle [style]
 #   power                lock, log out, suspend, reboot or shut down in a wofi menu
 #   lock                 lock screen: a shell (better-tty), a getty (Dev), else hyprlock
 #   monitor              system monitor (btop, htop or top) in a floating terminal
@@ -496,7 +497,7 @@ case "${1:-}" in
         session "$(current)"
         ;;
     *)
-        sed -n '2,21s/^# \?//p' "$0"
+        sed -n '2,22s/^# \?//p' "$0"
         exit 1
         ;;
 esac

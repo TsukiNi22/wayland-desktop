@@ -279,8 +279,9 @@ const wd = (() => {
 
     // The radio drawn by the page: player() plays the station of the style (its radio.json and the user's tracks, given
     // by wd-wallpaper with the tracks kept offline); the page draws its decor, then player.buttons(ctx, x, y, size,
-    // colors) (previous, play / pause, next, stop, loop the track, save it offline (a save dialog) or back online,
-    // import audio files (a dialog)), the clicks are handled here
+    // colors) (previous, play / pause, next, stop, loop the track (a setting, also while nothing plays), save it as an mp3
+    // (a save dialog) or back online, open the folder of the radio (its mp3 files and online.md)), the clicks are
+    // handled here
     let ownPlayer = false;
 
     function player(embedded = false) {
@@ -288,10 +289,15 @@ const wd = (() => {
         const self = {
             index: 0,
             rects: [],
-            actions: ["prev", "play", "next", "stop", "loop", "offline", "import"],
+            actions: ["prev", "play", "next", "stop", "loop", "offline", "folder"],
             tracks: () => (state.station ? state.station.tracks : []),
             playing: () => state.radio.playing && state.station !== null && state.radio.station === state.station.station,
-            position: () => (self.playing() ? state.radio.index : self.index) % Math.max(1, self.tracks().length),
+            // the playing track by its key: the list of mpv follows the folder (new tracks at its end)
+            position: () => {
+                const found = self.playing() ? self.tracks().findIndex(track => track.key === state.radio.key) : -1;
+
+                return (found >= 0 ? found : self.index) % Math.max(1, self.tracks().length);
+            },
             current: () => self.tracks()[self.position()] || { title: "\u2026", subtitle: "", cached: false },
             title: () => {
                 const track = self.current();
@@ -324,13 +330,11 @@ const wd = (() => {
                     radioCommand("stop");
                 } else if (action === "offline" && state.station) {
                     radioCommand("offline", { station: state.station.station, index: self.position() });
-                } else if (action === "import" && state.station) {
-                    radioCommand("import", { station: state.station.station });
+                } else if (action === "folder" && state.station) {
+                    radioCommand("folder", { station: state.station.station });
                 } else if (action === "loop") {
-                    if (self.playing()) {
-                        radioCommand("loop");
-                        state.radio.loop = !state.radio.loop;
-                    }
+                    radioCommand("loop");
+                    state.radio.loop = !state.radio.loop;
                 } else if (self.playing()) {
                     radioCommand(action);
                 } else {
@@ -345,7 +349,7 @@ const wd = (() => {
                     const main = rect.action === "play";
                     const over = hit(rect);
 
-                    const on = rect.action === "loop" && self.playing() && state.radio.loop;
+                    const on = rect.action === "loop" && state.radio.loop;
 
                     ctx.fillStyle = main || on ? colors.accent : (over ? colors.hover : colors.button);
                     ctx.beginPath();
@@ -411,9 +415,16 @@ const wd = (() => {
             ctx.lineTo(x + r * 0.35, y - r * 0.95);
             ctx.closePath();
             ctx.fill();
-        } else if (name === "import") {
-            ctx.fillRect(x - r * 0.16, y - r * 0.85, r * 0.32, r * 1.7);
-            ctx.fillRect(x - r * 0.85, y - r * 0.16, r * 1.7, r * 0.32);
+        } else if (name === "folder") {
+            ctx.beginPath();
+            ctx.moveTo(x - r * 0.9, y - r * 0.65);
+            ctx.lineTo(x - r * 0.25, y - r * 0.65);
+            ctx.lineTo(x - r * 0.05, y - r * 0.4);
+            ctx.lineTo(x + r * 0.9, y - r * 0.4);
+            ctx.lineTo(x + r * 0.9, y + r * 0.7);
+            ctx.lineTo(x - r * 0.9, y + r * 0.7);
+            ctx.closePath();
+            ctx.fill();
         } else if (name === "download") {
             ctx.fillRect(x - r * 0.18, y - r, r * 0.36, r * 1.1);
             ctx.beginPath();

@@ -1,6 +1,5 @@
 {
     "name": "/dev/audio",
-    "hidden": true,
     "tracks": [
         {
             "title": "Value",

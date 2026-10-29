@@ -2,7 +2,7 @@
 # Usage: wd-wallpaper [page.html] [--demo] | --cache | --radio <command>
 #   (no page: the wallpaper.html of the active style; --demo: fake music, to try a page)
 #   --cache: download the offline tracks of the radios (radio.json of the styles), then quit
-#   --radio: the tracks of a radio (wd-style radio): list [style] | add <style> <url|file|search> [title [subtitle]]
+#   --radio: the tracks of a radio (wd-style radio): list [style] | add <style> <url|mp3|search> [title [subtitle]]
 #            | remove <style> <index> | offline <style> <index|all> [on|off] | folder <style> | show | hide | toggle
 #   SIGHUP: crossfade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
 #   (never SIGUSR1: WebKit suspends its threads with it, catching it freezes the process)
@@ -10,16 +10,18 @@
 # Live wallpaper of wayland-desktop: a web page on the background layer of every monitor (GTK 3, gtk-layer-shell,
 # WebKit 4.1), fed 30 times a second with the music levels of cava (wdAudio(levels) in the page, see wd.js)
 # A new page fades in over the still wallpaper (swaybg) or the previous page, then removes it; the clicks go through
-# the wallpaper except on the parts the page declares (its radio), the radio plays the radio.json of the style: its
-# offline tracks from ~/.local/share/wd-radio (downloaded once with yt-dlp, a personal copy), the others
-# from YouTube (mpv + yt-dlp); the user's own tracks (~/.config/wayland-desktop/radio/<style>.json, the audio files of
-# ~/Music/wd-radio/<style>) join them; the player loops a track, imports audio files and saves a track where the user
-# says (dialogs); the media of the pages (the video of the Miku beam, the concert clip of the Ado stage) are parts of
-# official videos cut and joined once with ffmpeg in ~/.local/share/wd-radio/media, a personal copy
+# the wallpaper except on the parts the page declares (its radio). The radio of a style is its folder,
+# ~/Music/wd-radio/<style>: its .mp3 files, and online.md for the tracks played from YouTube (made from the radio.json of
+# the style, made again when deleted); anything else put there goes to its ignored/ folder (never deleted). Changes of
+# the folder reach the pages and the playing list at once. Some online tracks are kept offline in ~/.local/share/wd-radio
+# (downloaded once with yt-dlp, a personal copy); the player loops a track, opens the folder and saves a track as an mp3
+# where the user says; the media of the pages (the video of the Miku beam, the concert clips of the Ado stage) are parts
+# of official videos cut and joined once with ffmpeg in ~/.local/share/wd-radio/media, a personal copy
 import ctypes
 import fcntl
 import functools
 import glob
+import re
 import hashlib
 import json
 import os
@@ -53,9 +55,11 @@ def load_gui():
 DATA_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "wayland-desktop"
 RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
 CACHE_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "wd-radio"
-# the user's own tracks of each radio (<style>.json) and the tracks they keep offline or not (offline.json)
+# the user's choices: the tracks kept offline or saved (offline.json), the radios shown (shown.json), the loop
 USER_RADIO_DIR = DATA_DIR / "radio"
-AUDIO = {".mp3", ".flac", ".ogg", ".opus", ".webm", ".m4a", ".wav", ".aac"}
+# in the folder of a radio: the online tracks, the folder of what is not a track
+ONLINE_FILE = "online.md"
+IGNORED_DIR = "ignored"
 # tracks being downloaded by the button of the player
 DOWNLOADING = set()
 # the user's own emotes (png, gif, webp, jpg, svg), used by the pages that show emotes (the Ado chat)
@@ -117,7 +121,7 @@ def read_json(path, default):
     except (OSError, ValueError):
         return default
 
-# the folder of audio files of a radio: ~/Music/wd-radio/<style> (the music folder of the user's language)
+# the folder of a radio: ~/Music/wd-radio/<style> (the music folder of the user's language)
 @functools.cache
 def music_dir():
     try:
@@ -132,29 +136,81 @@ def track_key(track):
 def track_label(track):
     return track["title"] + (f" — {track['subtitle']}" if track.get("subtitle") else "")
 
-# The tracks of a radio: its radio.json, then the user's own ones and the audio files of its folder; each one says
-# whether it is kept offline (radio.json, or the user's choice: true or the file it was saved to), downloaded (cached)
-# or being downloaded; shown: the radio of a style that hides it by default (wd-style radio show)
+# a free name in a folder: "name.ext", else "name (1).ext", "name (2).ext"... (like the copies of a file manager)
+def free_name(folder, name):
+    stem, suffix = (Path(name).stem, Path(name).suffix) if not (folder / name).is_dir() else (name, "")
+    target = folder / name
+    count = 1
+    while target.exists():
+        target = folder / f"{stem} ({count}){suffix}"
+        count += 1
+    return target
+
+def write_online(path, data):
+    lines = [f"# {data.get('name', 'Radio')}: the online tracks", "",
+             "One track per line: `- Title — Subtitle | YouTube link or search`. The .mp3 files of this folder are",
+             "played too; anything else put in this folder goes to ignored/. Delete this file: it comes back with the",
+             "tracks of the style.", ""]
+    for track in data["tracks"]:
+        lines.append(f"- {track_label(track)} | {track.get('url') or track.get('search', '')}")
+    path.write_text("\n".join(lines) + "\n")
+
+def read_online(path):
+    tracks = []
+    for line in path.read_text(errors="replace").splitlines():
+        match = re.match(r"^\s*[-*]\s+(.+?)\s*\|\s*(\S.*?)\s*$", line)
+        if match:
+            title, _, subtitle = match.group(1).partition(" — ")
+            target = match.group(2)
+            tracks.append({"title": title, "subtitle": subtitle,
+                           **({"url": target} if target.startswith(("http://", "https://")) else {"search": target})})
+    return tracks
+
+# The folder of a radio, kept clean: online.md (made again from radio.json when deleted), the .mp3 files, ignored/;
+# anything else goes to ignored/ once it is not being written anymore (a download, a copy), never deleted
+def radio_folder(name, data):
+    folder = music_dir() / name
+    folder.mkdir(parents=True, exist_ok=True)
+    if not (folder / ONLINE_FILE).exists():
+        write_online(folder / ONLINE_FILE, data)
+    for entry in folder.iterdir():
+        if entry.name in (ONLINE_FILE, IGNORED_DIR) or (entry.is_file() and entry.suffix.lower() == ".mp3"):
+            continue
+        try:
+            if time.time() - entry.stat().st_mtime < 5:
+                continue
+            (folder / IGNORED_DIR).mkdir(exist_ok=True)
+            shutil.move(str(entry), str(free_name(folder / IGNORED_DIR, entry.name)))
+        except OSError:
+            continue
+    return folder
+
+# The tracks of a radio: the online ones (online.md), then the .mp3 files of its folder; each one says whether it is
+# kept offline (radio.json, or the user's choice: true or the mp3 it was saved to), downloaded (cached) or being
+# downloaded; shown: the small radio of the styles without their own (wd-style radio show / hide)
 def station(name):
     data = read_json(DATA_DIR / "styles" / name / "radio.json", None)
     if not data:
         return None
     data["station"] = name
-    data["defaults"] = len(data["tracks"])
+    folder = radio_folder(name, data)
+    offline = {track_key(track) for track in data["tracks"] if track.get("offline")}
     choices = read_json(USER_RADIO_DIR / "offline.json", {}).get(name, {})
     saved = {value for value in choices.values() if isinstance(value, str)}
-    data["tracks"] += [dict(track, user=True) for track in read_json(USER_RADIO_DIR / f"{name}.json", {}).get("tracks", [])]
-    folder = music_dir() / name
-    for file in sorted(folder.iterdir()) if folder.is_dir() else []:
-        if file.suffix.lower() in AUDIO and str(file) not in saved:
+    data["tracks"] = read_online(folder / ONLINE_FILE)
+    data["online"] = len(data["tracks"])
+    data["folder"] = str(folder)
+    for file in sorted(folder.iterdir()):
+        if file.is_file() and file.suffix.lower() == ".mp3" and str(file) not in saved:
             title, _, subtitle = file.stem.partition(" — ")
-            data["tracks"].append({"title": title, "subtitle": subtitle, "file": str(file), "user": True})
+            data["tracks"].append({"title": title, "subtitle": subtitle, "file": str(file)})
     for track in data["tracks"]:
-        choice = choices.get(track_key(track), track.get("offline", False))
+        key = track["key"] = track_key(track)
+        choice = choices.get(key, key in offline)
         track["offline"] = bool(track.get("file")) or bool(choice)
         track["saved"] = choice if isinstance(choice, str) else ""
         track["cached"] = bool(cached(track))
-        track["downloading"] = track_key(track) in DOWNLOADING
+        track["downloading"] = key in DOWNLOADING
     data["shown"] = read_json(USER_RADIO_DIR / "shown.json", {}).get(name, not data.get("hidden", False))
     # media of the page (the Miku beam, the Ado stage): the local copy, nothing until it is made
     data["media"] = {key: (media_file(name, key).as_uri() if media_file(name, key) else None)
@@ -216,12 +272,22 @@ def cached(track):
     files = sorted(f for f in folder.glob("*.*") if f.suffix not in (".part", ".ytdl")) if folder.is_dir() else []
     return files[0] if files else None
 
-# yt-dlp: the audio of a track into <target>.<ext> (its offline copy by default), the file it made
-def download(track, target=None):
+# yt-dlp: the audio of a track into <target>.<ext> (its offline copy by default), or into the mp3 <target> (made in a
+# work folder first: the folder of the radio never sees a part of a download); the file it made
+def download(track, target=None, mp3=False):
+    source = track.get("url") or f"ytsearch1:{track['search']}"
+    if mp3:
+        work = CACHE_DIR / ".saving" / hashlib.sha1(track_key(track).encode()).hexdigest()[:12]
+        work.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["yt-dlp", "-q", "--no-warnings", "--no-playlist", "-x", "--audio-format", "mp3", "--audio-quality",
+                        "0", "-o", str(work / "audio.%(ext)s"), source], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        made = work / "audio.mp3"
+        result = shutil.move(str(made), str(target)) if made.is_file() else None
+        shutil.rmtree(work, ignore_errors=True)
+        return Path(result) if result else None
     target = Path(target) if target else track_folder(track) / track_label(track).replace("/", " ")
     subprocess.run(["yt-dlp", "-q", "--no-warnings", "--no-playlist", "-f", "bestaudio[ext=webm]/bestaudio",
-                    "-o", f"{target}.%(ext)s", track.get("url") or f"ytsearch1:{track['search']}"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    "-o", f"{target}.%(ext)s", source], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     files = [f for f in target.parent.glob(f"{glob.escape(target.name)}.*") if f.suffix not in (".part", ".ytdl")]
     return files[0] if files else None
 
@@ -269,61 +335,85 @@ def radio_cli(args):
         print(f"the radio of {name}: {'shown' if shown[name] else 'hidden'}")
         return 0
     if command not in ("list", "add", "remove", "offline", "folder") or data is None:
-        print("wd-style radio list [style] | add <style> <url|file|search> [title [subtitle]] | remove <style> <index>\n"
+        print("wd-style radio list [style] | add <style> <url|mp3|search> [title [subtitle]] | remove <style> <index>\n"
               "               | offline <style> <index|all> [on|off] | folder <style> | show | hide | toggle [style]"
               "   (styles with a radio: "
               + ", ".join(sorted(f.parent.name for f in (DATA_DIR / "styles").glob("*/radio.json"))) + ")", file=sys.stderr)
         return 1
-    user_file = USER_RADIO_DIR / f"{name}.json"
-    user = read_json(user_file, {"tracks": []})
+    folder = Path(data["folder"])
     if command == "list":
         for index, track in enumerate(data["tracks"]):
-            source = "file" if track.get("file") else ("url" if track.get("url") else "search")
+            source = "mp3" if track.get("file") else ("url" if track.get("url") else "search")
             state = "offline" if track["cached"] else ("offline, not downloaded yet" if track["offline"] else "online")
-            print(f"{index:3}  {track_label(track)}  [{source}, {state}{', yours' if track.get('user') else ''}]")
+            print(f"{index:3}  {track_label(track)}  [{source}, {state}]")
     elif command == "folder":
-        folder = music_dir() / name
-        folder.mkdir(parents=True, exist_ok=True)
-        print(f"{folder}  (its audio files join the radio, \"Title — Subtitle.ext\" names the track)")
+        print(f"{folder}  (its .mp3 files and {ONLINE_FILE}: the tracks; anything else goes to {IGNORED_DIR}/)")
     elif command == "add":
         if len(args) < 3:
             return radio_cli([])
         target = args[2]
         if Path(target).expanduser().is_file():
-            track = {"file": str(Path(target).expanduser().resolve()), "title": Path(target).stem}
-        elif target.startswith(("http://", "https://")):
+            if Path(target).suffix.lower() != ".mp3":
+                print("only .mp3 files are tracks", file=sys.stderr)
+                return 1
+            copy = free_name(folder, Path(target).name)
+            shutil.copy2(Path(target).expanduser(), copy)
+            print(f"added: {copy.name}")
+            return 0
+        title = args[3] if len(args) > 3 else target
+        if target.startswith(("http://", "https://")) and len(args) <= 3 and shutil.which("yt-dlp"):
             title = subprocess.run(["yt-dlp", "--no-warnings", "--no-playlist", "--print", "title", target],
-                                   capture_output=True, text=True).stdout.strip() if shutil.which("yt-dlp") else ""
-            track = {"url": target, "title": title or target}
-        else:
-            track = {"search": target, "title": target}
-        if len(args) > 3:
-            track["title"] = args[3]
-        track["subtitle"] = args[4] if len(args) > 4 else ""
-        user.setdefault("tracks", []).append(track)
-        USER_RADIO_DIR.mkdir(parents=True, exist_ok=True)
-        user_file.write_text(json.dumps(user, ensure_ascii=False, indent=4) + "\n")
-        print(f"added: {track_label(track)} (wd-style radio offline {name} {len(data['tracks'])} to keep it offline)")
+                                   capture_output=True, text=True).stdout.strip() or target
+        track = {"title": title, "subtitle": args[4] if len(args) > 4 else ""}
+        with open(folder / ONLINE_FILE, "a") as online:
+            online.write(f"- {track_label(track)} | {target}\n")
+        print(f"added: {track_label(track)}")
     elif command == "remove":
-        position = int(args[2]) - data["defaults"] if len(args) > 2 and args[2].isdigit() else -1
-        if not 0 <= position < len(user.get("tracks", [])):
-            print("only your own tracks can be removed (wd-style radio list: the ones marked yours, not the files)",
-                  file=sys.stderr)
+        index = int(args[2]) if len(args) > 2 and args[2].isdigit() else -1
+        if not 0 <= index < len(data["tracks"]):
+            print("wd-style radio list: the index of the track", file=sys.stderr)
             return 1
-        print(f"removed: {track_label(user['tracks'].pop(position))}")
-        user_file.write_text(json.dumps(user, ensure_ascii=False, indent=4) + "\n")
+        track = data["tracks"][index]
+        if track.get("file"):
+            (folder / IGNORED_DIR).mkdir(exist_ok=True)
+            shutil.move(track["file"], str(free_name(folder / IGNORED_DIR, Path(track["file"]).name)))
+        else:
+            lines = (folder / ONLINE_FILE).read_text().splitlines()
+            position = -1
+            for number, line in enumerate(lines):
+                if re.match(r"^\s*[-*]\s+(.+?)\s*\|\s*(\S.*?)\s*$", line):
+                    position += 1
+                    if position == index:
+                        del lines[number]
+                        break
+            (folder / ONLINE_FILE).write_text("\n".join(lines) + "\n")
+        print(f"removed: {track_label(track)}")
     else:
         keep = (args[3] if len(args) > 3 else "on") != "off"
         indexes = range(len(data["tracks"])) if len(args) > 2 and args[2] == "all" else \
             [int(args[2])] if len(args) > 2 and args[2].isdigit() and int(args[2]) < len(data["tracks"]) else []
         for index in indexes:
             track = data["tracks"][index]
+            if track.get("file"):
+                continue
             set_offline(name, track, keep)
             if keep and not cached(track) and shutil.which("yt-dlp"):
                 print(f"downloading {track_label(track)}...")
                 download(track)
             print(f"{track_label(track)}: {'offline' if keep and cached(track) else 'online'}")
     return 0
+
+# The list given to mpv: (key, source, title); the offline copy when there is one (starts at once, no network, its
+# title for the bar), else the link, else a YouTube search (its own title)
+def playlist(data):
+    entries = []
+    for track in data["tracks"]:
+        local = cached(track)
+        if local or track.get("url"):
+            entries.append((track["key"], str(local or track["url"]), track_label(track)))
+        else:
+            entries.append((track["key"], f"ytdl://ytsearch1:{track['search']}", ""))
+    return entries
 
 class Radio:
     """mpv playing the tracks of a station (radio.json: offline copies first, else YouTube searches through yt-dlp),
@@ -336,8 +426,10 @@ class Radio:
         self.station = ""
         # one socket per wallpaper: another session keeps the control of its own radio
         self.socket = RUNTIME_DIR / f"wd-radio-{os.getpid()}.sock"
+        # the list mpv plays (key, source, title), changed live with the folder of the radio
+        self.entries = []
         self.state = {"available": self.available(), "playing": False, "paused": False, "title": "", "index": 0,
-                      "station": "", "loop": False}
+                      "station": "", "key": "", "loop": bool(read_json(USER_RADIO_DIR / "player.json", {}).get("loop"))}
 
     @staticmethod
     def available():
@@ -395,41 +487,69 @@ class Radio:
             self.command("playlist-next" if action == "next" else "playlist-prev", "force")
         elif action == "stop":
             self.stop()
-        elif action == "loop" and self.running():
-            self.command("set_property", "loop-file", "no" if self.state.get("loop") else "inf")
+        elif action == "loop":
+            # the loop is a setting: it can be changed while nothing plays, the next track follows it
+            self.state["loop"] = not self.state["loop"]
+            USER_RADIO_DIR.mkdir(parents=True, exist_ok=True)
+            (USER_RADIO_DIR / "player.json").write_text(json.dumps({"loop": self.state["loop"]}) + "\n")
+            if self.running():
+                self.command("set_property", "loop-file", "inf" if self.state["loop"] else "no")
         elif action == "offline":
             self.keep(message.get("station", ""), int(message.get("index", 0)))
-        elif action == "import":
-            GLib.idle_add(self.ask_import, message.get("station", ""))
+        elif action == "folder":
+            data = station(message.get("station", ""))
+            if data:
+                subprocess.Popen(["xdg-open", data["folder"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
         self.update()
 
     def play(self, name, index):
-        if self.running() and self.station == name:
-            self.command("set_property", "playlist-pos", index)
+        data = station(name)
+        if not data:
+            return
+        key = data["tracks"][index]["key"] if 0 <= index < len(data["tracks"]) else ""
+        keys = [entry[0] for entry in self.entries]
+        if self.running() and self.station == name and key in keys:
+            self.command("set_property", "playlist-pos", keys.index(key))
             self.command("set_property", "pause", False)
             return
         self.stop()
         self.stop_others()
-        data = station(name)
-        if not data:
-            return
-        # the offline copy when there is one (starts at once, no network, its title for the bar), else a YouTube
-        # search; the next track is fetched while this one plays
-        entries = []
-        for track in data["tracks"]:
-            local = cached(track)
-            if local or track.get("url"):
-                entries += ["--{", f"--force-media-title={track_label(track)}", str(local or track["url"]), "--}"]
-            else:
-                entries.append(f"ytdl://ytsearch1:{track['search']}")
+        self.entries = playlist(data)
         self.station = name
+        arguments = []
+        for _, source, title in self.entries:
+            arguments += ["--{", f"--force-media-title={title}", source, "--}"] if title else [source]
+        # the next track is fetched while this one plays
         self.process = subprocess.Popen(
             ["mpv", "--no-video", "--no-terminal", "--idle=no", f"--input-ipc-server={self.socket}",
-             "--ytdl-format=bestaudio/best", "--loop-playlist=inf", f"--playlist-start={index}", "--volume=70",
-             "--prefetch-playlist=yes", f"--title=wd-radio {name}", *shlex.split(os.environ.get("WD_RADIO_ARGS", "")),
-             *entries],
+             "--ytdl-format=bestaudio/best", "--loop-playlist=inf", f"--playlist-start={max(0, index)}", "--volume=70",
+             f"--loop-file={'inf' if self.state['loop'] else 'no'}", "--prefetch-playlist=yes",
+             f"--title=wd-radio {name}", *shlex.split(os.environ.get("WD_RADIO_ARGS", "")), *arguments],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         threading.Thread(target=self.watch, args=(self.process,), daemon=True).start()
+
+    # The folder of the playing radio changed: the tracks gone leave the list, the new ones join its end (the music
+    # goes on)
+    def sync(self, data):
+        if not self.running() or data["station"] != self.station:
+            return
+        entries = playlist(data)
+        keys = [entry[0] for entry in self.entries]
+        wanted = {entry[0] for entry in entries}
+        for position in reversed(range(len(keys))):
+            if keys[position] not in wanted:
+                self.command("playlist-remove", position)
+                del self.entries[position]
+                del keys[position]
+        for entry in entries:
+            if entry[0] not in keys:
+                title = entry[2]
+                self.command("loadfile", entry[1], "append", -1,
+                             f"force-media-title=%{len(title.encode())}%{title}" if title else "")
+                self.entries.append(entry)
+                keys.append(entry[0])
+        self.update()
 
     def stop(self):
         if self.running():
@@ -462,8 +582,7 @@ class Radio:
         folder.mkdir(parents=True, exist_ok=True)
         dialog.set_do_overwrite_confirmation(True)
         dialog.set_current_folder(str(folder))
-        # the extension is the one of YouTube (webm or m4a)
-        dialog.set_current_name(track_label(track).replace("/", " ") + ".webm")
+        dialog.set_current_name(track_label(track).replace("/", " ") + ".mp3")
         dialog.connect("response", self.saving, name, track)
         dialog.show()
         return False
@@ -472,40 +591,17 @@ class Radio:
         path = dialog.get_filename() if response == Gtk.ResponseType.ACCEPT else None
         dialog.destroy()
         if path:
-            threading.Thread(target=self.save, args=(name, track, Path(path)), daemon=True).start()
+            threading.Thread(target=self.save, args=(name, track, Path(path).with_suffix(".mp3")), daemon=True).start()
 
+    # the track saved as an mp3 where the user said, then played from it (offline)
     def save(self, name, track, path):
-        DOWNLOADING.add(track_key(track))
+        DOWNLOADING.add(track["key"])
         self.refresh()
-        file = download(track, path.with_suffix("") if path.suffix.lower() in AUDIO else path)
-        DOWNLOADING.discard(track_key(track))
+        file = download(track, path, mp3=True)
+        DOWNLOADING.discard(track["key"])
         if file:
             set_offline(name, track, str(file))
         self.refresh()
-
-    # The import button: audio files chosen in a dialog are copied into the folder of the radio
-    def ask_import(self, name):
-        dialog = self.dialog(f"Add music to the radio of {name}", Gtk.FileChooserAction.OPEN, "_Add")
-        audio = Gtk.FileFilter()
-        audio.set_name("Audio")
-        for suffix in AUDIO:
-            audio.add_pattern(f"*{suffix}")
-            audio.add_pattern(f"*{suffix.upper()}")
-        dialog.add_filter(audio)
-        dialog.set_select_multiple(True)
-        dialog.connect("response", self.importing, name)
-        dialog.show()
-        return False
-
-    def importing(self, dialog, response, name):
-        files = dialog.get_filenames() if response == Gtk.ResponseType.ACCEPT else []
-        dialog.destroy()
-        if files:
-            folder = music_dir() / name
-            folder.mkdir(parents=True, exist_ok=True)
-            for file in files:
-                shutil.copy2(file, folder / Path(file).name)
-            self.refresh()
 
     # State for the pages every second while this mpv plays
     def watch(self, process):
@@ -516,12 +612,12 @@ class Radio:
 
     def update(self):
         if self.running():
+            position = self.command("get_property", "playlist-pos") or 0
             self.state.update(playing=True, station=self.station, paused=bool(self.command("get_property", "pause")),
-                              index=self.command("get_property", "playlist-pos") or 0,
-                              title=self.command("get_property", "media-title") or "",
-                              loop=self.command("get_property", "loop-file") not in (None, False, "no"))
+                              index=position, key=self.entries[position][0] if position < len(self.entries) else "",
+                              title=self.command("get_property", "media-title") or "")
         else:
-            self.state.update(playing=False, paused=False, title="", loop=False)
+            self.state.update(playing=False, paused=False, title="", key="")
         GLib.idle_add(self.publish, dict(self.state))
 
 # =========================
@@ -593,8 +689,8 @@ class Wallpaper:
         self.windows = []
         self.cava = None
         self.radio = Radio(self.publish, self.refresh_stations)
-        # the user's own tracks (edited by hand or by wd-style radio) reach the pages by themselves
-        self.radio_files = None
+        # the folders of the radios (edited by hand, by wd-style radio, by the player) reach the pages by themselves
+        self.radio_tracks = {}
         GLib.timeout_add_seconds(3, self.watch_radio)
         threading.Thread(target=self.radio.stop_others, daemon=True).start()
         self.frames = {}
@@ -736,14 +832,24 @@ class Wallpaper:
     def refresh_stations(self):
         GLib.idle_add(lambda: [self.give_station(view) for window in self.windows for view in window.views] and False)
 
+    # Every 3 seconds: the folder of the radio of each page and of the one playing; a change goes to the pages and to
+    # the playing list
     def watch_radio(self):
-        folders = [USER_RADIO_DIR, music_dir()]
-        files = [f for folder in folders if folder.is_dir() for f in folder.rglob("*")]
-        stamp = sorted((str(f), f.stat().st_mtime) for f in files + [d for d in folders if d.is_dir()] if f.exists())
-        if self.radio_files is not None and stamp != self.radio_files:
-            self.refresh_stations()
-        self.radio_files = stamp
+        names = {view.station for window in self.windows for view in window.views} | ({self.radio.station} - {""})
+        threading.Thread(target=self.check_radios, args=(names,), daemon=True).start()
         return True
+
+    def check_radios(self, names):
+        for name in names:
+            data = station(name)
+            if not data:
+                continue
+            stamp = json.dumps([[t["key"], t["title"], t.get("subtitle", ""), t["offline"], t["cached"], t["downloading"]]
+                                for t in data["tracks"]] + [data["shown"]])
+            if name in self.radio_tracks and stamp != self.radio_tracks[name]:
+                self.refresh_stations()
+                self.radio.sync(data)
+            self.radio_tracks[name] = stamp
 
     def publish(self, state):
         self.run_js(f"window.wdRadio && wdRadio({json.dumps(state)})")
