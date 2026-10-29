@@ -108,13 +108,14 @@ function text(ctx, value, col, row, color) {
 // a tmux pane: rounded box with its title
 function pane(col, row, width, height, title) {
     main.fillStyle = "rgba(25, 23, 36, 0.78)";
-    main.fillRect(col * cw, row * ch, width * cw, height * ch);
-    text(main, "╭" + "─".repeat(width - 2) + "╮", col, row, C.muted);
-    text(main, "╰" + "─".repeat(width - 2) + "╯", col, row + height - 1, C.muted);
-    for (let y = row + 1; y < row + height - 1; y++) {
-        text(main, "│", col, y, C.muted);
-        text(main, "│", col + width - 1, y, C.muted);
-    }
+    main.strokeStyle = C.muted;
+    main.lineWidth = 1;
+    main.beginPath();
+    main.roundRect(col * cw + 0.5, row * ch + ch / 2 + 0.5, (width - 1) * cw, (height - 1) * ch, cw);
+    main.fill();
+    main.stroke();
+    main.fillStyle = C.base;
+    main.fillRect((col + 1.5) * cw, row * ch, (title.length + 2) * cw, ch);
     text(main, ` ${title} `, col + 2, row, C.iris);
 }
 
@@ -154,11 +155,11 @@ function drawTorus(dt) {
     const cB = Math.cos(angleB);
     const sB = Math.sin(angleB);
 
-    for (let theta = 0; theta < 6.283; theta += 0.07) {
+    for (let theta = 0; theta < 6.283; theta += 0.09) {
         const ct = Math.cos(theta);
         const st = Math.sin(theta);
 
-        for (let phi = 0; phi < 6.283; phi += 0.025) {
+        for (let phi = 0; phi < 6.283; phi += 0.035) {
             const cp = Math.cos(phi);
             const sp = Math.sin(phi);
             const circleX = r2 + r1 * ct;
@@ -182,13 +183,23 @@ function drawTorus(dt) {
         }
     }
     pane(left - 3, top - 1, width + 6, height + 2, "torus.c ─ 3d");
-    for (let level = 0; level < 12; level++) {
-        main.fillStyle = RAMP[level];
-        for (let i = 0; i < output.length; i++) {
-            if (output[i] === level) {
-                main.fillText(LUMINANCE[level], (left + i % width) * cw, (top + Math.floor(i / width)) * ch);
+    // one string per level and row (spaces elsewhere), built in one pass: a few dozen texts instead of thousands
+    for (let y = 0; y < height; y++) {
+        const lines = [];
+
+        for (let x = 0; x < width; x++) {
+            const level = output[x + y * width];
+
+            if (level >= 0) {
+                (lines[level] ??= new Array(width).fill(" "))[x] = LUMINANCE[level];
             }
         }
+        lines.forEach((line, level) => {
+            if (line) {
+                main.fillStyle = RAMP[level];
+                main.fillText(line.join(""), left * cw, (top + y) * ch);
+            }
+        });
     }
 }
 

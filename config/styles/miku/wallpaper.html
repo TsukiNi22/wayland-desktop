@@ -1,6 +1,8 @@
 <!doctype html>
 <!-- wayland-desktop style: Miku - live wallpaper (wd-wallpaper): Miku and her 39, a ring of spectrum turning around
-     the 39, notes rising with the music, teal and pink twin-tail ribbons and a light sweeping the stripes -->
+     the 39, notes rising with the music, teal and pink twin-tail ribbons, a light sweeping the stripes, a retro radio
+     to click (39.39 FM: famous Miku songs) and the sticky note of the POC: click it for the MIKU MIKU BEAM (countdown,
+     ray from her eyes, leeks, synthesized sound and voice) -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -23,6 +25,265 @@ const art = wd.image("wallpaper.jpg");
 const random = wd.rand(39);
 const notes = [];
 const NOTE_GLYPHS = ["♪", "♫", "♬", "♩"];
+const MONO = '"JetBrains Mono", monospace';
+const JP = '"Noto Sans CJK JP", "Adwaita Sans", sans-serif';
+const radio = wd.player();
+let u = 1;
+let panel = { x: 0, y: 0, w: 0, h: 0 };
+
+function layout() {
+    u = Math.min(wd.width / 1920, wd.height / 1080);
+    panel = { x: wd.width - 470 * u, y: 140 * u, w: 420 * u, h: 156 * u };
+    note = { x: wd.width * 0.43, y: 120 * u, w: 250 * u, h: 112 * u };
+    wd.clickable([panel, note]);
+}
+
+// =========================
+// Sticky note, MIKU MIKU BEAM
+// =========================
+let note = { x: 0, y: 0, w: 0, h: 0 };
+let beam = null;
+let audio = null;
+let lift = 0;
+const leeks = [];
+
+// the note of the POC; it is also the hidden button of the beam
+function drawNote(dt) {
+    const over = wd.hit(note) && !beam;
+
+    lift += ((over ? 1 : 0) - lift) * (1 - Math.exp(-dt * 10));
+    ctx.save();
+    ctx.translate(note.x + note.w / 2, note.y + note.h / 2);
+    ctx.rotate((4 - lift * 3) * Math.PI / 180);
+    ctx.scale(1 + lift * 0.04, 1 + lift * 0.04);
+    ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+    ctx.shadowBlur = (14 + lift * 10) * u;
+    ctx.shadowOffsetX = 4 * u;
+    ctx.shadowOffsetY = (6 + lift * 6) * u;
+    ctx.fillStyle = "#fff8b8";
+    ctx.fillRect(-note.w / 2, -note.h / 2, note.w, note.h);
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "rgba(225, 40, 133, 0.25)";
+    ctx.fillRect(-note.w * 0.18, -note.h / 2 - 8 * u, note.w * 0.36, 16 * u);
+    ctx.font = `${15 * u}px "Adwaita Sans", "Noto Color Emoji", sans-serif`;
+    ctx.fillStyle = "#3b3a2a";
+    const left = -note.w / 2 + 16 * u;
+
+    ctx.fillText("today's mood: \ud83e\udd6c\ud83e\udd6c\ud83e\udd6c", left, -note.h / 2 + 30 * u);
+    ctx.fillStyle = "#e12885";
+    ctx.font = `bold ${15 * u}px "Adwaita Sans", sans-serif`;
+    ctx.fillText("39", left, -note.h / 2 + 58 * u);
+    ctx.fillStyle = "#3b3a2a";
+    ctx.font = `${15 * u}px "Adwaita Sans", sans-serif`;
+    ctx.fillText(" = san-kyu = thank you", left + ctx.measureText("39").width + 2 * u, -note.h / 2 + 58 * u);
+    ctx.font = `${15 * u}px "Adwaita Sans", "Noto Color Emoji", "Noto Sans CJK JP", sans-serif`;
+    ctx.fillText("\u2728 \u266a (/\u25d5\u30ee\u25d5)/*:\uff65\uff9f\u2727", left, -note.h / 2 + 86 * u);
+    ctx.restore();
+    wd.cursor(over || radio.rects.some(wd.hit));
+}
+
+// synthesized sounds (WebAudio, started by the click)
+function tone(frequency, start, length, type = "square", gain = 0.12, to = null) {
+    const osc = audio.createOscillator();
+    const amp = audio.createGain();
+    const at = audio.currentTime + start;
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, at);
+    if (to) {
+        osc.frequency.exponentialRampToValueAtTime(to, at + length);
+    }
+    amp.gain.setValueAtTime(0.0001, at);
+    amp.gain.exponentialRampToValueAtTime(gain, at + 0.02);
+    amp.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    osc.connect(amp).connect(audio.destination);
+    osc.start(at);
+    osc.stop(at + length + 0.05);
+}
+
+function burst(start, length) {
+    const buffer = audio.createBuffer(1, audio.sampleRate * length, audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    const source = audio.createBufferSource();
+    const filter = audio.createBiquadFilter();
+    const amp = audio.createGain();
+    const at = audio.currentTime + start;
+
+    for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }
+    source.buffer = buffer;
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(6000, at);
+    filter.frequency.exponentialRampToValueAtTime(300, at + length);
+    amp.gain.value = 0.18;
+    source.connect(filter).connect(amp).connect(audio.destination);
+    source.start(at);
+}
+
+// 1 enable, 2, 3, ready?, go!, then the beam: each step its text, sound and voice (espeak-ng through wd-wallpaper)
+const STEPS = [
+    { at: 0, big: "1", small: "ENABLE", say: "one. enable!", sound: () => tone(660, 0, 0.18) },
+    { at: 0.9, big: "2", small: "", say: "two!", sound: () => tone(660, 0, 0.18) },
+    { at: 1.8, big: "3", small: "", say: "three!", sound: () => tone(660, 0, 0.18) },
+    { at: 2.7, big: "READY?", small: "", say: "ready?", sound: () => tone(380, 0, 0.7, "sawtooth", 0.08, 1300) },
+    { at: 3.6, big: "GO!", small: "", say: "go!", sound: () => tone(1320, 0, 0.35) },
+    { at: 4.2, big: "", small: "", say: "miku miku beeeeeeam!", sound: () => {
+        burst(0, 2.6);
+        [261.6, 329.6, 392, 523.3, 659.3, 784].forEach((f, i) => tone(f, i * 0.06, 2.2, "sawtooth", 0.05));
+        tone(140, 0, 2.4, "sine", 0.25, 38);
+    } },
+];
+
+function fire() {
+    if (beam) {
+        return;
+    }
+    audio = audio || new AudioContext();
+    audio.resume();
+    beam = { time: 0, step: -1 };
+}
+
+addEventListener("click", event => {
+    if (event.clientX >= note.x && event.clientX <= note.x + note.w && event.clientY >= note.y && event.clientY <= note.y + note.h) {
+        fire();
+    }
+});
+
+function drawLeek(x, y, size, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = "#f4fbe9";
+    ctx.beginPath();
+    ctx.roundRect(-size * 0.12, 0, size * 0.24, size * 0.55, size * 0.1);
+    ctx.fill();
+    ctx.fillStyle = "#a8e063";
+    ctx.fillRect(-size * 0.12, -size * 0.15, size * 0.24, size * 0.2);
+    ctx.fillStyle = "#3f9b35";
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.12, -size * 0.12);
+    ctx.lineTo(-size * 0.32, -size * 0.75);
+    ctx.lineTo(0, -size * 0.2);
+    ctx.lineTo(size * 0.3, -size * 0.8);
+    ctx.lineTo(size * 0.12, -size * 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawBeam(dt) {
+    if (!beam) {
+        return;
+    }
+    beam.time += dt;
+    const t = beam.time;
+
+    while (beam.step + 1 < STEPS.length && t >= STEPS[beam.step + 1].at) {
+        const step = STEPS[++beam.step];
+
+        step.sound();
+        wd.say(step.say);
+        if (beam.step === STEPS.length - 1) {
+            for (let i = 0; i < 39; i++) {
+                leeks.push({ x: random() * wd.width, y: -random() * wd.height * 0.6, speed: (300 + random() * 400) * u,
+                    spin: (random() - 0.5) * 6, angle: random() * 6, size: (36 + random() * 30) * u });
+            }
+        }
+    }
+    const fire_at = STEPS[STEPS.length - 1].at;
+    const step = STEPS[beam.step];
+
+    // countdown: dimmed screen, the number pops
+    if (t < fire_at) {
+        const k = t - step.at;
+        const pop = 1 + 0.4 * Math.exp(-k * 9);
+
+        ctx.fillStyle = `rgba(11, 43, 44, ${Math.min(0.55, t * 2)})`;
+        ctx.fillRect(0, 0, wd.width, wd.height);
+        ctx.save();
+        ctx.translate(wd.width / 2, wd.height * 0.45);
+        ctx.scale(pop, pop);
+        ctx.textAlign = "center";
+        ctx.font = `italic 900 ${Math.round(wd.height * 0.2)}px "Adwaita Sans", sans-serif`;
+        ctx.lineWidth = 10 * u;
+        ctx.strokeStyle = `rgb(${PINK.join(", ")})`;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeText(step.big, 0, 0);
+        ctx.fillText(step.big, 0, 0);
+        if (step.small) {
+            ctx.font = `800 ${Math.round(wd.height * 0.05)}px "JetBrains Mono", monospace`;
+            ctx.fillStyle = `rgb(${TEAL.join(", ")})`;
+            ctx.fillText(step.small, 0, wd.height * 0.08);
+        }
+        ctx.restore();
+        ctx.textAlign = "start";
+        return;
+    }
+    // the beam: from her eyes to the edge, flash, shake, leeks
+    const k = t - fire_at;
+    const grow = Math.min(1, k / 0.35);
+    const fade = Math.max(0, Math.min(1, (3.2 - k) / 0.8));
+    const eyeX = wd.width * 0.235;
+    const eyeY = wd.height * 0.165;
+    const height = (110 + 40 * Math.sin(k * 30)) * u * fade;
+    const ray = ctx.createLinearGradient(0, eyeY - height / 2, 0, eyeY + height / 2);
+
+    ray.addColorStop(0, "rgba(57, 197, 187, 0)");
+    ray.addColorStop(0.25, "rgba(57, 197, 187, 0.9)");
+    ray.addColorStop(0.5, "#ffffff");
+    ray.addColorStop(0.75, "rgba(225, 40, 133, 0.9)");
+    ray.addColorStop(1, "rgba(225, 40, 133, 0)");
+    ctx.save();
+    if (k < 1.2) {
+        ctx.translate((random() - 0.5) * 16 * u, (random() - 0.5) * 16 * u);
+    }
+    ctx.shadowColor = `rgb(${TEAL.join(", ")})`;
+    ctx.shadowBlur = 50 * u;
+    ctx.fillStyle = ray;
+    ctx.beginPath();
+    ctx.roundRect(eyeX, eyeY - height / 2, (wd.width - eyeX) * grow, height, [0, height / 2, height / 2, 0]);
+    ctx.fill();
+    ctx.restore();
+    if (k < 0.4) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * (1 - k / 0.4)})`;
+        ctx.fillRect(0, 0, wd.width, wd.height);
+    }
+    for (let i = leeks.length - 1; i >= 0; i--) {
+        const leek = leeks[i];
+
+        leek.y += leek.speed * dt;
+        leek.angle += leek.spin * dt;
+        if (leek.y > wd.height + 80 * u) {
+            leeks.splice(i, 1);
+            continue;
+        }
+        drawLeek(leek.x, leek.y, leek.size, leek.angle);
+    }
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(wd.width * 0.55, wd.height * 0.32);
+    ctx.scale(Math.min(1, k * 4), Math.min(1, k * 4));
+    ctx.textAlign = "center";
+    ctx.font = `italic 900 ${Math.round(wd.height * 0.09)}px "Adwaita Sans", sans-serif`;
+    ctx.lineWidth = 8 * u;
+    ctx.strokeStyle = `rgb(${PINK.join(", ")})`;
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = `rgb(${TEAL.join(", ")})`;
+    ctx.shadowOffsetX = 6 * u;
+    ctx.shadowOffsetY = 6 * u;
+    ctx.strokeText("MIKU MIKU BEAAAAM!!!", 0, 0);
+    ctx.fillText("MIKU MIKU BEAAAAM!!!", 0, 0);
+    ctx.restore();
+    if (k > 4 && !leeks.length) {
+        beam = null;
+    }
+}
+
+function rounded(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+}
 
 function mix(a, b, k) {
     return a.map((v, i) => Math.round(v + (b[i] - v) * k));
@@ -137,11 +398,93 @@ function drawRibbons(t) {
     }
 }
 
+// 39.39 FM: an LCD with the title, a tuning scale, a speaker beating with the bass, the antenna and its pink tip
+function drawRadio(t) {
+    const p = panel;
+    const over = wd.hit(p);
+    const on = radio.playing() && !wd.radio.paused;
+    const lcd = { x: p.x + 20 * u, y: p.y + 38 * u, w: 262 * u, h: 52 * u };
+    const speaker = { x: p.x + p.w - 66 * u, y: p.y + p.h / 2 };
+
+    ctx.strokeStyle = `rgba(${TEAL.join(", ")}, 0.9)`;
+    ctx.lineWidth = 3 * u;
+    ctx.beginPath();
+    ctx.moveTo(p.x + p.w - 40 * u, p.y + 4 * u);
+    ctx.lineTo(p.x + p.w - 6 * u, p.y - 56 * u);
+    ctx.stroke();
+    ctx.fillStyle = `rgb(${PINK.join(", ")})`;
+    ctx.beginPath();
+    ctx.arc(p.x + p.w - 6 * u, p.y - 56 * u, (7 + (on ? wd.beat * 3 : 0)) * u, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(11, 43, 44, 0.88)";
+    ctx.strokeStyle = `rgba(${TEAL.join(", ")}, ${over ? 0.95 : 0.6})`;
+    ctx.lineWidth = 2 * u;
+    rounded(p.x, p.y, p.w, p.h, 24 * u);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = `800 ${12 * u}px ${MONO}`;
+    ctx.fillStyle = `rgb(${PINK.join(", ")})`;
+    ctx.fillText("MIKU RADIO", p.x + 22 * u, p.y + 26 * u);
+    ctx.fillStyle = `rgba(${TEAL.join(", ")}, 0.8)`;
+    ctx.fillText(radio.status(), p.x + 120 * u, p.y + 26 * u);
+
+    ctx.fillStyle = "#051b1c";
+    rounded(lcd.x, lcd.y, lcd.w, lcd.h, 10 * u);
+    ctx.fill();
+    ctx.save();
+    ctx.shadowColor = `rgb(${TEAL.join(", ")})`;
+    ctx.shadowBlur = 8 * u;
+    ctx.fillStyle = "#7ff5ea";
+    ctx.font = `700 ${13 * u}px ${MONO}`;
+    ctx.fillText("39.39 FM", lcd.x + 12 * u, lcd.y + 20 * u);
+    ctx.font = `600 ${14 * u}px ${JP}`;
+    wd.marquee(ctx, radio.title(), lcd.x + 12 * u, lcd.y + 41 * u, lcd.w - 24 * u, t);
+    ctx.restore();
+
+    // tuning scale: the needle sits on the track
+    const scale = { x: lcd.x + 8 * u, y: lcd.y + lcd.h + 10 * u, w: lcd.w - 16 * u };
+    const count = Math.max(2, radio.tracks().length);
+
+    ctx.fillStyle = `rgba(${TEAL.join(", ")}, 0.5)`;
+    for (let i = 0; i < count; i++) {
+        ctx.fillRect(scale.x + i / (count - 1) * scale.w, scale.y, 1.5 * u, i % 3 === 0 ? 7 * u : 4 * u);
+    }
+    ctx.fillStyle = `rgb(${PINK.join(", ")})`;
+    ctx.fillRect(scale.x + radio.position() / (count - 1) * scale.w - 1.5 * u, scale.y - 4 * u, 3 * u, 14 * u);
+
+    ctx.fillStyle = "#082223";
+    ctx.beginPath();
+    ctx.arc(speaker.x, speaker.y, 46 * u, 0, Math.PI * 2);
+    ctx.fill();
+    for (let ring = 1; ring <= 4; ring++) {
+        for (let k = 0; k < ring * 6; k++) {
+            const angle = k / (ring * 6) * Math.PI * 2 + ring;
+            const level = on ? wd.levels[Math.min(wd.bars - 1, ring * 3)] : 0;
+
+            ctx.fillStyle = `rgba(${TEAL.join(", ")}, ${0.35 + level * 0.65})`;
+            ctx.beginPath();
+            ctx.arc(speaker.x + Math.cos(angle) * ring * 9 * u * (1 + level * 0.12),
+                speaker.y + Math.sin(angle) * ring * 9 * u * (1 + level * 0.12), 2.3 * u, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    radio.buttons(ctx, lcd.x + lcd.w + 6 * u - 4 * 16 * u * 2.6, p.y + p.h - 44 * u, 14 * u, {
+        accent: `rgb(${PINK.join(", ")})`, onAccent: "#ffffff", button: "rgba(57, 197, 187, 0.18)",
+        hover: "rgba(57, 197, 187, 0.45)", icon: "#e9fffd",
+    });
+}
+
+layout();
+addEventListener("resize", layout);
 wd.run((t, dt) => {
     drawArt(t);
     drawRing(t);
     drawRibbons(t);
     drawNotes(t, dt);
+    drawRadio(t);
+    drawNote(dt);
+    drawBeam(dt);
 });
 </script>
 </body>

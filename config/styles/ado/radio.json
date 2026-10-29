@@ -1,0 +1,77 @@
+{
+    "name": "ADO RADIO",
+    "tracks": [
+        {
+            "title": "うっせぇわ",
+            "subtitle": "Usseewa",
+            "search": "【Ado】うっせぇわ",
+            "offline": true
+        },
+        {
+            "title": "新時代",
+            "subtitle": "New Genesis",
+            "search": "【Ado】新時代",
+            "offline": true
+        },
+        {
+            "title": "踊",
+            "subtitle": "Odo",
+            "search": "【Ado】踊",
+            "offline": false
+        },
+        {
+            "title": "唱",
+            "subtitle": "Show",
+            "search": "【Ado】唱",
+            "offline": false
+        },
+        {
+            "title": "逆光",
+            "subtitle": "Backlight",
+            "search": "【Ado】逆光",
+            "offline": false
+        },
+        {
+            "title": "私は最強",
+            "subtitle": "I'm Invincible",
+            "search": "【Ado】私は最強",
+            "offline": false
+        },
+        {
+            "title": "ギラギラ",
+            "subtitle": "Gira Gira",
+            "search": "【Ado】ギラギラ",
+            "offline": false
+        },
+        {
+            "title": "阿修羅ちゃん",
+            "subtitle": "Ashura-chan",
+            "search": "【Ado】阿修羅ちゃん",
+            "offline": false
+        },
+        {
+            "title": "Tot Musica",
+            "subtitle": "Tot Musica",
+            "search": "【Ado】Tot Musica",
+            "offline": false
+        },
+        {
+            "title": "レディメイド",
+            "subtitle": "Readymade",
+            "search": "【Ado】レディメイド",
+            "offline": false
+        },
+        {
+            "title": "クラクラ",
+            "subtitle": "Kura Kura",
+            "search": "【Ado】クラクラ",
+            "offline": false
+        },
+        {
+            "title": "夜のピエロ",
+            "subtitle": "Yoru no Pierrot",
+            "search": "【Ado】夜のピエロ",
+            "offline": false
+        }
+    ]
+}

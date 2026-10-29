@@ -75,31 +75,41 @@ function drawDump(t, dt) {
     for (let i = 0; i < 6 + wd.energy * 80; i++) {
         bytes[Math.floor(random() * bytes.length)] = Math.floor(random() * 256);
     }
+    // a line is three strings (one per color, spaces elsewhere): a few texts instead of eighteen
+    const width = ctx.measureText("0").width;
+
     for (let line = 0; line < lines; line++) {
         const row = (first + line) % 200;
         const y = line * lineHeight - offset;
+        const layers = { [AMBER]: "", [GREEN]: "", "#2f7a4f": "" };
         let ascii = "";
 
-        ctx.fillStyle = DIM;
-        ctx.fillText(hex((first + line) * 16, 8), 28, y);
         for (let i = 0; i < 16; i++) {
             const value = bytes[row * 16 + i];
-            const hot = value > 250 - wd.beat * 60;
+            const color = value > 250 - wd.beat * 60 ? AMBER : (value % 7 === 0 ? GREEN : "#2f7a4f");
+            const cell = hex(value, 2) + (i === 7 ? "  " : " ");
 
-            ctx.fillStyle = hot ? AMBER : (value % 7 === 0 ? GREEN : "#2f7a4f");
-            ctx.fillText(hex(value, 2), 118 + i * 24 + (i >= 8 ? 10 : 0), y);
+            for (const key in layers) {
+                layers[key] += key === color ? cell : " ".repeat(cell.length);
+            }
             ascii += value >= 33 && value < 127 ? String.fromCharCode(value) : ".";
         }
+        ctx.fillStyle = DIM;
+        ctx.fillText(hex((first + line) * 16, 8), 28, y);
+        for (const key in layers) {
+            ctx.fillStyle = key;
+            ctx.fillText(layers[key], 118, y);
+        }
         ctx.fillStyle = "#24603d";
-        ctx.fillText(`|${ascii}|`, 520, y);
+        ctx.fillText(`|${ascii}|`, 118 + width * 50, y);
     }
-    const fade = ctx.createLinearGradient(0, 0, 720, 0);
+    const fade = ctx.createLinearGradient(0, 0, 118 + width * 70, 0);
 
     fade.addColorStop(0, "rgba(4, 7, 5, 0)");
     fade.addColorStop(0.75, "rgba(4, 7, 5, 0.2)");
     fade.addColorStop(1, "rgba(4, 7, 5, 1)");
     ctx.fillStyle = fade;
-    ctx.fillRect(0, 0, 720, wd.height);
+    ctx.fillRect(0, 0, 118 + width * 70, wd.height);
 }
 
 // =========================

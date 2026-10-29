@@ -1,6 +1,8 @@
 <!doctype html>
-<!-- wayland-desktop style: Ado / blue rose - live wallpaper (wd-wallpaper): the blue rose breathing under stage light
-     beams that sweep with the music, 3D petals falling and turning, sparkles and a bass glow -->
+<!-- wayland-desktop style: Ado / blue rose - live wallpaper (wd-wallpaper): Ado's stage - a backlit cage with a
+     silhouette under light rays, the WORLD DOMINATION meme and its globe of conquered cities, a fan chat with the
+     rose-chan emotes (and the user's own), reactions on the beats, giant song titles glitching behind, the blue rose,
+     and a vinyl radio to click -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -16,107 +18,507 @@
 <script>
 "use strict";
 
+const SKY = "159, 195, 255";
+const BLUE = "47, 107, 255";
+const JP = '"Noto Sans CJK JP", "Adwaita Sans", sans-serif';
+const SANS = '"Adwaita Sans", "Noto Sans CJK JP", sans-serif';
+const MONO = '"JetBrains Mono", monospace';
+// song titles shown huge behind the stage (the radio plays radio.json)
+const TRACKS = [["うっせぇわ", "Usseewa"], ["踊", "Odo"], ["新時代", "New Genesis"], ["唱", "Show"], ["逆光", "Backlight"],
+    ["私は最強", "I'm Invincible"], ["ギラギラ", "Gira Gira"], ["阿修羅ちゃん", "Ashura-chan"], ["Tot Musica", "Tot Musica"],
+    ["レディメイド", "Readymade"], ["クラクラ", "Kura Kura"], ["夜のピエロ", "Yoru no Pierrot"]];
+
+const CITIES = [["TOKYO", 35.7, 139.7], ["SEOUL", 37.6, 127], ["TAIPEI", 25, 121.5], ["BANGKOK", 13.8, 100.5],
+    ["JAKARTA", -6.2, 106.8], ["SYDNEY", -33.9, 151.2], ["PARIS", 48.9, 2.35], ["LONDON", 51.5, -0.1], ["BERLIN", 52.5, 13.4],
+    ["MADRID", 40.4, -3.7], ["NEW YORK", 40.7, -74], ["LOS ANGELES", 34, -118.2], ["MEXICO", 19.4, -99.1],
+    ["SÃO PAULO", -23.5, -46.6], ["TORONTO", 43.7, -79.4], ["SINGAPORE", 1.35, 103.8]];
+// fans of the chat: name, emote of their avatar, color; the messages use :emote: (rose-chan, below)
+const FANS = [["bluerose_gang", "love", "#5b8cff"], ["usseewa_enjoyer", "angry", "#ff5a6e"], ["kura_kura", "shock", "#c9a7ff"],
+    ["new_genesis", "mic", "#ffd166"], ["tot_musica", "crown", "#9fe6c4"], ["backlight_crier", "cry", "#ff9ad5"],
+    ["cage_watcher", "cage", "#9fc3ff"], ["3am_listener", "sleepy", "#7fe0ff"]];
+const MESSAGES = ["ADO!!! :love: :love: :love:", "world domination: loading :crown:", "うっせぇわ うっせぇわ :angry: :angry:",
+    "新時代 はじまってる :mic:", "her voice :shock: :shock:", "the cage is glowing :cage:", "Tot Musica = boss fight :shock:",
+    "唱 is my gym playlist :angry:", "Backlight hits different :cry:", "blue rose gang :rose: :rose:",
+    "踊 on repeat since 2021 :mic:", "she's taking over the world :crown:", "Ado world tour WHEN :shock:", "鳥肌 :cry: :cry:",
+    "this beat drop :cry:", "1 like = 1 conquered city :rose:", "3am and still listening :sleepy:", "クラクラ :shock: :love:"];
+const REACTIONS = ["rose", "love", "angry", "crown", "mic", "shock", "cry", "cage"];
+
 const ctx = wd.canvas("main");
 const rose = wd.image("wallpaper.jpg");
-const random = wd.rand(2024);
-const petals = Array.from({ length: 70 }, () => petal(true));
-const sparkles = Array.from({ length: 140 }, () => ({ x: random(), y: random(), phase: random() * 6.28, size: 0.6 + random() * 1.6 }));
-const beams = [0.12, 0.34, 0.62, 0.86].map((x, i) => ({ x: x, phase: i * 1.7, width: 0.08 + random() * 0.06 }));
+const random = wd.rand(2020);
+const radio = wd.player();
+const petals = Array.from({ length: 36 }, () => petal(true));
+const chat = [];
+const reactions = [];
+let u = 1;
+let panel = { x: 0, y: 0, w: 0, h: 0 };
+let nextMessage = 1;
+let disc = 0;
+let arm = 0;
 
-// a petal somewhere in 3D: x, y on the screen (0-1), z depth (0 far - 1 near), spin around two axes
-function petal(anywhere) {
-    return {
-        x: random(), y: anywhere ? random() : -0.1, z: random(), spin: random() * 6.28, turn: random() * 6.28,
-        speed: 0.02 + random() * 0.03, drift: (random() - 0.5) * 0.02, hue: random(),
-    };
+// =========================
+// Emotes: rose-chan, an original blue rose mascot with the faces of the Ado memes (drawn here, no image), and the
+// user's own images of ~/.local/share/wd-emotes (given by wd-wallpaper)
+// =========================
+const EMOTES = {};
+const userEmotes = [];
+
+window.wdEmotes = files => {
+    for (const file of files) {
+        userEmotes.push(wd.image(file));
+    }
+};
+
+function makeEmote(name, draw) {
+    const canvas = document.createElement("canvas");
+    const g = canvas.getContext("2d");
+
+    canvas.width = 96;
+    canvas.height = 96;
+    g.translate(48, 52);
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    draw(g);
+    EMOTES[name] = canvas;
 }
 
-function drawRose(t) {
-    const zoom = 1.04 + 0.015 * Math.sin(t * 0.07) + wd.beat * 0.01;
+function roseFlower(g, x, y, r) {
+    const petals = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
 
+    petals.addColorStop(0, "#9fc3ff");
+    petals.addColorStop(1, "#1d3fb8");
+    g.fillStyle = petals;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "#0b1a5c";
+    g.lineWidth = r * 0.16;
+    for (let i = 0; i < 3; i++) {
+        g.beginPath();
+        g.arc(x + r * 0.08 * i, y + r * 0.05 * i, r * (0.75 - i * 0.22), 0.4 + i, 4.2 + i);
+        g.stroke();
+    }
+}
+
+// the head: a round blue face with its rose on top
+function head(g) {
+    const body = g.createRadialGradient(-12, -12, 4, 0, 4, 38);
+
+    body.addColorStop(0, "#c6dcff");
+    body.addColorStop(0.55, "#5b8cff");
+    body.addColorStop(1, "#2346c9");
+    g.fillStyle = body;
+    g.beginPath();
+    g.arc(0, 4, 34, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "#0b1a5c";
+    g.lineWidth = 3;
+    g.stroke();
+    roseFlower(g, -20, -26, 13);
+    g.fillStyle = "rgba(255, 150, 200, 0.45)";
+    g.beginPath();
+    g.ellipse(-20, 14, 6, 3.5, 0, 0, Math.PI * 2);
+    g.ellipse(20, 14, 6, 3.5, 0, 0, Math.PI * 2);
+    g.fill();
+}
+
+function line(g, points, width = 3.5, color = "#0b1a5c") {
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.beginPath();
+    points.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.stroke();
+}
+
+function dot(g, x, y, r, color = "#0b1a5c") {
+    g.fillStyle = color;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+}
+
+function heart(g, x, y, s, color) {
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(x, y + s * 0.9);
+    g.bezierCurveTo(x - s * 1.3, y, x - s * 0.6, y - s, x, y - s * 0.3);
+    g.bezierCurveTo(x + s * 0.6, y - s, x + s * 1.3, y, x, y + s * 0.9);
+    g.fill();
+}
+
+function makeEmotes() {
+    makeEmote("rose", g => roseFlower(g, 0, -4, 34));
+    // うっせぇわ: angry brows, shouting mouth, anger mark
+    makeEmote("angry", g => {
+        head(g);
+        line(g, [[-20, -6], [-7, 0]]);
+        line(g, [[20, -6], [7, 0]]);
+        dot(g, -12, 5, 3.5);
+        dot(g, 12, 5, 3.5);
+        g.fillStyle = "#0b1a5c";
+        g.beginPath();
+        g.ellipse(0, 22, 11, 8, 0, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = "#ff5a6e";
+        g.beginPath();
+        g.ellipse(0, 26, 6, 3, 0, 0, Math.PI * 2);
+        g.fill();
+        for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+            line(g, [[26 + dx * 3, -28 + dy * 3], [26 + dx * 9, -28 + dy * 4]], 3.5, "#ff2a4a");
+        }
+    });
+    // world domination: smug eyes, smirk, crown
+    makeEmote("crown", g => {
+        head(g);
+        line(g, [[-17, 6], [-11, 1], [-5, 6]]);
+        line(g, [[5, 6], [11, 1], [17, 6]]);
+        line(g, [[-8, 20], [2, 24], [12, 17]]);
+        g.fillStyle = "#ffd166";
+        g.strokeStyle = "#a8741a";
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.moveTo(-6, -24);
+        g.lineTo(-2, -44);
+        g.lineTo(8, -32);
+        g.lineTo(16, -46);
+        g.lineTo(22, -32);
+        g.lineTo(30, -42);
+        g.lineTo(28, -22);
+        g.closePath();
+        g.fill();
+        g.stroke();
+    });
+    // backlight: closed eyes, tears, wobbly mouth
+    makeEmote("cry", g => {
+        head(g);
+        line(g, [[-17, 4], [-11, 8], [-5, 4]]);
+        line(g, [[5, 4], [11, 8], [17, 4]]);
+        for (const x of [-11, 11]) {
+            g.fillStyle = "rgba(160, 225, 255, 0.95)";
+            g.beginPath();
+            g.roundRect(x - 3, 8, 6, 26, 3);
+            g.fill();
+        }
+        line(g, [[-8, 24], [-4, 21], [0, 24], [4, 21], [8, 24]], 3);
+    });
+    // singing: happy eyes, open mouth, a microphone
+    makeEmote("mic", g => {
+        head(g);
+        line(g, [[-17, 4], [-11, -1], [-5, 4]]);
+        line(g, [[5, 4], [11, -1], [17, 4]]);
+        dot(g, 2, 21, 7);
+        line(g, [[-24, 36], [-12, 20]], 5, "#c9d6f2");
+        dot(g, -10, 17, 6, "#1b1f2e");
+        g.fillStyle = "#ffd166";
+        g.font = "bold 22px sans-serif";
+        g.fillText("\u266a", 22, -10);
+    });
+    // her voice: wide eyes, small mouth, sweat
+    makeEmote("shock", g => {
+        head(g);
+        for (const x of [-12, 12]) {
+            dot(g, x, 3, 8, "#ffffff");
+            dot(g, x, 4, 3);
+        }
+        g.strokeStyle = "#0b1a5c";
+        g.lineWidth = 3;
+        g.beginPath();
+        g.ellipse(0, 23, 4, 5, 0, 0, Math.PI * 2);
+        g.stroke();
+        g.fillStyle = "rgba(160, 225, 255, 0.95)";
+        g.beginPath();
+        g.moveTo(28, -8);
+        g.quadraticCurveTo(36, 4, 28, 8);
+        g.quadraticCurveTo(20, 4, 28, -8);
+        g.fill();
+    });
+    // blue rose gang: heart eyes, smile
+    makeEmote("love", g => {
+        head(g);
+        heart(g, -12, 3, 7, "#ff5a8a");
+        heart(g, 12, 3, 7, "#ff5a8a");
+        line(g, [[-9, 18], [0, 25], [9, 18]]);
+    });
+    // Ado sings in a cage: the face behind lit bars
+    makeEmote("cage", g => {
+        head(g);
+        dot(g, -11, 4, 3.5);
+        dot(g, 11, 4, 3.5);
+        line(g, [[-6, 21], [6, 21]], 3);
+        g.strokeStyle = "rgba(159, 195, 255, 0.95)";
+        g.shadowColor = "#2f6bff";
+        g.shadowBlur = 6;
+        g.lineWidth = 3;
+        g.strokeRect(-40, -40, 80, 84);
+        for (const x of [-20, 0, 20]) {
+            line(g, [[x, -40], [x, 44]], 3, "rgba(159, 195, 255, 0.95)");
+        }
+        g.shadowBlur = 0;
+    });
+    // 3am: sleepy eyes, z z
+    makeEmote("sleepy", g => {
+        head(g);
+        line(g, [[-17, 5], [-5, 5]]);
+        line(g, [[5, 5], [17, 5]]);
+        dot(g, 0, 22, 3.5);
+        g.fillStyle = "#eaf1ff";
+        g.font = "bold 18px sans-serif";
+        g.fillText("z", 24, -14);
+        g.font = "bold 13px sans-serif";
+        g.fillText("z", 34, -26);
+    });
+}
+
+function drawEmote(name, x, y, size) {
+    const image = EMOTES[name];
+
+    if (image) {
+        ctx.drawImage(image, x, y, size, size);
+    }
+}
+
+// text with :emote: inside, from (x, y) on the baseline, cut at width
+function richText(text, x, y, size, width) {
+    const end = x + width;
+
+    for (const part of text.split(/(:[a-z]+:)/)) {
+        if (!part) {
+            continue;
+        }
+        const name = part.startsWith(":") && part.endsWith(":") ? part.slice(1, -1) : null;
+
+        if (name && EMOTES[name]) {
+            if (x + size > end) {
+                return;
+            }
+            drawEmote(name, x, y - size * 0.82, size);
+            x += size + 2 * u;
+        } else {
+            ctx.fillText(part, x, y, Math.max(0, end - x));
+            x += ctx.measureText(part).width;
+        }
+        if (x >= end) {
+            return;
+        }
+    }
+}
+
+function petal(anywhere) {
+    return { x: random(), y: anywhere ? random() : -0.05, z: random(), spin: random() * 6.28, turn: random() * 6.28,
+        speed: 0.015 + random() * 0.025, drift: (random() - 0.5) * 0.015, light: random() < 0.5 };
+}
+
+function layout() {
+    u = Math.min(wd.width / 1920, wd.height / 1080);
+    panel = { x: 64 * u, y: wd.height - 220 * u, w: 450 * u, h: 156 * u };
+    wd.clickable([panel]);
+}
+
+function rounded(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+}
+
+// =========================
+// Stage
+// =========================
+function drawRose(t) {
     ctx.fillStyle = "#050814";
     ctx.fillRect(0, 0, wd.width, wd.height);
-    wd.cover(ctx, rose, zoom, Math.sin(t * 0.05) * 18, Math.cos(t * 0.04) * 10);
-    // darker when quiet, the rose lights up with the bass (cheaper than a canvas filter)
-    ctx.fillStyle = `rgba(5, 8, 20, ${Math.max(0, 0.25 - wd.bass * 0.3)})`;
-    ctx.fillRect(0, 0, wd.width, wd.height);
-    const shade = ctx.createLinearGradient(0, 0, wd.width * 0.7, 0);
+    wd.cover(ctx, rose, 1.05 + 0.015 * Math.sin(t * 0.07) + wd.beat * 0.008, Math.sin(t * 0.05) * 16, Math.cos(t * 0.04) * 8);
+    const shade = ctx.createLinearGradient(0, 0, wd.width * 0.75, 0);
 
-    shade.addColorStop(0, "rgba(5, 8, 20, 0.72)");
+    shade.addColorStop(0, "rgba(5, 8, 20, 0.9)");
+    shade.addColorStop(0.55, "rgba(5, 8, 20, 0.55)");
     shade.addColorStop(1, "rgba(5, 8, 20, 0)");
     ctx.fillStyle = shade;
     ctx.fillRect(0, 0, wd.width, wd.height);
 }
 
-function drawBeams(t) {
-    ctx.globalCompositeOperation = "lighter";
-    for (const beam of beams) {
-        const angle = Math.sin(t * 0.3 + beam.phase) * 0.35 + (wd.mid - 0.2) * 0.2;
-        const x = beam.x * wd.width;
-        const length = wd.height * 1.3;
-        const tx = x + Math.sin(angle) * length;
-        const ty = Math.cos(angle) * length;
-        const light = ctx.createLinearGradient(x, 0, tx, ty);
+// one song title at a time, huge and faint, sliced on the kicks (drawn once in its own canvas, then copied)
+const titleCanvas = document.createElement("canvas");
+let titleShown = -1;
 
-        light.addColorStop(0, `rgba(159, 195, 255, ${0.035 + wd.beat * 0.05})`);
-        light.addColorStop(1, "rgba(159, 195, 255, 0)");
-        ctx.fillStyle = light;
-        // soft edges: the same cone four times, narrower and narrower
-        for (const part of [1, 0.7, 0.45, 0.2]) {
-            const half = beam.width * wd.width * part * (1 + wd.bass * 0.5);
+function drawTitle(t) {
+    const period = 9;
+    const index = Math.floor(t / period) % TRACKS.length;
+    const k = (t % period) / period;
+    const alpha = Math.min(1, k * 6, (1 - k) * 6) * (0.08 + wd.beat * 0.06);
+    const height = Math.round(wd.height * 0.3);
 
-            ctx.beginPath();
-            ctx.moveTo(x - 3, -10);
-            ctx.lineTo(x + 3, -10);
-            ctx.lineTo(tx + half * Math.cos(angle), ty - half * Math.sin(angle));
-            ctx.lineTo(tx - half * Math.cos(angle), ty + half * Math.sin(angle));
-            ctx.closePath();
-            ctx.fill();
-        }
+    if (index !== titleShown || titleCanvas.width !== wd.width) {
+        const title = titleCanvas.getContext("2d");
+
+        titleCanvas.width = wd.width;
+        titleCanvas.height = height;
+        title.font = `900 ${Math.round(wd.height * 0.24)}px ${JP}`;
+        title.textAlign = "center";
+        title.textBaseline = "middle";
+        title.fillStyle = `rgb(${SKY})`;
+        title.fillText(TRACKS[index][0], wd.width / 2, height / 2);
+        titleShown = index;
     }
+    const top = wd.height * 0.66 - height / 2;
+    const slice = height / 5;
+
+    ctx.globalAlpha = alpha;
+    for (let i = 0; i < 5; i++) {
+        const shift = wd.beat > 0.5 ? (random() - 0.5) * 40 * u * wd.beat : 0;
+
+        ctx.drawImage(titleCanvas, 0, i * slice, wd.width, slice, shift, top + i * slice, wd.width, slice);
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawRays(t, cx, cy) {
+    const light = ctx.createRadialGradient(cx, cy, 0, cx, cy, wd.height * 0.95);
+
+    light.addColorStop(0, `rgba(${SKY}, ${0.05 + wd.bass * 0.1})`);
+    light.addColorStop(1, `rgba(${SKY}, 0)`);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = light;
+    for (let i = 0; i < 18; i++) {
+        const angle = i / 18 * Math.PI * 2 + t * 0.04;
+        const spread = 0.035 + 0.01 * Math.sin(t + i);
+        const length = wd.height * (0.75 + 0.2 * Math.sin(t * 0.5 + i * 1.7));
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(angle - spread) * length, cy + Math.sin(angle - spread) * length);
+        ctx.lineTo(cx + Math.cos(angle + spread) * length, cy + Math.sin(angle + spread) * length);
+        ctx.closePath();
+        ctx.fill();
+    }
+    const bloom = ctx.createRadialGradient(cx, cy, 0, cx, cy, wd.height * 0.3);
+
+    bloom.addColorStop(0, `rgba(220, 232, 255, ${0.45 + wd.beat * 0.3})`);
+    bloom.addColorStop(0.35, `rgba(${BLUE}, ${0.22 + wd.bass * 0.2})`);
+    bloom.addColorStop(1, `rgba(${BLUE}, 0)`);
+    ctx.fillStyle = bloom;
+    ctx.fillRect(cx - wd.height * 0.3, cy - wd.height * 0.3, wd.height * 0.6, wd.height * 0.6);
     ctx.globalCompositeOperation = "source-over";
 }
 
-function drawGlow() {
-    const x = wd.width * 0.78;
-    const y = wd.height * 0.42;
-    const glow = ctx.createRadialGradient(x, y, 0, x, y, wd.height * (0.45 + wd.bass * 0.2));
+// the singer, a silhouette against the light (original shapes, feet at the origin, height 1)
+function drawSilhouette(x, y, h, t) {
+    const bob = Math.sin(t * 2.2) * 0.004 + wd.beat * 0.01;
+    const sway = Math.sin(t * 1.1) * 0.01 + wd.mid * 0.02;
+    const p = (px, py) => [x + px * h, y + (py - bob) * h];
+    const path = points => {
+        ctx.moveTo(...p(points[0][0], points[0][1]));
+        for (let i = 1; i < points.length; i += 3) {
+            ctx.bezierCurveTo(...p(...points[i]), ...p(...points[i + 1]), ...p(...points[i + 2]));
+        }
+    };
 
-    glow.addColorStop(0, `rgba(47, 107, 255, ${0.1 + wd.beat * 0.25})`);
-    glow.addColorStop(1, "rgba(47, 107, 255, 0)");
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, wd.width, wd.height);
-    ctx.globalCompositeOperation = "source-over";
+    ctx.save();
+    ctx.fillStyle = "#03050d";
+    ctx.strokeStyle = `rgba(${SKY}, 0.45)`;
+    ctx.lineWidth = 1.5 * u;
+    ctx.shadowColor = `rgba(${BLUE}, 0.9)`;
+    ctx.shadowBlur = 14 * u;
+    ctx.beginPath();
+    // long hair, falling behind the shoulders
+    path([[-0.07, -0.95], [-0.15, -0.9], [-0.16 - sway, -0.62], [-0.13 - sway, -0.47], [-0.08, -0.5], [-0.05, -0.62],
+        [-0.03, -0.8], [0.03, -0.8], [0.06, -0.62], [0.08, -0.5], [0.14 + sway, -0.47], [0.16 + sway, -0.62],
+        [0.15, -0.9], [0.07, -0.95], [0, -0.99], [-0.07, -0.95]]);
+    // body: shoulders, waist, long coat, legs
+    path([[-0.11, -0.76], [-0.1, -0.66], [-0.07, -0.56], [-0.065, -0.5], [-0.12, -0.36], [-0.16, -0.24], [-0.15, -0.2],
+        [-0.08, -0.2], [-0.05, -0.1], [-0.045, 0], [-0.01, 0], [-0.01, -0.1], [0, -0.17], [0.01, -0.1], [0.01, 0],
+        [0.045, 0], [0.05, -0.1], [0.08, -0.2], [0.15, -0.2], [0.16, -0.24], [0.12, -0.36], [0.065, -0.5],
+        [0.07, -0.56], [0.1, -0.66], [0.11, -0.76], [0.05, -0.8], [-0.05, -0.8], [-0.11, -0.76]]);
+    // arm holding the microphone to the face
+    path([[0.1, -0.74], [0.17, -0.66], [0.15, -0.6], [0.1, -0.62], [0.07, -0.66], [0.05, -0.74], [0.04, -0.78],
+        [0.06, -0.8], [0.08, -0.77], [0.12, -0.7], [0.13, -0.72], [0.11, -0.745], [0.1, -0.74]]);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(...p(0, -0.875), 0.055 * h, 0.065 * h, 0, 0, Math.PI * 2);
+    ctx.ellipse(...p(0.035, -0.8), 0.014 * h, 0.02 * h, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+// Ado sings in a lit cage: a slowly swaying cube of light around the silhouette
+function drawCage(t) {
+    const cx = wd.width * 0.31;
+    const cy = wd.height * 0.56;
+    const size = wd.height * 0.17;
+    const yaw = 0.55 + Math.sin(t * 0.18) * 0.35;
+    const pitch = -0.2;
+    const corners = [];
+
+    drawRays(t, cx, cy);
+    for (const x of [-1, 1]) {
+        for (const y of [-1, 1]) {
+            for (const z of [-1, 1]) {
+                const x1 = x * Math.cos(yaw) - z * Math.sin(yaw);
+                const z1 = x * Math.sin(yaw) + z * Math.cos(yaw);
+                const y1 = y * Math.cos(pitch) - z1 * Math.sin(pitch);
+                const z2 = y * Math.sin(pitch) + z1 * Math.cos(pitch);
+                const k = 4 / (4 + z2);
+
+                corners.push({ x: cx + x1 * size * k, y: cy + y1 * size * k, z: z2 });
+            }
+        }
+    }
+    const edges = [];
+
+    for (let a = 0; a < 8; a++) {
+        for (let b = a + 1; b < 8; b++) {
+            if ([1, 2, 4].includes(a ^ b)) {
+                edges.push([corners[a], corners[b], (corners[a].z + corners[b].z) / 2]);
+            }
+        }
+    }
+    const stroke = list => {
+        ctx.save();
+        ctx.strokeStyle = `rgba(${SKY}, ${0.75 + wd.beat * 0.25})`;
+        ctx.lineWidth = 2.5 * u;
+        ctx.shadowColor = `rgb(${BLUE})`;
+        ctx.shadowBlur = 18 * u;
+        ctx.beginPath();
+        for (const [a, b] of list) {
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+    };
+    const floor = ctx.createRadialGradient(cx, cy + size * 1.1, 0, cx, cy + size * 1.1, size * 1.8);
+
+    floor.addColorStop(0, `rgba(${BLUE}, ${0.35 + wd.bass * 0.3})`);
+    floor.addColorStop(1, `rgba(${BLUE}, 0)`);
+    ctx.fillStyle = floor;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + size * 1.1, size * 1.8, size * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    stroke(edges.filter(edge => edge[2] > 0));
+    drawSilhouette(cx, cy + size * 0.92, size * 1.75, t);
+    stroke(edges.filter(edge => edge[2] <= 0));
 }
 
 function drawPetals(t, dt) {
-    petals.sort((a, b) => a.z - b.z);
     for (let i = 0; i < petals.length; i++) {
         const p = petals[i];
-        const scale = 0.35 + p.z * 1.1;
+        const scale = 0.35 + p.z;
 
         p.y += p.speed * dt * scale * (1 + wd.energy * 1.5);
-        p.x += (p.drift + Math.sin(t * 0.6 + p.turn) * 0.004) * dt * 6;
-        p.spin += dt * (0.6 + p.z) * (1 + wd.mid);
+        p.x += (p.drift + Math.sin(t * 0.6 + p.turn) * 0.003) * dt * 6;
+        p.spin += dt * (0.5 + p.z) * (1 + wd.mid);
         p.turn += dt * 0.8;
-        if (p.y > 1.1 || p.x < -0.1 || p.x > 1.1) {
+        if (p.y > 1.05 || p.x < -0.05 || p.x > 1.05) {
             petals[i] = petal(false);
             continue;
         }
-        const size = wd.height * 0.018 * scale;
-        const flip = Math.cos(p.turn);
-        const color = p.hue < 0.5 ? [47, 107, 255] : [159, 195, 255];
+        const size = wd.height * 0.016 * scale;
 
         ctx.save();
         ctx.translate(p.x * wd.width, p.y * wd.height);
         ctx.rotate(p.spin);
-        ctx.scale(Math.max(0.15, Math.abs(flip)), 1);
-        const fill = ctx.createLinearGradient(-size, -size, size, size);
-
-        fill.addColorStop(0, `rgba(${color.join(", ")}, ${0.25 + p.z * 0.6})`);
-        fill.addColorStop(1, `rgba(${color.join(", ")}, ${0.05 + p.z * 0.2})`);
-        ctx.fillStyle = fill;
+        ctx.scale(Math.max(0.15, Math.abs(Math.cos(p.turn))), 1);
+        ctx.fillStyle = `rgba(${p.light ? SKY : BLUE}, ${0.2 + p.z * 0.55})`;
         ctx.beginPath();
         ctx.moveTo(0, -size);
         ctx.bezierCurveTo(size, -size * 0.6, size * 0.8, size * 0.7, 0, size);
@@ -126,46 +528,296 @@ function drawPetals(t, dt) {
     }
 }
 
-function drawSparkles(t) {
-    for (const s of sparkles) {
-        const alpha = Math.max(0, Math.sin(t * (1.5 + s.size) + s.phase)) * (0.25 + wd.high * 1.2);
+// =========================
+// World domination
+// =========================
+function drawDomination(t) {
+    const x = 64 * u;
+    const y = 112 * u;
+    const percent = Math.min(100, 87 + t / 60);
+    const conquered = Math.floor(CITIES.length * percent / 100);
+    const glitch = wd.beat > 0.4 ? wd.beat * 4 * u : 0;
 
-        ctx.fillStyle = `rgba(234, 241, 255, ${Math.min(1, alpha)})`;
-        ctx.beginPath();
-        ctx.arc(s.x * wd.width, s.y * wd.height, s.size, 0, Math.PI * 2);
-        ctx.fill();
+    ctx.font = `600 ${14 * u}px ${MONO}`;
+    ctx.fillStyle = `rgba(${SKY}, 0.75)`;
+    ctx.fillText("ADO  //  世界征服  PROTOCOL", x, y);
+    ctx.font = `900 ${46 * u}px ${SANS}`;
+    if (glitch) {
+        ctx.fillStyle = "rgba(255, 42, 74, 0.6)";
+        ctx.fillText("WORLD DOMINATION", x - glitch, y + 52 * u);
+        ctx.fillStyle = "rgba(0, 220, 255, 0.6)";
+        ctx.fillText("WORLD DOMINATION", x + glitch, y + 52 * u);
     }
+    ctx.fillStyle = "#eaf1ff";
+    ctx.fillText("WORLD DOMINATION", x, y + 52 * u);
+
+    const bar = { x: x, y: y + 72 * u, w: 420 * u, h: 10 * u };
+    const fill = ctx.createLinearGradient(bar.x, 0, bar.x + bar.w, 0);
+
+    fill.addColorStop(0, `rgb(${BLUE})`);
+    fill.addColorStop(1, `rgb(${SKY})`);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+    rounded(bar.x, bar.y, bar.w, bar.h, bar.h / 2);
+    ctx.fill();
+    ctx.fillStyle = fill;
+    rounded(bar.x, bar.y, bar.w * percent / 100, bar.h, bar.h / 2);
+    ctx.fill();
+    ctx.font = `600 ${15 * u}px ${MONO}`;
+    ctx.fillStyle = "#eaf1ff";
+    ctx.fillText(`${percent.toFixed(1)} %`, bar.x + bar.w + 14 * u, bar.y + bar.h);
+    const line = percent < 100 ? `cities conquered  ${conquered} / ${CITIES.length}` : "COMPLETE  ·  next target: the moon";
+
+    ctx.fillStyle = `rgba(${SKY}, 0.8)`;
+    ctx.fillText(line, x, bar.y + 34 * u);
+    const end = x + ctx.measureText(line).width + 10 * u;
+
+    drawEmote(percent < 100 ? "rose" : "crown", end, bar.y + 18 * u, 22 * u);
+    drawGlobe(t, x + 640 * u, y + 52 * u, 92 * u, conquered);
 }
 
-function drawLine(t) {
-    const base = wd.height * 0.9;
+// the earth as dots, the conquered cities as blue roses
+function drawGlobe(t, cx, cy, r, conquered) {
+    const spin = t * 0.35;
+    const tilt = 0.45;
+    // the north leans toward us: most of the cities face the screen
+    const point = (lat, lon) => {
+        const a = lat * Math.PI / 180;
+        const b = lon * Math.PI / 180 + spin;
+        const y = Math.sin(a);
+        const z = Math.cos(a) * Math.cos(b);
 
-    ctx.strokeStyle = "rgba(159, 195, 255, 0.55)";
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = "#2f6bff";
-    ctx.shadowBlur = 12;
+        return { x: cx + Math.cos(a) * Math.sin(b) * r, y: cy - (y * Math.cos(tilt) - z * Math.sin(tilt)) * r,
+            z: y * Math.sin(tilt) + z * Math.cos(tilt) };
+    };
+    const halo = ctx.createRadialGradient(cx, cy, r * 0.8, cx, cy, r * 1.5);
+
+    halo.addColorStop(0, `rgba(${BLUE}, ${0.25 + wd.bass * 0.2})`);
+    halo.addColorStop(1, `rgba(${BLUE}, 0)`);
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - r * 1.5, cy - r * 1.5, r * 3, r * 3);
+    ctx.fillStyle = "rgba(5, 8, 20, 0.85)";
     ctx.beginPath();
-    for (let i = 0; i < wd.bars; i++) {
-        const x = wd.width * (0.1 + 0.8 * i / (wd.bars - 1));
-        const y = base - (wd.levels[i] * wd.height * 0.08 + 2 * Math.sin(t * 2 + i * 0.5));
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    for (let lat = -75; lat <= 75; lat += 12.5) {
+        for (let lon = 0; lon < 360; lon += 10) {
+            const p = point(lat, lon);
 
-        if (i === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
+            if (p.z > 0) {
+                ctx.fillStyle = `rgba(${SKY}, ${0.15 + p.z * 0.55})`;
+                ctx.fillRect(p.x - 1, p.y - 1, 2 * u + p.z, 2 * u + p.z);
+            }
         }
     }
+    ctx.strokeStyle = `rgba(${SKY}, 0.5)`;
+    ctx.lineWidth = 1.2 * u;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.textAlign = "center";
+    CITIES.slice(0, conquered).forEach(([name, lat, lon]) => {
+        const p = point(lat, lon);
+
+        if (p.z > 0.15) {
+            ctx.globalAlpha = Math.min(1, p.z * 1.5);
+            const size = (14 + p.z * 8) * u;
+
+            drawEmote("rose", p.x - size / 2, p.y - size / 2, size);
+            if (p.z > 0.75) {
+                ctx.font = `600 ${10 * u}px ${MONO}`;
+                ctx.fillStyle = "#eaf1ff";
+                ctx.fillText(name, p.x, p.y - 12 * u);
+            }
+            ctx.globalAlpha = 1;
+        }
+    });
+    ctx.textAlign = "start";
 }
 
+// =========================
+// Fan chat, reactions
+// =========================
+function drawChat(t, dt) {
+    const width = 360 * u;
+    const x = wd.width - width - 44 * u;
+    const bottom = wd.height - 70 * u;
+    const height = 58 * u;
+
+    nextMessage -= dt * (1 + wd.energy * 3);
+    if (nextMessage <= 0 || (wd.beat > 0.95 && random() < 0.05)) {
+        const fan = FANS[Math.floor(random() * FANS.length)];
+
+        // now and then a fan wears one of the user's emotes
+        const avatar = userEmotes.length && random() < 0.4 ? userEmotes[Math.floor(random() * userEmotes.length)] : null;
+
+        chat.push({ fan: fan, avatar: avatar, text: MESSAGES[Math.floor(random() * MESSAGES.length)], born: t,
+            y: bottom + height, likes: Math.floor(random() * 40) });
+        nextMessage = 2.2 + random() * 2.5;
+        if (chat.length > 6) {
+            chat.shift();
+        }
+    }
+    // the channel name stays right above the oldest message
+    if (chat.length) {
+        ctx.font = `700 ${13 * u}px ${SANS}`;
+        ctx.fillStyle = `rgba(${SKY}, 0.8)`;
+        ctx.fillText("#ado-fans  ·  live", x + 4 * u, chat[0].y - 12 * u);
+    }
+    chat.forEach((message, i) => {
+        const target = bottom - (chat.length - i) * height;
+        const age = t - message.born;
+
+        message.y += (target - message.y) * (1 - Math.exp(-dt * 10));
+        ctx.globalAlpha = Math.min(1, age * 3) * (i === 0 && chat.length >= 6 ? 0.45 : 1);
+        ctx.fillStyle = "rgba(8, 12, 30, 0.72)";
+        rounded(x, message.y, width, height - 8 * u, 12 * u);
+        ctx.fill();
+        ctx.fillStyle = message.fan[2];
+        ctx.beginPath();
+        ctx.arc(x + 26 * u, message.y + 25 * u, 17 * u, 0, Math.PI * 2);
+        ctx.fill();
+        if (message.avatar) {
+            ctx.drawImage(message.avatar, x + 11 * u, message.y + 10 * u, 30 * u, 30 * u);
+        } else {
+            drawEmote(message.fan[1], x + 10 * u, message.y + 8 * u, 32 * u);
+        }
+        ctx.font = `700 ${12 * u}px ${SANS}`;
+        ctx.fillStyle = message.fan[2];
+        ctx.fillText(message.fan[0], x + 50 * u, message.y + 20 * u);
+        ctx.font = `${13 * u}px ${SANS}`;
+        ctx.fillStyle = "#eaf1ff";
+        richText(message.text, x + 50 * u, message.y + 41 * u, 22 * u, width - 64 * u);
+        ctx.font = `${11 * u}px ${SANS}`;
+        ctx.fillStyle = `rgba(${SKY}, 0.8)`;
+        drawEmote("rose", x + width - 58 * u, message.y + 8 * u, 16 * u);
+        ctx.fillText(`${message.likes + Math.floor(age * 2)}`, x + width - 40 * u, message.y + 20 * u);
+        ctx.globalAlpha = 1;
+    });
+    // the reactions rise from above the chat, never over the messages
+    if (chat.length && ((wd.beat > 0.9 && random() < 0.3) || random() < dt * 0.6)) {
+        reactions.push({ x: x + width - 30 * u - random() * 160 * u, y: chat[0].y - 34 * u,
+            emote: REACTIONS[Math.floor(random() * REACTIONS.length)], born: t, speed: (70 + random() * 60) * u,
+            image: userEmotes.length && random() < 0.35 ? userEmotes[Math.floor(random() * userEmotes.length)] : null,
+            phase: random() * 6.28 });
+    }
+    for (let i = reactions.length - 1; i >= 0; i--) {
+        const r = reactions[i];
+        const age = t - r.born;
+
+        if (age > 3) {
+            reactions.splice(i, 1);
+            continue;
+        }
+        ctx.globalAlpha = Math.min(1, (3 - age) * 0.8);
+        const size = (26 + age * 8) * u;
+        const rx = r.x + Math.sin(age * 3 + r.phase) * 12 * u;
+        const ry = r.y - age * r.speed - size;
+
+        if (r.image && r.image.complete && r.image.naturalWidth) {
+            ctx.drawImage(r.image, rx, ry, size, size);
+        } else {
+            drawEmote(r.emote, rx, ry, size);
+        }
+        ctx.globalAlpha = 1;
+    }
+}
+
+// =========================
+// Radio
+// =========================
+function drawRadio(t, dt) {
+    const p = panel;
+    const over = wd.hit(p);
+    const on = radio.playing() && !wd.radio.paused;
+    const cx = p.x + 86 * u;
+    const cy = p.y + p.h / 2;
+    const r = 60 * u;
+
+    ctx.fillStyle = "rgba(5, 8, 20, 0.78)";
+    ctx.strokeStyle = `rgba(${SKY}, ${over ? 0.6 : 0.28})`;
+    ctx.lineWidth = 1.2 * u;
+    rounded(p.x, p.y, p.w, p.h, 20 * u);
+    ctx.fill();
+    ctx.stroke();
+
+    // the record turns at 33 rpm while it plays, the arm comes onto it
+    disc += dt * (on ? 3.46 : 0);
+    arm += ((on ? 0.5 : 0) - arm) * (1 - Math.exp(-dt * 4));
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(disc);
+    ctx.fillStyle = "#07070c";
+    ctx.beginPath();
+    ctx.arc(0, 0, r * (1 + (on ? wd.beat * 0.03 : 0)), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.lineWidth = 1;
+    for (let groove = r * 0.42; groove < r * 0.97; groove += 3.5 * u) {
+        ctx.beginPath();
+        ctx.arc(0, 0, groove, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.strokeStyle = `rgba(${SKY}, 0.25)`;
+    ctx.lineWidth = 3 * u;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.75, -0.4, 0.3);
+    ctx.stroke();
+    const label = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.38);
+
+    label.addColorStop(0, `rgb(${SKY})`);
+    label.addColorStop(1, `rgb(${BLUE})`);
+    ctx.fillStyle = label;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    drawEmote("rose", -r * 0.3, -r * 0.3, r * 0.6);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(cx + r * 1.05, cy - r * 0.95);
+    ctx.rotate(0.35 + arm);
+    ctx.strokeStyle = "#c9d6f2";
+    ctx.lineWidth = 3 * u;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, r * 1.2);
+    ctx.lineTo(-r * 0.12, r * 1.38);
+    ctx.stroke();
+    ctx.fillStyle = "#c9d6f2";
+    ctx.beginPath();
+    ctx.arc(0, 0, 6 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    const x = p.x + 188 * u;
+
+    ctx.font = `700 ${12 * u}px ${MONO}`;
+    ctx.fillStyle = `rgba(${SKY}, 0.85)`;
+    ctx.fillText("ADO RADIO", x, p.y + 30 * u);
+    drawEmote("rose", x + 80 * u, p.y + 15 * u, 18 * u);
+    ctx.font = `600 ${15 * u}px ${JP}`;
+    ctx.fillStyle = "#eaf1ff";
+    wd.marquee(ctx, radio.title(), x, p.y + 56 * u, p.w - 210 * u, t);
+    ctx.font = `${12 * u}px ${MONO}`;
+    ctx.fillStyle = radio.playing() && !wd.radio.paused ? "#ff5a6e" : `rgba(${SKY}, 0.7)`;
+    ctx.fillText(radio.status(), x, p.y + 78 * u);
+    wd.cursor(radio.rects.some(wd.hit));
+    radio.buttons(ctx, x, p.y + 96 * u, 16 * u, {
+        accent: `rgb(${BLUE})`, onAccent: "#eaf1ff", button: "rgba(255, 255, 255, 0.08)", hover: `rgba(${SKY}, 0.3)`,
+        icon: "#eaf1ff",
+    });
+}
+
+makeEmotes();
+layout();
+addEventListener("resize", layout);
 wd.run((t, dt) => {
     drawRose(t);
-    drawGlow();
-    drawBeams(t);
+    drawTitle(t);
+    drawCage(t);
     drawPetals(t, dt);
-    drawSparkles(t);
-    drawLine(t);
+    drawDomination(t);
+    drawChat(t, dt);
+    drawRadio(t, dt);
 });
 </script>
 </body>

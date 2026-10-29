@@ -113,10 +113,10 @@ function drawSphere(t) {
         const g = Math.round(169 + (211 - 169) * mix);
         const b = Math.round(255 + (141 - 255) * mix);
 
+        const size = 1.2 + depth * 3 + p.level * 2.5;
+
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.18 + depth * 0.75})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 0.6 + depth * 1.9 + p.level * 1.5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
     }
     // halo
     const halo = ctx.createRadialGradient(cx, cy, size * 0.6, cx, cy, size * 1.9);

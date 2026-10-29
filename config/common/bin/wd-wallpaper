@@ -1,19 +1,30 @@
 #!/usr/bin/env python3
-# Usage: wd-wallpaper [page.html] [--demo]
+# Usage: wd-wallpaper [page.html] [--demo] | --cache
 #   (no page: the wallpaper.html of the active style; --demo: fake music, to try a page)
-#   SIGUSR1: fade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
-# The page fades in over the still wallpaper (swaybg), then stops it (same Hyprland session only)
+#   --cache: download the offline tracks of the radios (radio.json of the styles), then quit
+#   SIGHUP: crossfade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
+#   (never SIGUSR1: WebKit suspends its threads with it, catching it freezes the process)
+#   WD_RADIO_ARGS: more mpv arguments for the radio (ex: --volume=50)
 # Live wallpaper of wayland-desktop: a web page on the background layer of every monitor (GTK 3, gtk-layer-shell,
 # WebKit 4.1), fed 30 times a second with the music levels of cava (wdAudio(levels) in the page, see wd.js)
+# A new page fades in over the still wallpaper (swaybg) or the previous page, then removes it; the clicks go through
+# the wallpaper except on the parts the page declares (its radio), the radio plays the radio.json of the style: its
+# offline tracks from ~/.local/share/wd-radio (downloaded once with yt-dlp, a personal copy), the others
+# from YouTube searches (mpv + yt-dlp)
 import ctypes
+import fcntl
+import hashlib
+import json
 import os
 import platform
+import shlex
 import shutil
 import signal
 import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -28,6 +39,10 @@ gi.require_version("GLibUnix", "2.0")
 from gi.repository import Gdk, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2  # noqa: E402
 
 DATA_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "wayland-desktop"
+RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
+CACHE_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "wd-radio"
+# the user's own emotes (png, gif, webp, jpg, svg), used by the pages that show emotes (the Ado chat)
+EMOTES_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "wd-emotes"
 BARS = 48
 CAVA_CONFIG = f"""[general]
 framerate = 30
@@ -59,7 +74,8 @@ def page_uri(page, demo):
         style = (DATA_DIR / "current").read_text().strip()
         page = DATA_DIR / "styles" / style / "wallpaper.html"
     query = urlencode({"user": os.environ.get("USER", "user"), "host": socket.gethostname().split(".")[0],
-                       "os": os_name(), "kernel": platform.release(), "shell": Path(os.environ.get("SHELL", "sh")).name})
+                       "os": os_name(), "kernel": platform.release(), "shell": Path(os.environ.get("SHELL", "sh")).name,
+                       "radio": int(Radio.available())})
     return Path(page).resolve().as_uri() + "?" + query + ("&demo" if demo else "")
 
 def os_name():
@@ -71,23 +87,238 @@ def os_name():
         pass
     return platform.system()
 
+def notify(title, body):
+    if shutil.which("notify-send"):
+        subprocess.Popen(["notify-send", "-a", "wd-style", title, body])
+
+# A line said aloud, high and fast (the Miku beam): espeak-ng, else speech-dispatcher, else nothing
+def say(text):
+    if shutil.which("espeak-ng"):
+        subprocess.Popen(["espeak-ng", "-v", "en+f5", "-p", "92", "-s", "165", "-a", "160", text],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif shutil.which("spd-say"):
+        subprocess.Popen(["spd-say", "-p", "80", "-r", "20", text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+# =========================
+# Radio
+# =========================
+def station(name):
+    try:
+        data = json.loads((DATA_DIR / "styles" / name / "radio.json").read_text())
+    except (OSError, ValueError):
+        return None
+    data["station"] = name
+    for track in data["tracks"]:
+        track["cached"] = bool(cached(track))
+    return data
+
+# The offline copy of a track: ~/.local/share/wd-radio/<hash of its search>/<title> — <subtitle>.<ext>
+def cached(track):
+    folder = CACHE_DIR / hashlib.sha1(track["search"].encode()).hexdigest()[:12]
+    files = sorted(f for f in folder.glob("*.*") if f.suffix not in (".part", ".ytdl")) if folder.is_dir() else []
+    return files[0] if files else None
+
+# Download the offline tracks of every installed style that are missing (one run at a time)
+def cache_tracks():
+    if not shutil.which("yt-dlp"):
+        return
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CACHE_DIR / ".lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return
+        for radio in sorted((DATA_DIR / "styles").glob("*/radio.json")):
+            for track in station(radio.parent.name)["tracks"]:
+                if track.get("offline") and not track["cached"]:
+                    folder = CACHE_DIR / hashlib.sha1(track["search"].encode()).hexdigest()[:12]
+                    name = f"{track['title']} — {track['subtitle']}".replace("/", " ")
+                    subprocess.run(["yt-dlp", "-q", "--no-warnings", "--no-playlist", "-f", "bestaudio[ext=webm]/bestaudio",
+                                    "-o", str(folder / f"{name}.%(ext)s"), f"ytsearch1:{track['search']}"],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+class Radio:
+    """mpv playing the tracks of a station (radio.json: offline copies first, else YouTube searches through yt-dlp),
+    driven over its IPC socket; the requests run outside of the GTK loop so the wallpaper never freezes"""
+
+    def __init__(self, publish):
+        self.publish = publish
+        self.process = None
+        self.station = ""
+        # one socket per wallpaper: another session keeps the control of its own radio
+        self.socket = RUNTIME_DIR / f"wd-radio-{os.getpid()}.sock"
+        self.state = {"available": self.available(), "playing": False, "paused": False, "title": "", "index": 0,
+                      "station": ""}
+
+    @staticmethod
+    def available():
+        return bool(shutil.which("mpv") and shutil.which("yt-dlp"))
+
+    def running(self):
+        return self.process is not None and self.process.poll() is None
+
+    # One request to mpv, its answer (None when mpv doesn't answer)
+    def command(self, *args):
+        try:
+            with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(0.4)
+                client.connect(str(self.socket))
+                client.sendall((json.dumps({"command": list(args), "request_id": 1}) + "\n").encode())
+                data = b""
+                while True:
+                    chunk = client.recv(4096)
+                    if not chunk:
+                        return None
+                    data += chunk
+                    for line in data.split(b"\n"):
+                        if b'"request_id"' in line:
+                            return json.loads(line).get("data")
+        except (OSError, ValueError):
+            return None
+
+    def handle(self, message):
+        threading.Thread(target=self.act, args=(message,), daemon=True).start()
+
+    def act(self, message):
+        action = message.get("action")
+        if not shutil.which("mpv"):
+            notify("Radio", "Needs mpv (and yt-dlp for the online tracks): ./install.sh installs them")
+        elif action == "play":
+            self.play(message.get("station", ""), int(message.get("index", 0)))
+        elif action == "toggle" and self.running():
+            self.command("cycle", "pause")
+        elif action in ("next", "prev") and self.running():
+            self.command("playlist-next" if action == "next" else "playlist-prev", "force")
+        elif action == "stop":
+            self.stop()
+        self.update()
+
+    def play(self, name, index):
+        if self.running() and self.station == name:
+            self.command("set_property", "playlist-pos", index)
+            self.command("set_property", "pause", False)
+            return
+        self.stop()
+        data = station(name)
+        if not data:
+            return
+        # the offline copy when there is one (starts at once, no network, its title for the bar), else a YouTube
+        # search; the next track is fetched while this one plays
+        entries = []
+        for track in data["tracks"]:
+            local = cached(track)
+            if local:
+                entries += ["--{", f"--force-media-title={track['title']} — {track['subtitle']}", str(local), "--}"]
+            else:
+                entries.append(f"ytdl://ytsearch1:{track['search']}")
+        self.station = name
+        self.process = subprocess.Popen(
+            ["mpv", "--no-video", "--no-terminal", "--idle=no", f"--input-ipc-server={self.socket}",
+             "--ytdl-format=bestaudio/best", "--loop-playlist=inf", f"--playlist-start={index}", "--volume=70",
+             "--prefetch-playlist=yes", f"--title=wd-radio {name}", *shlex.split(os.environ.get("WD_RADIO_ARGS", "")),
+             *entries],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        threading.Thread(target=self.watch, args=(self.process,), daemon=True).start()
+
+    def stop(self):
+        if self.running():
+            self.process.terminate()
+        self.process = None
+
+    # State for the pages every second while this mpv plays
+    def watch(self, process):
+        while process.poll() is None:
+            self.update()
+            time.sleep(1)
+        self.update()
+
+    def update(self):
+        if self.running():
+            self.state.update(playing=True, station=self.station, paused=bool(self.command("get_property", "pause")),
+                              index=self.command("get_property", "playlist-pos") or 0,
+                              title=self.command("get_property", "media-title") or "")
+        else:
+            self.state.update(playing=False, paused=False, title="")
+        GLib.idle_add(self.publish, dict(self.state))
+
+# =========================
+# Power
+# =========================
+class Watcher:
+    """How much of each monitor shows the wallpaper, from the Hyprland events: 24 frames a second on an empty workspace,
+    10 under windows, paused under a fullscreen or maximized one"""
+
+    EVENTS = {b"workspace", b"workspacev2", b"focusedmon", b"openwindow", b"closewindow", b"movewindow", b"movewindowv2",
+              b"fullscreen", b"changefloatingmode", b"activespecial", b"minimized", b"monitoradded", b"monitorremoved"}
+
+    def __init__(self, apply):
+        self.apply = apply
+        self.timer = None
+        signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        if signature and shutil.which("hyprctl"):
+            self.events = RUNTIME_DIR / "hypr" / signature / ".socket2.sock"
+            threading.Thread(target=self.listen, daemon=True).start()
+
+    def listen(self):
+        self.update()
+        try:
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(str(self.events))
+                buffer = b""
+                while chunk := client.recv(4096):
+                    *lines, buffer = (buffer + chunk).split(b"\n")
+                    if any(line.split(b">>")[0] in self.EVENTS for line in lines):
+                        self.later()
+        except OSError:
+            pass
+
+    # a burst of events gives one update
+    def later(self):
+        if self.timer:
+            self.timer.cancel()
+        self.timer = threading.Timer(0.15, self.update)
+        self.timer.daemon = True
+        self.timer.start()
+
+    def update(self):
+        try:
+            monitors = json.loads(subprocess.run(["hyprctl", "-j", "monitors"], capture_output=True, text=True).stdout)
+            clients = json.loads(subprocess.run(["hyprctl", "-j", "clients"], capture_output=True, text=True).stdout)
+        except (OSError, ValueError):
+            return
+        frames = {}
+        for monitor in monitors:
+            shown = {monitor["activeWorkspace"]["id"], monitor.get("specialWorkspace", {}).get("id", 0)}
+            windows = [c for c in clients if c["workspace"]["id"] in shown and c.get("mapped", True)
+                       and not c.get("hidden", False)]
+            covered = any(c.get("fullscreen", 0) for c in windows)
+            frames[(monitor["x"], monitor["y"])] = 0 if covered else (10 if windows else 24)
+        GLib.idle_add(self.apply, frames)
+
+# =========================
+# Wallpaper
+# =========================
 class Wallpaper:
     def __init__(self, page, demo):
         self.page = page
         self.demo = demo
         self.windows = []
         self.cava = None
+        self.radio = Radio(self.publish)
+        self.frames = {}
         display = Gdk.Display.get_default()
         display.connect("monitor-added", lambda *_: self.build())
         display.connect("monitor-removed", lambda *_: self.build())
         self.build()
-        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self.reload)
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGHUP, self.reload)
         GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.quit)
         GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, self.quit)
         if not demo:
             threading.Thread(target=self.listen, daemon=True).start()
+        Watcher(self.power)
+        threading.Thread(target=self.cache, daemon=True).start()
 
-    # One background surface per monitor, clicks go through it
+    # One background surface per monitor
     def build(self):
         for window in self.windows:
             window.destroy()
@@ -109,31 +340,78 @@ class Wallpaper:
                      GtkLayerShell.Edge.RIGHT):
             GtkLayerShell.set_anchor(window, edge, True)
 
-        # transparent until the page fades in: the still wallpaper (swaybg) stays visible below
+        # transparent: the still wallpaper (swaybg) or the previous page stays visible until the new page fades in
         visual = window.get_screen().get_rgba_visual()
         if visual:
             window.set_visual(visual)
         window.set_app_paintable(True)
+        window.overlay = Gtk.Overlay()
+        window.overlay.add(Gtk.Box())
+        window.add(window.overlay)
+        window.views = []
+        window.monitor = monitor
+        window.fps = 24
+        window.connect("realize", lambda w: self.clickable(w, []))
+        self.add_view(window)
+        window.show_all()
+        return window
 
+    def add_view(self, window):
         view = WebKit2.WebView()
         manager = view.get_user_content_manager()
         manager.register_script_message_handler("wd")
-        manager.connect("script-message-received::wd", self.ready)
+        manager.connect("script-message-received::wd", self.message, view)
         settings = view.get_settings()
         settings.set_enable_webgl(True)
         settings.set_hardware_acceleration_policy(WebKit2.HardwareAccelerationPolicy.ALWAYS)
         settings.set_allow_file_access_from_file_urls(True)
         settings.set_enable_page_cache(False)
         view.set_background_color(Gdk.RGBA(0, 0, 0, 0))
+        view.window = window
+        view.rects = []
+        view.station = Path(self.page).resolve().parent.name if self.page else (DATA_DIR / "current").read_text().strip()
+        view.connect("load-changed", lambda v, event: event == WebKit2.LoadEvent.FINISHED and self.give_station(v))
         view.load_uri(page_uri(self.page, self.demo))
-        window.add(view)
-        window.connect("realize", lambda w: w.input_shape_combine_region(cairo.Region()))
-        window.show_all()
-        window.view = view
-        return window
+        window.overlay.add_overlay(view)
+        window.views.append(view)
+        view.show()
 
-    # The page is shown: the still wallpaper of this session is not needed any more
-    def ready(self, *_):
+    # Only the rects of the page take the clicks: clickable <window> <[[x, y, w, h], ...]>
+    def clickable(self, window, rects):
+        if window.get_window():
+            window.input_shape_combine_region(cairo.Region([cairo.RectangleInt(*rect) for rect in rects]))
+
+    def message(self, manager, result, view):
+        value = result.get_js_value() if hasattr(result, "get_js_value") else result
+        try:
+            data = json.loads(value.to_string())
+        except ValueError:
+            return
+        if data.get("type") == "ready":
+            self.shown(view)
+        elif data.get("type") == "input":
+            view.rects = data.get("rects", [])
+            if view.window.views and view.window.views[-1] is view:
+                self.clickable(view.window, view.rects)
+        elif data.get("type") == "radio":
+            self.radio.handle(data)
+        elif data.get("type") == "say":
+            say(str(data.get("text", ""))[:200])
+        elif data.get("type") == "log":
+            print(f"wd-wallpaper: {data.get('text')}", file=sys.stderr)
+
+    # A page has faded in: the pages below it and the still wallpaper of this session go away
+    def shown(self, view):
+        window = view.window
+        if view not in window.views:
+            return
+        for old in window.views[:window.views.index(view)]:
+            window.overlay.remove(old)
+            old.destroy()
+        window.views = window.views[window.views.index(view):]
+        self.clickable(window, view.rects)
+        view.evaluate_javascript(f"window.wdPower && wdPower({window.fps})", -1, None, None, None, None, None)
+        threading.Thread(target=self.radio.update, daemon=True).start()
         signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
         for pid in filter(str.isdigit, os.listdir("/proc")):
             try:
@@ -144,21 +422,47 @@ class Wallpaper:
             if comm == "swaybg" and f"HYPRLAND_INSTANCE_SIGNATURE={signature}".encode() in environ:
                 os.kill(int(pid), signal.SIGTERM)
 
-    def run_js(self, script):
-        for window in self.windows:
-            window.view.evaluate_javascript(script, -1, None, None, None, None, None)
+    # The page gets the station of its style (radio.json + which tracks are offline) and the user's emotes
+    def give_station(self, view):
+        data = station(view.station)
+        emotes = [f.as_uri() for f in sorted(EMOTES_DIR.glob("*"))
+                  if f.suffix.lower() in (".png", ".gif", ".webp", ".jpg", ".jpeg", ".svg")] if EMOTES_DIR.is_dir() else []
+        view.evaluate_javascript(f"window.wdStation && wdStation({json.dumps(data)}); "
+                                 f"window.wdEmotes && wdEmotes({json.dumps(emotes)})", -1, None, None, None, None, None)
 
-    # New style: the page fades out, the new one fades in (wd.js)
-    def reload(self):
-        self.run_js("window.wdLeave && wdLeave()")
-        GLib.timeout_add(450, self.load)
-        return True
+    # Missing offline tracks are fetched in the background, then the pages learn they are there
+    def cache(self):
+        cache_tracks()
+        GLib.idle_add(lambda: [self.give_station(view) for window in self.windows for view in window.views] and False)
 
-    def load(self):
-        uri = page_uri(self.page, self.demo)
-        for window in self.windows:
-            window.view.load_uri(uri)
+    def publish(self, state):
+        self.run_js(f"window.wdRadio && wdRadio({json.dumps(state)})")
         return False
+
+    def run_js(self, script, shown_only=False):
+        for window in self.windows:
+            if shown_only and window.fps <= 0:
+                continue
+            for view in window.views:
+                view.evaluate_javascript(script, -1, None, None, None, None, None)
+
+    # Frame rate of each monitor (Watcher): told to its pages when it changes
+    def power(self, frames):
+        self.frames = frames
+        for window in self.windows:
+            geometry = window.monitor.get_geometry()
+            fps = frames.get((geometry.x, geometry.y), 24)
+            if fps != window.fps:
+                window.fps = fps
+                for view in window.views:
+                    view.evaluate_javascript(f"window.wdPower && wdPower({fps})", -1, None, None, None, None, None)
+        return False
+
+    # New style: its page fades in over the current one (crossfade)
+    def reload(self):
+        for window in self.windows:
+            self.add_view(window)
+        return True
 
     # =========================
     # Music
@@ -166,7 +470,7 @@ class Wallpaper:
     def listen(self):
         if not shutil.which("cava"):
             return
-        config = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "wd-cava-wallpaper.conf"
+        config = RUNTIME_DIR / "wd-cava-wallpaper.conf"
         config.write_text(CAVA_CONFIG)
         self.cava = subprocess.Popen(["cava", "-p", str(config)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                      text=True)
@@ -176,12 +480,13 @@ class Wallpaper:
                 GLib.idle_add(self.push, levels)
 
     def push(self, levels):
-        self.run_js(f"window.wdAudio && wdAudio([{levels.replace(';', ',')}])")
+        self.run_js(f"window.wdAudio && wdAudio([{levels.replace(';', ',')}])", shown_only=True)
         return False
 
     def quit(self):
         if self.cava:
             self.cava.terminate()
+        self.radio.stop()
         Gtk.main_quit()
         return False
 
@@ -189,6 +494,9 @@ class Wallpaper:
 # Program
 # =========================
 def main():
+    if "--cache" in sys.argv:
+        cache_tracks()
+        return
     args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
     # process name for pgrep / pkill (wd-style)
     ctypes.CDLL(None).prctl(15, b"wd-wallpaper", 0, 0, 0)
