@@ -1,0 +1,156 @@
+<!doctype html>
+<!-- wayland-desktop style: Photographer - live wallpaper (wd-wallpaper): the gallery wall drifting slowly, a warm light
+     leak, bokeh breathing with the music, film grain and dust, and the frame lines of a viewfinder -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    html { background: transparent; }
+    body { margin: 0; height: 100vh; overflow: hidden; background: #121110; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<canvas id="grain"></canvas>
+<script src="../../common/wallpaper/wd.js"></script>
+<script>
+"use strict";
+
+const ctx = wd.canvas("main");
+const grain = wd.canvas("grain");
+const wall = wd.image("wallpaper.jpg");
+const random = wd.rand(250);
+const bokeh = Array.from({ length: 26 }, () => ({
+    x: random(), y: random(), r: 20 + random() * 70, speed: 0.004 + random() * 0.01, phase: random() * 6.28, band: Math.floor(random() * 24),
+}));
+const noise = document.createElement("canvas");
+
+// a tile of grain, moved at random every frame
+noise.width = 256;
+noise.height = 256;
+(() => {
+    const tile = noise.getContext("2d");
+    const pixels = tile.createImageData(256, 256);
+
+    for (let i = 0; i < pixels.data.length; i += 4) {
+        const v = Math.floor(random() * 255);
+
+        pixels.data[i] = v;
+        pixels.data[i + 1] = v;
+        pixels.data[i + 2] = v;
+        pixels.data[i + 3] = 255;
+    }
+    tile.putImageData(pixels, 0, 0);
+})();
+
+function drawWall(t) {
+    ctx.fillStyle = "#121110";
+    ctx.fillRect(0, 0, wd.width, wd.height);
+    wd.cover(ctx, wall, 1.03, Math.sin(t * 0.03) * 22, Math.cos(t * 0.025) * 10);
+}
+
+function drawLeak(t) {
+    const x = wd.width * (0.85 + 0.2 * Math.sin(t * 0.05));
+    const y = wd.height * (0.1 + 0.15 * Math.cos(t * 0.04));
+    const leak = ctx.createRadialGradient(x, y, 0, x, y, wd.height * (0.9 + wd.mid * 0.3));
+
+    leak.addColorStop(0, `rgba(255, 170, 80, ${0.16 + 0.06 * Math.sin(t * 0.3) + wd.mid * 0.12})`);
+    leak.addColorStop(1, "rgba(255, 170, 80, 0)");
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = leak;
+    ctx.fillRect(0, 0, wd.width, wd.height);
+    ctx.globalCompositeOperation = "source-over";
+}
+
+function drawBokeh(t, dt) {
+    ctx.globalCompositeOperation = "lighter";
+    for (const b of bokeh) {
+        b.y -= b.speed * dt;
+        if (b.y < -0.1) {
+            b.y = 1.1;
+            b.x = random();
+        }
+        const radius = b.r * (1 + wd.levels[b.band] * 0.4);
+        const x = (b.x + Math.sin(t * 0.1 + b.phase) * 0.02) * wd.width;
+        const y = b.y * wd.height;
+        const light = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
+        const alpha = 0.035 + 0.03 * Math.sin(t * 0.5 + b.phase) + wd.levels[b.band] * 0.07;
+
+        light.addColorStop(0, `rgba(217, 164, 65, ${alpha})`);
+        light.addColorStop(0.85, `rgba(217, 164, 65, ${alpha * 1.4})`);
+        light.addColorStop(1, "rgba(217, 164, 65, 0)");
+        ctx.fillStyle = light;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+}
+
+// viewfinder: corner marks, the exposure line (faster with the music) and the recording dot
+function drawViewfinder(t) {
+    const m = 46;
+    const l = 34;
+    const w = wd.width;
+    const h = wd.height;
+
+    ctx.strokeStyle = "rgba(236, 232, 225, 0.45)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (const [x, y, dx, dy] of [[m, m + 30, 1, 1], [w - m, m + 30, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]]) {
+        ctx.moveTo(x, y + dy * l);
+        ctx.lineTo(x, y);
+        ctx.lineTo(x + dx * l, y);
+    }
+    ctx.stroke();
+    const exposure = `f/1.8   1/${wd.energy > 0.02 ? 500 : 125}   ISO ${200 + Math.round(wd.energy * 600)}   35mm`;
+
+    ctx.font = '13px "JetBrains Mono", monospace';
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = "rgba(236, 232, 225, 0.7)";
+    ctx.fillText(exposure, w / 2, h - m - 12);
+    ctx.fillStyle = `rgba(217, 164, 65, ${wd.energy > 0.02 ? 0.6 + 0.4 * Math.sin(t * 4) : 0.4})`;
+    ctx.fillText(`\u25cf ${wd.energy > 0.02 ? "REC" : "STBY"}   ${new Date().toLocaleDateString("en-GB")}`, w / 2, h - m - 32);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "start";
+}
+
+function drawGrain(t) {
+    grain.clearRect(0, 0, wd.width, wd.height);
+    grain.globalAlpha = 0.07;
+    grain.fillStyle = grain.createPattern(noise, "repeat");
+    grain.save();
+    grain.translate(-Math.floor(random() * 256), -Math.floor(random() * 256));
+    grain.fillRect(0, 0, wd.width + 256, wd.height + 256);
+    grain.restore();
+    grain.globalAlpha = 1;
+    // dust and, now and then, a scratch
+    grain.fillStyle = "rgba(236, 232, 225, 0.5)";
+    for (let i = 0; i < 6; i++) {
+        grain.fillRect(random() * wd.width, random() * wd.height, 1 + random() * 2, 1 + random() * 2);
+    }
+    if (random() < 0.03) {
+        grain.fillStyle = "rgba(236, 232, 225, 0.12)";
+        grain.fillRect(random() * wd.width, 0, 1, wd.height);
+    }
+    const vignette = grain.createRadialGradient(wd.width / 2, wd.height / 2, wd.height * 0.35,
+        wd.width / 2, wd.height / 2, wd.height * 1.0);
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(1, `rgba(0, 0, 0, ${0.5 + 0.05 * Math.sin(t * 0.4)})`);
+    grain.fillStyle = vignette;
+    grain.fillRect(0, 0, wd.width, wd.height);
+}
+
+wd.run((t, dt) => {
+    drawWall(t);
+    drawLeak(t);
+    drawBokeh(t, dt);
+    drawViewfinder(t);
+    drawGrain(t);
+}, 24);
+</script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+# Usage: wd-wallpaper [page.html] [--demo]
+#   (no page: the wallpaper.html of the active style; --demo: fake music, to try a page)
+#   SIGUSR1: fade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
+# The page fades in over the still wallpaper (swaybg), then stops it (same Hyprland session only)
+# Live wallpaper of wayland-desktop: a web page on the background layer of every monitor (GTK 3, gtk-layer-shell,
+# WebKit 4.1), fed 30 times a second with the music levels of cava (wdAudio(levels) in the page, see wd.js)
+import ctypes
+import os
+import platform
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import threading
+from pathlib import Path
+from urllib.parse import urlencode
+
+import cairo
+import gi
+
+gi.require_version("Gdk", "3.0")
+gi.require_version("Gtk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+gi.require_version("WebKit2", "4.1")
+gi.require_version("GLibUnix", "2.0")
+from gi.repository import Gdk, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2  # noqa: E402
+
+DATA_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "wayland-desktop"
+BARS = 48
+CAVA_CONFIG = f"""[general]
+framerate = 30
+bars = {BARS}
+sleep_timer = 2
+
+[input]
+method = pulse
+source = auto
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 1000
+bar_delimiter = 59
+frame_delimiter = 10
+
+[smoothing]
+monstercat = 0
+noise_reduction = 60
+"""
+
+# =========================
+# Page
+# =========================
+def page_uri(page, demo):
+    if page is None:
+        style = (DATA_DIR / "current").read_text().strip()
+        page = DATA_DIR / "styles" / style / "wallpaper.html"
+    query = urlencode({"user": os.environ.get("USER", "user"), "host": socket.gethostname().split(".")[0],
+                       "os": os_name(), "kernel": platform.release(), "shell": Path(os.environ.get("SHELL", "sh")).name})
+    return Path(page).resolve().as_uri() + "?" + query + ("&demo" if demo else "")
+
+def os_name():
+    try:
+        for line in Path("/etc/os-release").read_text().splitlines():
+            if line.startswith("PRETTY_NAME="):
+                return line.split("=", 1)[1].strip('"')
+    except OSError:
+        pass
+    return platform.system()
+
+class Wallpaper:
+    def __init__(self, page, demo):
+        self.page = page
+        self.demo = demo
+        self.windows = []
+        self.cava = None
+        display = Gdk.Display.get_default()
+        display.connect("monitor-added", lambda *_: self.build())
+        display.connect("monitor-removed", lambda *_: self.build())
+        self.build()
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self.reload)
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.quit)
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, self.quit)
+        if not demo:
+            threading.Thread(target=self.listen, daemon=True).start()
+
+    # One background surface per monitor, clicks go through it
+    def build(self):
+        for window in self.windows:
+            window.destroy()
+        self.windows = []
+        display = Gdk.Display.get_default()
+        for index in range(display.get_n_monitors()):
+            self.windows.append(self.window(display.get_monitor(index)))
+        return False
+
+    def window(self, monitor):
+        window = Gtk.Window()
+        GtkLayerShell.init_for_window(window)
+        GtkLayerShell.set_layer(window, GtkLayerShell.Layer.BACKGROUND)
+        GtkLayerShell.set_namespace(window, "wd-wallpaper")
+        GtkLayerShell.set_monitor(window, monitor)
+        GtkLayerShell.set_exclusive_zone(window, -1)
+        GtkLayerShell.set_keyboard_mode(window, GtkLayerShell.KeyboardMode.NONE)
+        for edge in (GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.LEFT,
+                     GtkLayerShell.Edge.RIGHT):
+            GtkLayerShell.set_anchor(window, edge, True)
+
+        # transparent until the page fades in: the still wallpaper (swaybg) stays visible below
+        visual = window.get_screen().get_rgba_visual()
+        if visual:
+            window.set_visual(visual)
+        window.set_app_paintable(True)
+
+        view = WebKit2.WebView()
+        manager = view.get_user_content_manager()
+        manager.register_script_message_handler("wd")
+        manager.connect("script-message-received::wd", self.ready)
+        settings = view.get_settings()
+        settings.set_enable_webgl(True)
+        settings.set_hardware_acceleration_policy(WebKit2.HardwareAccelerationPolicy.ALWAYS)
+        settings.set_allow_file_access_from_file_urls(True)
+        settings.set_enable_page_cache(False)
+        view.set_background_color(Gdk.RGBA(0, 0, 0, 0))
+        view.load_uri(page_uri(self.page, self.demo))
+        window.add(view)
+        window.connect("realize", lambda w: w.input_shape_combine_region(cairo.Region()))
+        window.show_all()
+        window.view = view
+        return window
+
+    # The page is shown: the still wallpaper of this session is not needed any more
+    def ready(self, *_):
+        signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+        for pid in filter(str.isdigit, os.listdir("/proc")):
+            try:
+                comm = Path(f"/proc/{pid}/comm").read_text().strip()
+                environ = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+            except OSError:
+                continue
+            if comm == "swaybg" and f"HYPRLAND_INSTANCE_SIGNATURE={signature}".encode() in environ:
+                os.kill(int(pid), signal.SIGTERM)
+
+    def run_js(self, script):
+        for window in self.windows:
+            window.view.evaluate_javascript(script, -1, None, None, None, None, None)
+
+    # New style: the page fades out, the new one fades in (wd.js)
+    def reload(self):
+        self.run_js("window.wdLeave && wdLeave()")
+        GLib.timeout_add(450, self.load)
+        return True
+
+    def load(self):
+        uri = page_uri(self.page, self.demo)
+        for window in self.windows:
+            window.view.load_uri(uri)
+        return False
+
+    # =========================
+    # Music
+    # =========================
+    def listen(self):
+        if not shutil.which("cava"):
+            return
+        config = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "wd-cava-wallpaper.conf"
+        config.write_text(CAVA_CONFIG)
+        self.cava = subprocess.Popen(["cava", "-p", str(config)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                     text=True)
+        for line in self.cava.stdout:
+            levels = line.strip().rstrip(";")
+            if levels:
+                GLib.idle_add(self.push, levels)
+
+    def push(self, levels):
+        self.run_js(f"window.wdAudio && wdAudio([{levels.replace(';', ',')}])")
+        return False
+
+    def quit(self):
+        if self.cava:
+            self.cava.terminate()
+        Gtk.main_quit()
+        return False
+
+# =========================
+# Program
+# =========================
+def main():
+    args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
+    # process name for pgrep / pkill (wd-style)
+    ctypes.CDLL(None).prctl(15, b"wd-wallpaper", 0, 0, 0)
+    Wallpaper(args[0] if args else None, "--demo" in sys.argv)
+    Gtk.main()
+
+if __name__ == "__main__":
+    main()

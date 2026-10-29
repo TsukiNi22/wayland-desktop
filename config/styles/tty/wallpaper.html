@@ -1,0 +1,300 @@
+<!doctype html>
+<!-- wayland-desktop style: Terminal / better-tty - live wallpaper (wd-wallpaper): an ASCII 3D torus spinning with the
+     music in a tmux pane, the rose-pine spectrum of cava, a big block clock, a dim glyph rain and CRT scanlines -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    html { background: transparent; }
+    body { margin: 0; height: 100vh; overflow: hidden; background: #191724; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="rain"></canvas>
+<canvas id="main"></canvas>
+<canvas id="crt"></canvas>
+<script src="../../common/wallpaper/wd.js"></script>
+<script>
+"use strict";
+
+const C = {
+    base: "#191724", surface: "#1f1d2e", overlay: "#26233a", muted: "#6e6a86", subtle: "#908caa", text: "#e0def4",
+    love: "#eb6f92", gold: "#f6c177", rose: "#ebbcba", pine: "#31748f", foam: "#9ccfd8", iris: "#c4a7e7",
+};
+const FONT = 15;
+const LUMINANCE = ".,-~:;=!*#$@";
+const RAMP = [C.pine, C.pine, C.pine, C.foam, C.foam, C.iris, C.iris, C.iris, C.rose, C.rose, C.gold, C.gold];
+const GLYPHS = "01#$%&*+=<>/\\|{}[]~^@abcdef0123456789";
+const DIGITS = {
+    "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+    "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+    "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    "9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+    ":": ["0", "0", "1", "0", "1", "0", "0"],
+};
+
+const rain = wd.canvas("rain");
+const main = wd.canvas("main");
+const crt = wd.canvas("crt");
+const random = wd.rand(39);
+const font = `${FONT}px "JetBrains Mono", monospace`;
+let cw = 9;
+let ch = 19;
+let cols = 0;
+let rows = 0;
+let streams = [];
+let spectrumFill = null;
+let angleA = 1;
+let angleB = 0.6;
+
+// =========================
+// Layout (also on resize)
+// =========================
+function layout() {
+    main.font = font;
+    cw = main.measureText("M").width;
+    ch = Math.round(FONT * 1.28);
+    cols = Math.floor(wd.width / cw);
+    rows = Math.floor(wd.height / ch);
+    streams = Array.from({ length: Math.floor(cols / 3) }, () => ({
+        x: Math.floor(random() * cols), y: random() * rows, speed: 3 + random() * 9, bright: random() < 0.12,
+    }));
+
+    // scanlines and vignette, drawn once
+    crt.clearRect(0, 0, wd.width, wd.height);
+    crt.fillStyle = "rgba(0, 0, 0, 0.12)";
+    for (let y = 0; y < wd.height; y += 3) {
+        crt.fillRect(0, y, wd.width, 1);
+    }
+    const vignette = crt.createRadialGradient(wd.width / 2, wd.height / 2, wd.height * 0.3,
+        wd.width / 2, wd.height / 2, wd.height * 1.0);
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(1, "rgba(0, 0, 0, 0.6)");
+    crt.fillStyle = vignette;
+    crt.fillRect(0, 0, wd.width, wd.height);
+
+    rain.fillStyle = C.base;
+    rain.fillRect(0, 0, wd.width, wd.height);
+
+    const top = (rows - 4 - spectrumRows()) * ch;
+    spectrumFill = main.createLinearGradient(0, (rows - 4) * ch, 0, top);
+    spectrumFill.addColorStop(0, C.pine);
+    spectrumFill.addColorStop(0.3, C.foam);
+    spectrumFill.addColorStop(0.55, C.iris);
+    spectrumFill.addColorStop(0.75, C.rose);
+    spectrumFill.addColorStop(0.9, C.gold);
+    spectrumFill.addColorStop(1, C.love);
+}
+
+function spectrumRows() {
+    return Math.max(6, Math.floor(rows * 0.24));
+}
+
+// =========================
+// Pieces
+// =========================
+function text(ctx, value, col, row, color) {
+    ctx.fillStyle = color;
+    ctx.fillText(value, col * cw, row * ch);
+}
+
+// a tmux pane: rounded box with its title
+function pane(col, row, width, height, title) {
+    main.fillStyle = "rgba(25, 23, 36, 0.78)";
+    main.fillRect(col * cw, row * ch, width * cw, height * ch);
+    text(main, "╭" + "─".repeat(width - 2) + "╮", col, row, C.muted);
+    text(main, "╰" + "─".repeat(width - 2) + "╯", col, row + height - 1, C.muted);
+    for (let y = row + 1; y < row + height - 1; y++) {
+        text(main, "│", col, y, C.muted);
+        text(main, "│", col + width - 1, y, C.muted);
+    }
+    text(main, ` ${title} `, col + 2, row, C.iris);
+}
+
+function drawRain(dt) {
+    rain.fillStyle = "rgba(25, 23, 36, 0.16)";
+    rain.fillRect(0, 0, wd.width, wd.height);
+    rain.font = font;
+    rain.textBaseline = "top";
+    for (const stream of streams) {
+        stream.y += stream.speed * dt * (1 + wd.energy * 3);
+        if (stream.y * ch > wd.height + 40) {
+            stream.y = -random() * 12;
+            stream.x = Math.floor(random() * cols);
+        }
+        rain.fillStyle = stream.bright ? "rgba(196, 167, 231, 0.45)" : "rgba(110, 106, 134, 0.32)";
+        rain.fillText(GLYPHS[Math.floor(random() * GLYPHS.length)], stream.x * cw, Math.floor(stream.y) * ch);
+    }
+}
+
+// donut.c, faster with the music, bigger on the kicks
+function drawTorus(dt) {
+    const height = Math.max(18, Math.floor(rows * 0.46));
+    const width = Math.ceil(height * ch / cw) + 2;
+    const left = Math.floor(cols * 0.68 - width / 2);
+    const top = Math.floor(rows * 0.37 - height / 2);
+    const output = new Int8Array(width * height).fill(-1);
+    const depth = new Float32Array(width * height);
+    const r1 = 1;
+    const r2 = 2;
+    const k2 = 5;
+    const k1 = (height / 2) * k2 / (r1 + r2) * 0.74 * (1 + 0.08 * wd.beat);
+
+    angleA += dt * (0.55 + wd.energy * 2.4);
+    angleB += dt * (0.3 + wd.bass * 1.6);
+    const cA = Math.cos(angleA);
+    const sA = Math.sin(angleA);
+    const cB = Math.cos(angleB);
+    const sB = Math.sin(angleB);
+
+    for (let theta = 0; theta < 6.283; theta += 0.07) {
+        const ct = Math.cos(theta);
+        const st = Math.sin(theta);
+
+        for (let phi = 0; phi < 6.283; phi += 0.025) {
+            const cp = Math.cos(phi);
+            const sp = Math.sin(phi);
+            const circleX = r2 + r1 * ct;
+            const circleY = r1 * st;
+            const x = circleX * (cB * cp + sA * sB * sp) - circleY * cA * sB;
+            const y = circleX * (sB * cp - sA * cB * sp) + circleY * cA * cB;
+            const z = k2 + cA * circleX * sp + circleY * sA;
+            const ooz = 1 / z;
+            const px = Math.floor(width / 2 + k1 * ooz * x * (ch / cw));
+            const py = Math.floor(height / 2 - k1 * ooz * y);
+            const light = cp * ct * sB - cA * ct * sp - sA * st + cB * (cA * st - ct * sA * sp);
+
+            if (light > 0 && px >= 0 && px < width && py >= 0 && py < height) {
+                const index = px + py * width;
+
+                if (ooz > depth[index]) {
+                    depth[index] = ooz;
+                    output[index] = Math.min(11, Math.floor(light * 8));
+                }
+            }
+        }
+    }
+    pane(left - 3, top - 1, width + 6, height + 2, "torus.c ─ 3d");
+    for (let level = 0; level < 12; level++) {
+        main.fillStyle = RAMP[level];
+        for (let i = 0; i < output.length; i++) {
+            if (output[i] === level) {
+                main.fillText(LUMINANCE[level], (left + i % width) * cw, (top + Math.floor(i / width)) * ch);
+            }
+        }
+    }
+}
+
+function drawClock(t) {
+    const now = new Date();
+
+    // a still wallpaper keeps no clock (hyprlock draws its own)
+    if (wd.still !== null) {
+        text(main, `${wd.user}@${wd.host}`, 5, 13, C.foam);
+        text(main, " ~ \u276f better-tty", 5 + wd.user.length + wd.host.length + 1, 13, C.iris);
+        return;
+    }
+    const value = now.toTimeString().slice(0, 5);
+    const colors = [C.iris, C.iris, C.rose, C.rose, C.gold, C.gold, C.love];
+    const pixel = Math.round(ch * 0.9);
+    let left = 5 * cw;
+
+    // square pixels, like a big block font
+    for (const digit of value) {
+        const pattern = DIGITS[digit];
+
+        for (let y = 0; y < 7; y++) {
+            main.fillStyle = colors[y];
+            for (let x = 0; x < pattern[y].length; x++) {
+                if (pattern[y][x] === "1") {
+                    main.fillRect(left + x * pixel, 3 * ch + y * pixel, pixel - 3, pixel - 3);
+                }
+            }
+        }
+        left += (pattern[0].length + 1) * pixel;
+    }
+    const date = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    text(main, date.toLowerCase(), 5, 11, C.subtle);
+    text(main, `${wd.user}@${wd.host}`, 5, 13, C.foam);
+    text(main, " ~ ❯ ", 5 + wd.user.length + wd.host.length + 1, 13, C.iris);
+    if (Math.floor(t * 1.6) % 2 === 0) {
+        main.fillStyle = C.text;
+        main.fillRect((5 + wd.user.length + wd.host.length + 6) * cw, 13 * ch + 2, cw, ch - 4);
+    }
+}
+
+// neofetch-like pane: the system (given by wd-wallpaper) and the palette
+function drawInfo() {
+    const lines = [
+        ["os", wd.info.os], ["kernel", wd.info.kernel], ["wm", "Hyprland"], ["shell", wd.info.shell],
+        ["theme", "rose-pine · better-tty"], ["music", wd.energy > 0.02 ? "♪ playing" : "♪ idle"],
+    ];
+    const palette = [C.love, C.gold, C.rose, C.pine, C.foam, C.iris, C.text, C.muted];
+    const top = 16;
+
+    pane(3, top, 52, lines.length + 6, "neofetch");
+    lines.forEach(([key, value], i) => {
+        text(main, key.padEnd(8), 6, top + 2 + i, C.iris);
+        text(main, value, 15, top + 2 + i, key === "music" && wd.energy > 0.02 ? C.gold : C.text);
+    });
+    palette.forEach((color, i) => {
+        main.fillStyle = color;
+        main.fillRect((6 + i * 4) * cw, (top + lines.length + 3) * ch + 2, cw * 3, ch - 4);
+    });
+}
+
+// cava: blocks in rose-pine, peaks, a baseline and the frequency marks
+function drawSpectrum(t) {
+    const height = spectrumRows();
+    const base = (rows - 4) * ch;
+    const width = Math.floor((cols - 12) / wd.bars);
+    const left = Math.floor((cols - width * wd.bars) / 2);
+
+    pane(left - 2, rows - 5 - height, width * wd.bars + 4, height + 3, "cava ─ spectrum");
+    main.fillStyle = spectrumFill;
+    for (let i = 0; i < wd.bars; i++) {
+        const idle = 0.03 + 0.025 * Math.sin(t * 2 + i * 0.45);
+        const level = Math.max(idle, wd.levels[i]);
+        const cells = Math.round(level * height * 8) / 8;
+
+        main.fillRect((left + i * width) * cw, base - cells * ch, (width - 1) * cw, cells * ch);
+    }
+    // the gaps between the cells, like block characters
+    main.fillStyle = C.base;
+    for (let y = 1; y <= height; y++) {
+        main.fillRect(left * cw, base - y * ch, width * wd.bars * cw, 2);
+    }
+    main.fillStyle = C.text;
+    for (let i = 0; i < wd.bars; i++) {
+        if (wd.peaks[i] > 0.04) {
+            main.fillRect((left + i * width) * cw, base - wd.peaks[i] * height * ch - 3, (width - 1) * cw, 2);
+        }
+    }
+    text(main, "60 Hz", left, rows - 3.6, C.muted);
+    text(main, "16 kHz", left + width * wd.bars - 6, rows - 3.6, C.muted);
+}
+
+function draw(t, dt) {
+    main.clearRect(0, 0, wd.width, wd.height);
+    main.font = font;
+    main.textBaseline = "top";
+    drawRain(dt);
+    drawClock(t);
+    drawInfo();
+    drawTorus(dt);
+    drawSpectrum(t);
+}
+
+layout();
+addEventListener("resize", layout);
+wd.run(draw);
+</script>
+</body>
+</html>

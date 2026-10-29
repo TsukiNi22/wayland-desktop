@@ -1,0 +1,148 @@
+<!doctype html>
+<!-- wayland-desktop style: Miku - live wallpaper (wd-wallpaper): Miku and her 39, a ring of spectrum turning around
+     the 39, notes rising with the music, teal and pink twin-tail ribbons and a light sweeping the stripes -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    html { background: transparent; }
+    body { margin: 0; height: 100vh; overflow: hidden; background: #0b2b2c; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<script src="../../common/wallpaper/wd.js"></script>
+<script>
+"use strict";
+
+const TEAL = [57, 197, 187];
+const PINK = [225, 40, 133];
+const ctx = wd.canvas("main");
+const art = wd.image("wallpaper.jpg");
+const random = wd.rand(39);
+const notes = [];
+const NOTE_GLYPHS = ["♪", "♫", "♬", "♩"];
+
+function mix(a, b, k) {
+    return a.map((v, i) => Math.round(v + (b[i] - v) * k));
+}
+
+function drawArt(t) {
+    ctx.fillStyle = "#0b2b2c";
+    ctx.fillRect(0, 0, wd.width, wd.height);
+    wd.cover(ctx, art, 1.01 + wd.beat * 0.006, 0, Math.sin(t * 0.5) * 3);
+    // a light band sweeping the stripes
+    const x = ((t * 0.08) % 1.6 - 0.3) * wd.width;
+    const sweep = ctx.createLinearGradient(x - wd.width * 0.15, 0, x + wd.width * 0.15, wd.height * 0.3);
+
+    sweep.addColorStop(0, "rgba(233, 255, 253, 0)");
+    sweep.addColorStop(0.5, "rgba(233, 255, 253, 0.07)");
+    sweep.addColorStop(1, "rgba(233, 255, 253, 0)");
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = sweep;
+    ctx.fillRect(0, 0, wd.width, wd.height);
+    ctx.globalCompositeOperation = "source-over";
+}
+
+// the spectrum around the 39, mirrored so the ring closes
+function drawRing(t) {
+    const cx = wd.width * 0.705;
+    const cy = wd.height * 0.665;
+    const radius = wd.height * (0.2 + wd.beat * 0.008);
+    const count = wd.bars * 2;
+    const turn = t * 0.15;
+
+    const glow = ctx.createRadialGradient(cx, cy, radius * 0.6, cx, cy, radius * 1.6);
+    glow.addColorStop(0, `rgba(57, 197, 187, ${0.05 + wd.bass * 0.18})`);
+    glow.addColorStop(1, "rgba(57, 197, 187, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - radius * 2, cy - radius * 2, radius * 4, radius * 4);
+
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(3, radius * 0.035);
+    for (let i = 0; i < count; i++) {
+        const band = i < wd.bars ? i : count - 1 - i;
+        const level = Math.max(0.04 + 0.03 * Math.sin(t * 3 + i * 0.3), wd.levels[band]);
+        const angle = turn + i / count * Math.PI * 2;
+        const inner = radius * 1.02;
+        const outer = inner + level * radius * 0.7;
+        const color = mix(TEAL, PINK, band / (wd.bars - 1));
+
+        ctx.strokeStyle = `rgba(${color.join(", ")}, 0.85)`;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+        ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+        ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(233, 255, 253, 0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.97, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function drawNotes(t, dt) {
+    if (random() < dt * (0.8 + wd.energy * 10)) {
+        notes.push({
+            x: 0.08 + random() * 0.45, y: 1.02, glyph: NOTE_GLYPHS[Math.floor(random() * 4)], pink: random() < 0.5,
+            size: 18 + random() * 26, speed: 0.04 + random() * 0.05, phase: random() * 6.28,
+        });
+    }
+    ctx.textAlign = "center";
+    for (let i = notes.length - 1; i >= 0; i--) {
+        const note = notes[i];
+
+        note.y -= note.speed * dt * (1 + wd.energy * 1.5);
+        if (note.y < -0.05) {
+            notes.splice(i, 1);
+            continue;
+        }
+        const alpha = Math.min(1, (1 - note.y) * 3) * Math.min(1, note.y * 4) * 0.8;
+
+        ctx.fillStyle = `rgba(${(note.pink ? PINK : TEAL).join(", ")}, ${alpha})`;
+        ctx.font = `${note.size}px "Noto Sans Symbols 2", "DejaVu Sans", sans-serif`;
+        ctx.fillText(note.glyph, (note.x + Math.sin(t + note.phase) * 0.015) * wd.width, note.y * wd.height);
+    }
+    ctx.textAlign = "start";
+}
+
+// twin-tail ribbons along the bottom
+function drawRibbons(t) {
+    for (const [color, offset] of [[TEAL, 0], [PINK, 2.1]]) {
+        const top = [];
+        const bottom = [];
+
+        for (let x = 0; x <= wd.width; x += 16) {
+            const k = x / wd.width;
+            const band = Math.min(wd.bars - 1, Math.floor(k * wd.bars));
+            const wave = Math.sin(k * 7 + t * 1.2 + offset) * (18 + wd.mid * 60) + wd.levels[band] * 40;
+            const y = wd.height * 0.9 + wave;
+            const thick = 6 + 10 * Math.sin(k * 3.14) + wd.bass * 10;
+
+            top.push([x, y - thick]);
+            bottom.push([x, y + thick]);
+        }
+        const fill = ctx.createLinearGradient(0, 0, wd.width, 0);
+
+        fill.addColorStop(0, `rgba(${color.join(", ")}, 0)`);
+        fill.addColorStop(0.5, `rgba(${color.join(", ")}, 0.45)`);
+        fill.addColorStop(1, `rgba(${color.join(", ")}, 0)`);
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        top.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+        bottom.reverse().forEach(([x, y]) => ctx.lineTo(x, y));
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+wd.run((t, dt) => {
+    drawArt(t);
+    drawRing(t);
+    drawRibbons(t);
+    drawNotes(t, dt);
+});
+</script>
+</body>
+</html>

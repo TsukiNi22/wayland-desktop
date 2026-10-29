@@ -1,0 +1,191 @@
+<!doctype html>
+<!-- wayland-desktop style: System - live wallpaper (wd-wallpaper): drifting aurora, a 3D sphere of points that the
+     music pushes out, a perspective grid, a glowing waveform and a light clock -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    html { background: transparent; }
+    body { margin: 0; height: 100vh; overflow: hidden; background: #0e1217; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<script src="../../common/wallpaper/wd.js"></script>
+<script>
+"use strict";
+
+const ctx = wd.canvas("main");
+const POINTS = 1100;
+const sphere = [];
+const random = wd.rand(7);
+const blobs = [
+    { color: [90, 169, 255], x: 0.25, y: 0.3, r: 0.55, speed: 0.05, phase: 0 },
+    { color: [95, 211, 141], x: 0.75, y: 0.75, r: 0.5, speed: 0.04, phase: 2 },
+    { color: [180, 140, 255], x: 0.6, y: 0.2, r: 0.4, speed: 0.06, phase: 4 },
+];
+
+// points of a Fibonacci sphere, each one listening to a band of the spectrum
+for (let i = 0; i < POINTS; i++) {
+    const y = 1 - (i / (POINTS - 1)) * 2;
+    const radius = Math.sqrt(1 - y * y);
+    const theta = i * 2.399963;
+
+    sphere.push({ x: Math.cos(theta) * radius, y: y, z: Math.sin(theta) * radius, band: Math.floor((y + 1) / 2 * 47.99),
+        jitter: random() });
+}
+
+function drawAurora(t) {
+    const w = wd.width;
+    const h = wd.height;
+    const background = ctx.createLinearGradient(0, 0, 0, h);
+
+    background.addColorStop(0, "#111821");
+    background.addColorStop(1, "#090c11");
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "lighter";
+    for (const blob of blobs) {
+        const x = (blob.x + 0.12 * Math.sin(t * blob.speed + blob.phase)) * w;
+        const y = (blob.y + 0.1 * Math.cos(t * blob.speed * 1.3 + blob.phase)) * h;
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, blob.r * h * (1 + wd.bass * 0.25));
+        const [r, g, b] = blob.color;
+
+        glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${0.13 + wd.mid * 0.12})`);
+        glow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, w, h);
+    }
+    ctx.globalCompositeOperation = "source-over";
+}
+
+function drawGrid(t) {
+    const w = wd.width;
+    const h = wd.height;
+    const horizon = h * 0.62;
+    const fade = ctx.createLinearGradient(0, horizon, 0, h);
+
+    // the lines fade in from the horizon
+    fade.addColorStop(0, "rgba(90, 169, 255, 0)");
+    fade.addColorStop(1, "rgba(90, 169, 255, 0.16)");
+    ctx.strokeStyle = fade;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = -24; i <= 24; i++) {
+        ctx.moveTo(w / 2 + i * 12, horizon);
+        ctx.lineTo(w / 2 + i * w * 0.09, h);
+    }
+    for (let i = 0; i < 14; i++) {
+        const k = ((i + (t * 0.35) % 1) / 14) ** 2.2;
+        const y = horizon + (h - horizon) * k;
+
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+}
+
+function drawSphere(t) {
+    const cx = wd.width * 0.7;
+    const cy = wd.height * 0.44;
+    const size = wd.height * 0.23 * (1 + wd.beat * 0.05);
+    const ay = t * 0.25;
+    const ax = 0.35 + Math.sin(t * 0.13) * 0.2;
+    const [cY, sY, cX, sX] = [Math.cos(ay), Math.sin(ay), Math.cos(ax), Math.sin(ax)];
+    const projected = [];
+
+    for (const p of sphere) {
+        const push = 1 + wd.levels[p.band] * 0.55 + 0.02 * Math.sin(t * 2 + p.jitter * 6);
+        const x = p.x * cY - p.z * sY;
+        const z1 = p.x * sY + p.z * cY;
+        const y = p.y * cX - z1 * sX;
+        const z = p.y * sX + z1 * cX;
+        const scale = 2.6 / (2.6 + z);
+
+        projected.push({ x: cx + x * size * push * scale, y: cy + y * size * push * scale, z: z, level: wd.levels[p.band] });
+    }
+    projected.sort((a, b) => b.z - a.z);
+    for (const p of projected) {
+        const depth = (1 - p.z) / 2;
+        const mix = Math.min(1, p.level * 1.6);
+        const r = Math.round(90 + (95 - 90) * mix);
+        const g = Math.round(169 + (211 - 169) * mix);
+        const b = Math.round(255 + (141 - 255) * mix);
+
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.18 + depth * 0.75})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 0.6 + depth * 1.9 + p.level * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // halo
+    const halo = ctx.createRadialGradient(cx, cy, size * 0.6, cx, cy, size * 1.9);
+
+    halo.addColorStop(0, `rgba(90, 169, 255, ${0.06 + wd.beat * 0.08})`);
+    halo.addColorStop(1, "rgba(90, 169, 255, 0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - size * 2, cy - size * 2, size * 4, size * 4);
+}
+
+function drawWave(t) {
+    const w = wd.width;
+    const base = wd.height * 0.8;
+    const amplitude = wd.height * 0.07;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(90, 169, 255, 0.9)";
+    ctx.shadowBlur = 14;
+    for (const [sign, color] of [[1, "rgba(90, 169, 255, 0.75)"], [-1, "rgba(95, 211, 141, 0.45)"]]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 8) {
+            const position = x / w * (wd.bars - 1);
+            const i = Math.floor(position);
+            const level = wd.levels[i] + (wd.levels[Math.min(wd.bars - 1, i + 1)] - wd.levels[i]) * (position - i);
+            const envelope = Math.sin(Math.PI * x / w);
+            const y = base - sign * (level * amplitude + 3 * Math.sin(t * 1.5 + x * 0.01)) * envelope;
+
+            if (x === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawClock() {
+    const now = new Date();
+
+    // a still wallpaper keeps no clock (hyprlock draws its own)
+    if (wd.still !== null) {
+        return;
+    }
+    const x = wd.width * 0.09;
+    const y = wd.height * 0.42;
+
+    ctx.fillStyle = "#d6dde7";
+    ctx.font = `200 ${Math.round(wd.height * 0.15)}px "Adwaita Sans", "Inter", sans-serif`;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(now.toTimeString().slice(0, 5), x, y);
+    ctx.fillStyle = "#5aa9ff";
+    ctx.font = `500 ${Math.round(wd.height * 0.026)}px "Adwaita Sans", "Inter", sans-serif`;
+    ctx.fillText(now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }), x + 6, y + wd.height * 0.05);
+    ctx.fillStyle = "rgba(123, 135, 152, 0.9)";
+    ctx.font = `400 ${Math.round(wd.height * 0.017)}px "JetBrains Mono", monospace`;
+    ctx.fillText(`${wd.user}@${wd.host}  ·  ${wd.info.os}`, x + 6, y + wd.height * 0.09);
+}
+
+wd.run((t, dt) => {
+    drawAurora(t);
+    drawGrid(t);
+    drawWave(t);
+    drawSphere(t);
+    drawClock();
+});
+</script>
+</body>
+</html>

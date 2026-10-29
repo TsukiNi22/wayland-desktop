@@ -1,0 +1,223 @@
+<!doctype html>
+<!-- wayland-desktop style: Dev / low level - live wallpaper (wd-wallpaper): a scrolling hex dump with flickering bytes,
+     a 3D wireframe terrain made of the last seconds of the spectrum, CPU registers and a phosphor CRT -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    html { background: transparent; }
+    body { margin: 0; height: 100vh; overflow: hidden; background: #040705; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<canvas id="crt"></canvas>
+<script src="../../common/wallpaper/wd.js"></script>
+<script>
+"use strict";
+
+const GREEN = "#39ff88";
+const DIM = "#1c4a2e";
+const AMBER = "#ffb000";
+const FG = "#b8f5cf";
+const ROWS = 42;
+const ctx = wd.canvas("main");
+const crt = wd.canvas("crt");
+const random = wd.rand(1337);
+const font = '13px "JetBrains Mono", monospace';
+const history = Array.from({ length: ROWS }, () => new Float32Array(wd.bars));
+const registers = ["RAX", "RBX", "RCX", "RDX", "RSI", "RDI", "RBP", "RSP", "RIP", "R8 ", "R9 ", "R10"];
+let bytes = [];
+let scroll = 0;
+let shift = 0;
+let values = registers.map(() => Math.floor(random() * 0xffffffff));
+
+function hex(value, size) {
+    return value.toString(16).padStart(size, "0");
+}
+
+function layout() {
+    bytes = Array.from({ length: 200 * 16 }, () => Math.floor(random() * 256));
+    crt.clearRect(0, 0, wd.width, wd.height);
+    crt.fillStyle = "rgba(0, 0, 0, 0.18)";
+    for (let y = 0; y < wd.height; y += 3) {
+        crt.fillRect(0, y, wd.width, 1);
+    }
+    const glow = crt.createRadialGradient(wd.width / 2, wd.height / 2, wd.height * 0.25,
+        wd.width / 2, wd.height / 2, wd.height * 1.05);
+    // one color per gradient: mixing green and black alphas would draw a bright ring
+    glow.addColorStop(0, "rgba(0, 0, 0, 0)");
+    glow.addColorStop(1, "rgba(0, 0, 0, 0.7)");
+    crt.fillStyle = glow;
+    crt.fillRect(0, 0, wd.width, wd.height);
+    const phosphor = crt.createRadialGradient(wd.width * 0.7, wd.height * 0.6, 0, wd.width * 0.7, wd.height * 0.6, wd.height * 0.7);
+    phosphor.addColorStop(0, "rgba(57, 255, 136, 0.05)");
+    phosphor.addColorStop(1, "rgba(57, 255, 136, 0)");
+    crt.fillStyle = phosphor;
+    crt.fillRect(0, 0, wd.width, wd.height);
+}
+
+// =========================
+// Hex dump
+// =========================
+function drawDump(t, dt) {
+    const lineHeight = 17;
+    const lines = Math.ceil(wd.height / lineHeight) + 1;
+
+    scroll += dt * (14 + wd.energy * 60);
+    const first = Math.floor(scroll / lineHeight);
+    const offset = scroll % lineHeight;
+
+    ctx.font = font;
+    ctx.textBaseline = "top";
+    // flicker: a few bytes change, more with the music
+    for (let i = 0; i < 6 + wd.energy * 80; i++) {
+        bytes[Math.floor(random() * bytes.length)] = Math.floor(random() * 256);
+    }
+    for (let line = 0; line < lines; line++) {
+        const row = (first + line) % 200;
+        const y = line * lineHeight - offset;
+        let ascii = "";
+
+        ctx.fillStyle = DIM;
+        ctx.fillText(hex((first + line) * 16, 8), 28, y);
+        for (let i = 0; i < 16; i++) {
+            const value = bytes[row * 16 + i];
+            const hot = value > 250 - wd.beat * 60;
+
+            ctx.fillStyle = hot ? AMBER : (value % 7 === 0 ? GREEN : "#2f7a4f");
+            ctx.fillText(hex(value, 2), 118 + i * 24 + (i >= 8 ? 10 : 0), y);
+            ascii += value >= 33 && value < 127 ? String.fromCharCode(value) : ".";
+        }
+        ctx.fillStyle = "#24603d";
+        ctx.fillText(`|${ascii}|`, 520, y);
+    }
+    const fade = ctx.createLinearGradient(0, 0, 720, 0);
+
+    fade.addColorStop(0, "rgba(4, 7, 5, 0)");
+    fade.addColorStop(0.75, "rgba(4, 7, 5, 0.2)");
+    fade.addColorStop(1, "rgba(4, 7, 5, 1)");
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, 720, wd.height);
+}
+
+// =========================
+// Spectrum terrain
+// =========================
+function drawTerrain(t, dt) {
+    shift += dt * 30;
+    while (shift >= 1) {
+        shift -= 1;
+        const row = history.pop();
+
+        for (let i = 0; i < wd.bars; i++) {
+            const idle = 0.05 * (Math.sin(t * 1.3 + i * 0.4) + Math.sin(t * 0.7 + i * 0.13)) + 0.08;
+
+            row[i] = Math.max(idle, wd.levels[i]);
+        }
+        history.unshift(row);
+    }
+    const left = wd.width * 0.4;
+    const width = wd.width * 0.58;
+    const horizon = wd.height * 0.38;
+    const floor = wd.height * 0.95;
+    const project = (i, depth, level) => {
+        const z = 1 + depth * 0.09;
+        const x = left + width / 2 + ((i / (wd.bars - 1)) - 0.5) * width / z * 1.4;
+        const y = horizon + (floor - horizon) / z - level * wd.height * 0.32 / z;
+
+        return [x, y];
+    };
+
+    ctx.lineWidth = 1.2;
+    for (let depth = ROWS - 1; depth >= 0; depth--) {
+        const row = history[depth];
+        const alpha = 0.15 + 0.85 * (1 - depth / ROWS);
+
+        ctx.strokeStyle = depth === 0 ? AMBER : `rgba(57, 255, 136, ${alpha * 0.8})`;
+        ctx.fillStyle = "rgba(4, 7, 5, 0.92)";
+        const ridge = new Path2D();
+
+        for (let i = 0; i < wd.bars; i++) {
+            const [x, y] = project(i, depth, row[i]);
+
+            if (i === 0) {
+                ridge.moveTo(x, y);
+            } else {
+                ridge.lineTo(x, y);
+            }
+        }
+        // hide what is behind the ridge, then draw the ridge alone
+        const mask = new Path2D(ridge);
+        const [xr, yr] = project(wd.bars - 1, depth, 0);
+        const [xl, yl] = project(0, depth, 0);
+
+        mask.lineTo(xr, yr);
+        mask.lineTo(xl, yl);
+        mask.closePath();
+        ctx.fill(mask);
+        ctx.stroke(ridge);
+    }
+    ctx.strokeStyle = "rgba(57, 255, 136, 0.12)";
+    ctx.beginPath();
+    for (let i = 0; i < wd.bars; i += 4) {
+        const [x0, y0] = project(i, ROWS - 1, history[ROWS - 1][i]);
+        const [x1, y1] = project(i, 0, history[0][i]);
+
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+    }
+    ctx.stroke();
+}
+
+// =========================
+// Registers, prompt
+// =========================
+function drawRegisters(t) {
+    const x = wd.width - 360;
+    const y = 70;
+
+    if (wd.beat > 0.9 || random() < 0.05) {
+        values = values.map(v => random() < 0.4 ? Math.floor(random() * 0xffffffff) : v);
+    }
+    ctx.font = font;
+    ctx.fillStyle = "rgba(10, 29, 18, 0.85)";
+    ctx.fillRect(x - 18, y - 30, 330, registers.length * 20 + 50);
+    ctx.strokeStyle = DIM;
+    ctx.strokeRect(x - 18, y - 30, 330, registers.length * 20 + 50);
+    ctx.fillStyle = GREEN;
+    ctx.fillText("[ registers ]", x, y - 20);
+    registers.forEach((name, i) => {
+        ctx.fillStyle = "#2f7a4f";
+        ctx.fillText(name, x, y + 6 + i * 20);
+        ctx.fillStyle = wd.beat > 0.5 && i % 3 === 0 ? AMBER : FG;
+        ctx.fillText(`0x0000_${hex(values[i], 8).replace(/(.{4})/, "$1_")}`, x + 50, y + 6 + i * 20);
+    });
+    const prompt = `${wd.user}@${wd.host}:~$ uname -r`;
+    const bottom = y + registers.length * 20 + 40;
+
+    ctx.fillStyle = GREEN;
+    ctx.fillText(prompt, x - 18, bottom);
+    ctx.fillStyle = FG;
+    ctx.fillText(wd.info.kernel, x - 18, bottom + 20);
+    ctx.fillStyle = GREEN;
+    ctx.fillText(`${wd.user}@${wd.host}:~$`, x - 18, bottom + 40);
+    if (Math.floor(t * 2) % 2 === 0) {
+        ctx.fillRect(x - 18 + ctx.measureText(`${wd.user}@${wd.host}:~$ `).width, bottom + 40, 8, 15);
+    }
+}
+
+layout();
+addEventListener("resize", layout);
+wd.run((t, dt) => {
+    ctx.fillStyle = "#040705";
+    ctx.fillRect(0, 0, wd.width, wd.height);
+    drawDump(t, dt);
+    drawTerrain(t, dt);
+    drawRegisters(t);
+    crt.canvas.style.opacity = String(0.94 + 0.06 * Math.sin(t * 50));
+});
+</script>
+</body>
+</html>
