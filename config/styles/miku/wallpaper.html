@@ -354,16 +354,45 @@ function drawBeam(dt) {
         }
         return;
     }
-    // the video, cut in on "Ready?", faded out at the end (its own subtitles, hands, beam and static)
+    // the video, cut in on "Ready?", faded out at the end (its own subtitles, hands, beam and static), moved by its camera
     const scale = Math.max(wd.width / beamVideo.videoWidth, wd.height / beamVideo.videoHeight);
     const w = beamVideo.videoWidth * scale;
     const h = beamVideo.videoHeight * scale;
+    const move = camera(t, level);
 
     ctx.globalAlpha = Math.min(1, (END - t) / 0.4);
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, wd.width, wd.height);
-    ctx.drawImage(beamVideo, (wd.width - w) / 2, (wd.height - h) / 2, w, h);
+    ctx.save();
+    ctx.translate(wd.width / 2 + (random() - 0.5) * move.shake * u, wd.height / 2 + (random() - 0.5) * move.shake * u);
+    ctx.rotate(move.angle);
+    // a little larger: the corners never show while it leans
+    ctx.scale(1.08, 1.08);
+    ctx.drawImage(beamVideo, -w / 2, -h / 2, w, h);
+    ctx.restore();
     ctx.globalAlpha = 1;
+}
+
+// the camera over the video: a light sway on "Ready?", the beam leaning right then left every four beats (1.25 s) and
+// trembling with its loudness, the blast sweeping one way then the other, a small tremble in the static
+function camera(t, level) {
+    const BEAM = 9.88;
+    const SWEEP = 14.8;
+    const STATIC = 18.55;
+
+    if (t < BEAM) {
+        return { angle: Math.sin((t - READY) * 2.4) * 0.012, shake: 0 };
+    }
+    if (t < SWEEP) {
+        const beat = Math.floor((t - BEAM) / 1.25);
+        const k = ((t - BEAM) % 1.25) / 1.25;
+
+        return { angle: (beat % 2 ? -1 : 1) * 0.032 * Math.sin(k * Math.PI), shake: 4 + level * 12 };
+    }
+    if (t < STATIC) {
+        return { angle: 0.04 * Math.sin((t - SWEEP) / (STATIC - SWEEP) * Math.PI * 2), shake: 3 + level * 7 };
+    }
+    return { angle: 0, shake: 2 };
 }
 
 function rounded(x, y, w, h, r) {

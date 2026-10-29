@@ -120,9 +120,10 @@
                 ]
             ],
             "video": true,
-            "height": 720,
+            "height": 1080,
             "fps": 30,
-            "title": "MIKU MIKU BEAM, M@GICAL☆CURE! LOVE ♥ SHOT! (SAWTOWNE feat. Hatsune Miku), its video"
+            "title": "MIKU MIKU BEAM, M@GICAL☆CURE! LOVE ♥ SHOT! (SAWTOWNE feat. Hatsune Miku), its video",
+            "bitrate": "4M"
         }
     }
 }
