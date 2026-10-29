@@ -21,7 +21,20 @@ local function style(command)
 end
 
 -- the overview (quickshell) answers a global shortcut at once; without quickshell: the wofi launcher (wd-style)
-local has_shell = os.execute("command -v quickshell > /dev/null 2>&1")
+-- (looked up in the PATH: os.execute always fails in Hyprland, which reaps its children itself)
+local function installed(program)
+    for dir in (os.getenv("PATH") or "/usr/bin"):gmatch("[^:]+") do
+        local file = io.open(dir .. "/" .. program, "r")
+
+        if file then
+            file:close()
+            return true
+        end
+    end
+    return false
+end
+
+local has_shell = installed("quickshell")
 
 local function overview(name)
     if has_shell then
@@ -86,6 +99,13 @@ hl.config({
         allow_workspace_cycles = true,
     },
 
+    -- the cursor drawn by Hyprland: no ghost second cursor on hybrid Intel / NVIDIA laptops; the theme is not copied
+    -- into gsettings (shared with GNOME: the animated cursors would show up in the GNOME session too)
+    cursor = {
+        no_hardware_cursors  = true,
+        sync_gsettings_theme = false,
+    },
+
     dwindle = {
         preserve_split = true,
     },
@@ -128,12 +148,14 @@ hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("hyprctl dispatch 'hl.dsp.exit()'"))
 hl.bind(mainMod .. " + SUPER_L", overview("overview"), { release = true })
 hl.bind(mainMod .. " + A", overview("apps"))
 
--- styles: menu / next, power menu, live or still wallpaper, animated or normal cursor (wd-style)
+-- styles: menu / next, power menu, live or still wallpaper, animated or normal cursor, radio shown or hidden (the
+-- styles that hide it by default) (wd-style)
 hl.bind(mainMod .. " + SHIFT + W", style("menu"))
 hl.bind(mainMod .. " + ALT + W", style("next"))
 hl.bind(mainMod .. " + X", style("power"))
 hl.bind(mainMod .. " + SHIFT + B", style("wallpaper toggle"))
 hl.bind(mainMod .. " + SHIFT + C", style("cursor toggle"))
+hl.bind(mainMod .. " + SHIFT + M", style("radio toggle"))
 
 -- notifications: show the last one again / dismiss them all
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("makoctl restore"))
@@ -199,10 +221,10 @@ hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = tr
 ---- WINDOWS, LAYERS ----
 -------------------------
 
--- small tools float in the middle, picture in picture stays on top
+-- small tools float in the middle (and the dialogs of the radio of the wallpaper), picture in picture stays on top
 hl.window_rule({
     name   = "wd-float-tools",
-    match  = { class = "^(pavucontrol|org.pulseaudio.pavucontrol|nm-connection-editor|blueman-manager|org.gnome.Calculator|xdg-desktop-portal-gtk)$" },
+    match  = { class = "^(pavucontrol|org.pulseaudio.pavucontrol|nm-connection-editor|blueman-manager|org.gnome.Calculator|xdg-desktop-portal-gtk|wd-wallpaper)$" },
     float  = true,
     center = true,
     size   = "900 600",
