@@ -65,7 +65,7 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 > wireplumber, libnotify, nautilus, btop, quickshell (overview, lock of better-tty and Dev), cava (music), python GTK +
 > WebKit 4.1 + gtk-layer-shell (live wallpapers), Pillow (animated cursors), the Adwaita cursor and the fonts (JetBrains
 > Mono, Font Awesome, Noto CJK, Noto Sans Symbols 2, Noto Color Emoji); each style adds the `PACKAGES` of its `style.env`
-> (its font, `mpv` + `yt-dlp` + `mpv-mpris` for the radio of Ado and Miku, `espeak-ng` for the voice of the Miku beam). A package missing in the repositories of the family is skipped: the overview falls back to the wofi
+> (its font, `mpv` + `yt-dlp` + `mpv-mpris` for the radio of Ado and Miku, `ffmpeg` for the clips of their pages). A package missing in the repositories of the family is skipped: the overview falls back to the wofi
 > launcher, the wallpaper to the still image, the radio tells what it needs.
 
 | Mode | Content |
@@ -75,7 +75,8 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 
 | Keys | Effect |
 | ---- | ------ |
-| `Super` (alone) / `Super` again or `Super+A` | overview of the workspaces and their windows / applications grid (typing searches) |
+| `Super` (alone) / `Super` again or `Super+A` | overview of the workspaces and their windows / applications grid (typing searches); `Super` twice quickly opens the applications at once |
+| in the overview: `←` `→` then `Enter`, a click | pick a workspace card, go there; on the last empty card it creates the workspace (the arrows never create one) |
 | drag a window in the overview | to another workspace, or to the last empty one to create a workspace (GNOME: an emptied workspace goes away, the next ones move down) |
 | `Super+Return` / `Super+Q` | terminal (kitty) |
 | `Super+R` | launcher (wofi) |
@@ -87,16 +88,17 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 | `Super+L` / `Super+X` | lock / power menu |
 | `Super+C` / `Super+F` / `Super+V` | close / fullscreen / floating |
 | `Super+N` / `Super+Shift+N` | last notification again / dismiss them all |
-| `Super+Shift+B` / `Super+Shift+C` | live / still wallpaper, animated / normal cursor (normal by default) |
+| `Super+Shift+B` / `Super+Shift+C` | live / still wallpaper, animated / normal cursor (animated by default) |
+| `Super+Shift+M` | shows / hides the radio of System, Dev, Terminal and Photographer (hidden by default) |
 | `Print` / `Shift+Print` | screenshot of a zone (clipboard) / of the screen (`~/Pictures`) |
 
 | Style | Live wallpaper (`config/styles/<style>/wallpaper.html`) |
 | ----- | ------------------------------------------------------ |
 | System | aurora, a 3D sphere of points pushed by the music, perspective grid, waveform, light clock |
 | Dev / low level | scrolling hex dump, 3D terrain of the last seconds of the spectrum, registers, phosphor CRT |
-| Ado / blue rose | a backlit cage and its silhouette, WORLD DOMINATION and its globe of conquered cities, a fan chat with the rose-chan emotes, giant song titles, the blue rose, a vinyl radio to click |
+| Ado / blue rose | her stage from the official live video (the Ado Box at K-Arena, a clip melted into the rose; a drawn stage until it is made), WORLD DOMINATION and its globe of conquered cities, a live chat with the rose-chan emotes, giant song titles, the blue rose, a vinyl radio to click |
 | Terminal / better-tty | ASCII 3D torus in a tmux pane, rose-pine spectrum, block clock, neofetch pane, glyph rain, CRT |
-| Miku | ring of spectrum around the 39, rising notes, twin-tail ribbons, the 39.39 FM radio to click, the sticky note of the POC (click it: MIKU MIKU BEAM) |
+| Miku | ring of spectrum around the 39, rising notes, twin-tail ribbons, the 39.39 FM radio to click, the sticky note of the POC (click it: the count, then the MIKU MIKU BEAM of its official video) |
 | Photographer | light leak, bokeh, film grain and dust, viewfinder |
 
 | Lock (`Super+L`) | |
@@ -108,13 +110,37 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 > [!TIP]
 > The radios of Ado and Miku play their `radio.json`: a few tracks are kept offline (千本桜, ワールドイズマイン, うっせぇわ,
 > 新時代: downloaded once by `install.sh` with yt-dlp in `~/.local/share/wd-radio`, a personal copy, never in this
-> repository) and start at once, the others are YouTube searches (mpv + yt-dlp). The title, the media keys and the bar
-> follow (mpv-mpris); they keep playing across a change of style and stop with the live wallpaper. Your own emotes (png,
-> gif, webp...) in `~/.local/share/wd-emotes` join the rose-chan ones in the Ado chat.
+> repository) and start at once, the others play from YouTube (mpv + yt-dlp). The pages show parts of official videos
+> cut once with ffmpeg in `~/.local/share/wd-radio/media` (personal copies too): the beam of M@GICAL☆CURE! LOVE ♥ SHOT!
+> for the Miku beam, the Ado Box on stage from the live video of 心という名の不可解 (K-Arena 2024) for the Ado stage. The title, the media keys and the bar follow (mpv-mpris); they keep playing across a change of
+> style and stop with the live wallpaper. Your own emotes (png, gif, webp...) in `~/.local/share/wd-emotes` join the
+> rose-chan ones in the Ado chat.
+
+Your own tracks join a radio, and any track can be kept offline:
+
+| How | Effect |
+| --- | ------ |
+| the `⤓` button of the player | saves the track where you choose (a save dialog, the folder of the radio by default) and plays it offline; pressed again: back online |
+| the `+` button of the player | adds audio files (an open dialog): copied into the folder of the radio |
+| the loop button of the player | plays the current track again and again |
+| audio files in `~/Music/wd-radio/<style>/` (`wd-style radio folder <style>`) | tracks of the radio, always offline (`Title — Subtitle.mp3` names them) |
+| `wd-style radio add <style> <url\|file\|search> [title [subtitle]]` | adds a YouTube URL, a file or a YouTube search to `~/.config/wayland-desktop/radio/<style>.json` (yours, edit it by hand too) |
+| `wd-style radio list [style]` / `remove <style> <index>` | the tracks with their index, source and state / removes one of yours |
+| `wd-style radio offline <style> <index\|all> [on\|off]` | keeps tracks offline (downloads them now) or not |
+
+The pages see the changes by themselves (a few seconds). System, Dev, Terminal and Photographer have a radio too, hidden by
+default (only Ado's Value comes with it): `Super+Shift+M` or `wd-style radio show | hide | toggle [style]` shows a small
+player in a corner, with the same buttons.
 
 > [!IMPORTANT]
 > The files already there are saved once (`<file>.wd-backup`) and put back by `./install.sh remove`;
 > `~/.config/hypr/user.lua` (keyboard detected at the install) is yours and never replaced.
+
+> [!WARNING]
+> Hyprland started from a TTY (`login` then `Hyprland`) while a GNOME session of the same user runs breaks the GNOME
+> unlock: Hyprland makes its logind session a `wayland` one, and GDM unlocks the newest graphical session of the user
+> (the Hyprland one), so the GNOME lock screen accepts the password and stays there. Quit Hyprland (`Super+M`) before
+> going back to GNOME, or start it from the GDM login screen instead (one session at a time).
 
 ## Usage
 
