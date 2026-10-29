@@ -1,6 +1,8 @@
 <!doctype html>
-<!-- wayland-desktop style: Ado / blue rose - live wallpaper (wd-wallpaper): Ado's stage - a backlit cage with a
-     silhouette under light rays, the WORLD DOMINATION meme and its globe of conquered cities, a fan chat with the
+<!-- wayland-desktop style: Ado / blue rose - live wallpaper (wd-wallpaper): Ado's stage as in her concerts - the
+     Ado Box (a dark cube closed by a lattice of bars, lit from behind, her silhouette inside) on a stage edged with
+     lights, the LED wall behind it changing its show (an arch of lights, the heartbeat, ribbons, a burst), lasers, the
+     crowd and its penlights - the WORLD DOMINATION meme and its globe of conquered cities, a live chat with the
      rose-chan emotes (and the user's own), reactions on the beats, giant song titles glitching behind, the blue rose,
      and a vinyl radio to click -->
 <html>
@@ -20,6 +22,7 @@
 
 const SKY = "159, 195, 255";
 const BLUE = "47, 107, 255";
+const RED = "255, 42, 74";
 const JP = '"Noto Sans CJK JP", "Adwaita Sans", sans-serif';
 const SANS = '"Adwaita Sans", "Noto Sans CJK JP", sans-serif';
 const MONO = '"JetBrains Mono", monospace';
@@ -82,22 +85,81 @@ function makeEmote(name, draw) {
     EMOTES[name] = canvas;
 }
 
-function roseFlower(g, x, y, r) {
-    const petals = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-
-    petals.addColorStop(0, "#9fc3ff");
-    petals.addColorStop(1, "#1d3fb8");
-    g.fillStyle = petals;
+// a rounded petal from (x, y) toward angle: wide, its tip round
+function rosePetal(g, x, y, angle, length, width, fill, edge) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(angle);
     g.beginPath();
-    g.arc(x, y, r, 0, Math.PI * 2);
+    g.moveTo(0, 0);
+    g.bezierCurveTo(-width, -length * 0.2, -width * 1.1, -length, 0, -length * 0.92);
+    g.bezierCurveTo(width * 1.1, -length, width, -length * 0.2, 0, 0);
+    g.fillStyle = fill;
     g.fill();
-    g.strokeStyle = "#0b1a5c";
-    g.lineWidth = r * 0.16;
-    for (let i = 0; i < 3; i++) {
+    g.strokeStyle = edge;
+    g.lineWidth = Math.max(1, length * 0.06);
+    g.stroke();
+    g.restore();
+}
+
+// a blue rose seen from above: two leaves, three rings of petals lighter toward the heart, a bud rolled in a spiral
+function roseFlower(g, x, y, r) {
+    const shade = (inner, outer, size) => {
+        const gradient = g.createRadialGradient(x, y, r * 0.05, x, y, r * size);
+
+        gradient.addColorStop(0, inner);
+        gradient.addColorStop(1, outer);
+        return gradient;
+    };
+
+    for (const [angle, flip] of [[2.35, -1], [0.8, 1]]) {
+        const leaf = g.createLinearGradient(x, y, x + Math.cos(angle) * r * 1.2, y + Math.sin(angle) * r * 1.2);
+
+        leaf.addColorStop(0, "#1f7a43");
+        leaf.addColorStop(1, "#5fcf7d");
+        g.save();
+        g.translate(x, y);
+        g.rotate(angle + Math.PI / 2);
         g.beginPath();
-        g.arc(x + r * 0.08 * i, y + r * 0.05 * i, r * (0.75 - i * 0.22), 0.4 + i, 4.2 + i);
+        g.moveTo(0, 0);
+        g.quadraticCurveTo(-r * 0.38 * flip, -r * 0.65, 0, -r * 1.25);
+        g.quadraticCurveTo(r * 0.38 * flip, -r * 0.65, 0, 0);
+        g.fillStyle = leaf;
+        g.fill();
+        g.strokeStyle = "rgba(10, 60, 30, 0.8)";
+        g.lineWidth = Math.max(1, r * 0.05);
+        g.beginPath();
+        g.moveTo(0, -r * 0.1);
+        g.lineTo(0, -r * 1.1);
         g.stroke();
+        g.restore();
     }
+    for (let i = 0; i < 6; i++) {
+        rosePetal(g, x, y, i * Math.PI / 3 + 0.2, r * 0.98, r * 0.6, shade("#3f6cf2", "#13277f", 1), "#7fa6ff");
+    }
+    for (let i = 0; i < 5; i++) {
+        rosePetal(g, x, y, i * Math.PI * 0.4 + 0.75, r * 0.74, r * 0.48, shade("#6d95ff", "#2448c8", 0.8), "#a9c6ff");
+    }
+    for (let i = 0; i < 3; i++) {
+        rosePetal(g, x, y, i * Math.PI * 2 / 3 + 0.3, r * 0.48, r * 0.36, shade("#a3c0ff", "#3d66e8", 0.5), "#d3e2ff");
+    }
+    g.fillStyle = shade("#c9dbff", "#5b8cff", 0.3);
+    g.beginPath();
+    g.arc(x, y, r * 0.27, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "#1d3fb8";
+    g.lineWidth = Math.max(1, r * 0.07);
+    g.beginPath();
+    for (let a = 0; a < Math.PI * 3.6; a += 0.2) {
+        const d = r * (0.25 - a / (Math.PI * 3.6) * 0.21);
+
+        g.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+    }
+    g.stroke();
+    g.fillStyle = "rgba(255, 255, 255, 0.4)";
+    g.beginPath();
+    g.ellipse(x - r * 0.35, y - r * 0.4, r * 0.18, r * 0.09, -0.6, 0, Math.PI * 2);
+    g.fill();
 }
 
 // the head: a round blue face with its rose on top
@@ -310,13 +372,70 @@ function petal(anywhere) {
 
 function layout() {
     u = Math.min(wd.width / 1920, wd.height / 1080);
-    panel = { x: 64 * u, y: wd.height - 220 * u, w: 450 * u, h: 156 * u };
+    panel = { x: 56 * u, y: wd.height - 214 * u, w: 490 * u, h: 150 * u };
     wd.clickable([panel]);
 }
 
 function rounded(x, y, w, h, r) {
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, r);
+}
+
+// =========================
+// Panels: dark glass, cut corners, blue corner ticks, a header with the red live dot
+// =========================
+function cut(x, y, w, h, c) {
+    ctx.beginPath();
+    ctx.moveTo(x + c, y);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w, y + h - c);
+    ctx.lineTo(x + w - c, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x, y + c);
+    ctx.closePath();
+}
+
+function frame(x, y, w, h, title, t, live = false, hover = false, right = "") {
+    const c = 16 * u;
+    const tick = 22 * u;
+
+    cut(x, y, w, h, c);
+    ctx.fillStyle = "rgba(4, 7, 18, 0.76)";
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${SKY}, ${hover ? 0.6 : 0.2})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.strokeStyle = `rgb(${BLUE})`;
+    ctx.lineWidth = 2.5 * u;
+    ctx.beginPath();
+    ctx.moveTo(x + w - tick, y);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w, y + tick);
+    ctx.moveTo(x, y + h - tick);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x + tick, y + h);
+    ctx.stroke();
+    if (!title) {
+        return;
+    }
+    ctx.font = `700 ${11 * u}px ${MONO}`;
+    ctx.fillStyle = `rgba(${SKY}, 0.8)`;
+    ctx.fillText(title.toUpperCase(), x + c + 6 * u, y + 23 * u);
+    if (right) {
+        ctx.textAlign = "end";
+        ctx.fillText(right, x + w - (live ? 76 : 18) * u, y + 23 * u);
+        ctx.textAlign = "start";
+    }
+    if (live) {
+        ctx.fillStyle = `rgba(${RED}, ${0.55 + 0.45 * Math.sin(t * 5)})`;
+        ctx.beginPath();
+        ctx.arc(x + w - 62 * u, y + 19 * u, 4 * u, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgb(${RED})`;
+        ctx.fillText("LIVE", x + w - 52 * u, y + 23 * u);
+    }
+    ctx.fillStyle = `rgba(${SKY}, 0.12)`;
+    ctx.fillRect(x + 14 * u, y + 34 * u, w - 28 * u, 1);
 }
 
 // =========================
@@ -370,133 +489,553 @@ function drawTitle(t) {
     ctx.globalAlpha = 1;
 }
 
-function drawRays(t, cx, cy) {
-    const light = ctx.createRadialGradient(cx, cy, 0, cx, cy, wd.height * 0.95);
+// =========================
+// The stage of the concerts (K-Arena 2024, Budokan 2023, the National Stadium 2024), drawn: the Ado Box - a dark cube
+// closed by a lattice of bars, lit from behind, its head band of small windows - on a stage edged with lights; the LED
+// wall behind it changes its show (an arch of lights, the heartbeat on a grid, ribbons of light, a burst of rays), the
+// lasers fire on the kicks, the crowd waves its penlights
+// =========================
+const SHOWS = [
+    { name: "arch", light: "226, 236, 255", lamps: ["255, 255, 255", "120, 170, 255"], pen: "110, 160, 255" },
+    { name: "heart", light: "150, 225, 255", lamps: ["255, 70, 170", "90, 200, 255"], pen: "255, 90, 180" },
+    { name: "ribbons", light: "205, 200, 255", lamps: ["190, 140, 255", "120, 230, 255"], pen: "110, 160, 255" },
+    { name: "burst", light: "255, 255, 255", lamps: ["255, 255, 255", "255, 120, 220"], pen: "160, 200, 255" },
+];
+const SHOW_TIME = 16;
+const SHOW_FADE = 1.5;
+// the LED wall is drawn at half size, then laid over the rose with soft edges
+const wall = document.createElement("canvas");
+const WALL_SCALE = 0.5;
+const ribbons = Array.from({ length: 10 }, () => ({ y: 0.12 + random() * 0.75, amp: 0.04 + random() * 0.14,
+    tilt: (random() - 0.5) * 0.5, speed: 0.1 + random() * 0.25, phase: random() * 6.28, width: 1 + random() * 2.5 }));
+const crowd = Array.from({ length: 42 }, (_, i) => ({ x: (i + random() * 0.7) / 42, size: 0.75 + random() * 0.5,
+    light: random() < 0.6, phase: random() * 6.28, back: i % 2 === 1 }));
 
-    light.addColorStop(0, `rgba(${SKY}, ${0.05 + wd.bass * 0.1})`);
-    light.addColorStop(1, `rgba(${SKY}, 0)`);
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = light;
-    for (let i = 0; i < 18; i++) {
-        const angle = i / 18 * Math.PI * 2 + t * 0.04;
-        const spread = 0.035 + 0.01 * Math.sin(t + i);
-        const length = wd.height * (0.75 + 0.2 * Math.sin(t * 0.5 + i * 1.7));
+// where the box stands: centered on cx, its floor on the stage, w x h
+function stage() {
+    const h = wd.height * 0.37;
+    const w = h * 0.84;
+    const cx = wd.width * 0.31;
+    const floor = wd.height * 0.8;
 
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(angle - spread) * length, cy + Math.sin(angle - spread) * length);
-        ctx.lineTo(cx + Math.cos(angle + spread) * length, cy + Math.sin(angle + spread) * length);
-        ctx.closePath();
-        ctx.fill();
+    return { cx: cx, floor: floor, w: w, h: h, x: cx - w / 2, y: floor - h, cy: floor - h * 0.5 };
+}
+
+// one heartbeat over its period (0-1): a small bump, the spike (down, up, down), a slow bump
+function pulse(p) {
+    const bump = (center, width, height) => height * Math.exp(-(((p - center) / width) ** 2));
+
+    return bump(0.2, 0.03, 0.12) - bump(0.36, 0.012, 0.25) + bump(0.4, 0.014, 1) - bump(0.44, 0.012, 0.4)
+        + bump(0.62, 0.05, 0.22);
+}
+
+function drawShow(g, name, t, s) {
+    const right = wd.width * 0.66;
+
+    if (name === "arch") {
+        // a ring of lights standing on the stage around the box, a white haze inside
+        const r = s.h * 0.78;
+        const cy = s.cy + s.h * 0.02;
+        const haze = g.createRadialGradient(s.cx, cy, 0, s.cx, cy, r);
+
+        haze.addColorStop(0, `rgba(235, 242, 255, ${0.55 + wd.bass * 0.3})`);
+        haze.addColorStop(0.6, `rgba(${BLUE}, 0.35)`);
+        haze.addColorStop(1, `rgba(${BLUE}, 0)`);
+        g.fillStyle = haze;
+        g.fillRect(s.cx - r, cy - r, r * 2, r * 2);
+        for (let i = 0; i < 60; i++) {
+            const a = i / 60 * Math.PI * 2;
+
+            if (Math.sin(a) > 0.62) {
+                continue;
+            }
+            const on = 0.35 + 0.65 * Math.max(0.5 + 0.5 * Math.sin(a * 3 - t * 4), wd.beat);
+            const px = s.cx + Math.cos(a) * r;
+            const py = cy + Math.sin(a) * r;
+
+            g.fillStyle = `rgba(200, 220, 255, ${on * 0.25})`;
+            g.beginPath();
+            g.arc(px, py, 14 * u, 0, Math.PI * 2);
+            g.fill();
+            g.fillStyle = `rgba(255, 255, 255, ${on})`;
+            g.beginPath();
+            g.arc(px, py, 4.5 * u, 0, Math.PI * 2);
+            g.fill();
+        }
+    } else if (name === "heart") {
+        // 心臓: a blue grid and the heartbeat running behind the box, its spike on the kicks
+        const glow = g.createRadialGradient(s.cx, s.cy, 0, s.cx, s.cy, s.h * 1.6);
+        const step = s.h * 0.16;
+
+        glow.addColorStop(0, `rgba(80, 200, 255, ${0.45 + wd.bass * 0.25})`);
+        glow.addColorStop(1, "rgba(20, 60, 160, 0)");
+        g.fillStyle = glow;
+        g.fillRect(s.cx - s.h * 1.6, s.cy - s.h * 1.6, s.h * 3.2, s.h * 3.2);
+        g.strokeStyle = "rgba(120, 210, 255, 0.35)";
+        g.lineWidth = 2 * u;
+        g.beginPath();
+        for (let x = s.cx % step; x < right; x += step) {
+            g.moveTo(x, 0);
+            g.lineTo(x, s.floor);
+        }
+        for (let y = s.floor % step; y < s.floor; y += step) {
+            g.moveTo(0, y);
+            g.lineTo(right, y);
+        }
+        g.stroke();
+        const base = s.y + s.h * 0.32;
+        const amp = s.h * (0.3 + wd.beat * 0.25);
+        const period = s.h * 1.1;
+        const shift = t * s.h * 0.9;
+
+        for (const [width, alpha] of [[10 * u, 0.25], [3 * u, 1]]) {
+            g.strokeStyle = `rgba(255, 70, 170, ${alpha})`;
+            g.lineWidth = width;
+            g.beginPath();
+            for (let x = 0; x <= right; x += 4 * u) {
+                const y = base - amp * pulse(((x + shift) % period) / period);
+
+                if (x === 0) {
+                    g.moveTo(x, y);
+                } else {
+                    g.lineTo(x, y);
+                }
+            }
+            g.stroke();
+        }
+    } else if (name === "ribbons") {
+        // ribbons of light crossing the wall, faster with the music
+        const sky = g.createLinearGradient(0, 0, 0, s.floor);
+
+        sky.addColorStop(0, "rgba(40, 90, 255, 0.25)");
+        sky.addColorStop(1, "rgba(120, 180, 255, 0.45)");
+        g.fillStyle = sky;
+        g.fillRect(0, 0, right, s.floor);
+        g.lineCap = "round";
+        for (const ribbon of ribbons) {
+            g.strokeStyle = `rgba(${ribbon.width > 2 ? "255, 255, 255" : "150, 230, 255"}, ${0.35 + wd.energy * 0.4})`;
+            g.lineWidth = ribbon.width * 2 * u * (1 + wd.bass);
+            g.beginPath();
+            for (let i = 0; i <= 40; i++) {
+                const k = i / 40;
+                const y = (ribbon.y + (k - 0.5) * ribbon.tilt) * s.floor
+                    + Math.sin(k * 6 + t * ribbon.speed * 6 + ribbon.phase) * ribbon.amp * s.floor;
+
+                if (i === 0) {
+                    g.moveTo(k * right, y);
+                } else {
+                    g.lineTo(k * right, y);
+                }
+            }
+            g.stroke();
+        }
+    } else {
+        // a burst of rays from behind the box, its core flashing on the kicks
+        const cy = s.cy - s.h * 0.1;
+        const core = g.createRadialGradient(s.cx, cy, 0, s.cx, cy, s.h * 0.9);
+
+        core.addColorStop(0, `rgba(255, 255, 255, ${0.7 + wd.beat * 0.3})`);
+        core.addColorStop(0.4, "rgba(140, 200, 255, 0.4)");
+        core.addColorStop(1, `rgba(${BLUE}, 0)`);
+        g.fillStyle = core;
+        g.fillRect(s.cx - s.h, cy - s.h, s.h * 2, s.h * 2);
+        for (let i = 0; i < 40; i++) {
+            const a = i / 40 * Math.PI * 2 + t * 0.08;
+            const spread = 0.012 + (i % 3) * 0.006;
+            const length = wd.width * (0.35 + 0.15 * Math.sin(i * 7.1 + t * 1.3)) * (0.8 + wd.bass * 0.4);
+
+            g.fillStyle = `rgba(${i % 3 ? "170, 215, 255" : "255, 255, 255"}, ${0.22 + wd.beat * 0.25})`;
+            g.beginPath();
+            g.moveTo(s.cx, cy);
+            g.lineTo(s.cx + Math.cos(a - spread) * length, cy + Math.sin(a - spread) * length);
+            g.lineTo(s.cx + Math.cos(a + spread) * length, cy + Math.sin(a + spread) * length);
+            g.closePath();
+            g.fill();
+        }
     }
-    const bloom = ctx.createRadialGradient(cx, cy, 0, cx, cy, wd.height * 0.3);
+}
 
-    bloom.addColorStop(0, `rgba(220, 232, 255, ${0.45 + wd.beat * 0.3})`);
-    bloom.addColorStop(0.35, `rgba(${BLUE}, ${0.22 + wd.bass * 0.2})`);
-    bloom.addColorStop(1, `rgba(${BLUE}, 0)`);
-    ctx.fillStyle = bloom;
-    ctx.fillRect(cx - wd.height * 0.3, cy - wd.height * 0.3, wd.height * 0.6, wd.height * 0.6);
+function drawWall(t, s) {
+    const width = Math.round(wd.width * 0.66 * WALL_SCALE);
+    const height = Math.round(s.floor * WALL_SCALE);
+    const index = Math.floor(t / SHOW_TIME);
+    const k = t - index * SHOW_TIME;
+    const g = wall.getContext("2d");
+
+    if (wall.width !== width || wall.height !== height) {
+        wall.width = width;
+        wall.height = height;
+    }
+    g.globalCompositeOperation = "source-over";
+    g.clearRect(0, 0, width, height);
+    g.save();
+    g.scale(WALL_SCALE, WALL_SCALE);
+    g.globalCompositeOperation = "lighter";
+    // the next show fades in over the last one
+    if (k < SHOW_FADE && index > 0) {
+        g.globalAlpha = 1 - k / SHOW_FADE;
+        drawShow(g, SHOWS[(index - 1) % SHOWS.length].name, t, s);
+    }
+    g.globalAlpha = Math.min(1, k / SHOW_FADE);
+    drawShow(g, SHOWS[index % SHOWS.length].name, t, s);
+    g.restore();
+    // soft edges: the wall melts into the rose
+    const mask = g.createRadialGradient(s.cx * WALL_SCALE, s.cy * WALL_SCALE, s.h * WALL_SCALE * 0.3,
+        s.cx * WALL_SCALE, s.cy * WALL_SCALE, wd.width * 0.36 * WALL_SCALE);
+
+    mask.addColorStop(0, "rgba(0, 0, 0, 1)");
+    mask.addColorStop(1, "rgba(0, 0, 0, 0)");
+    g.globalCompositeOperation = "destination-in";
+    g.fillStyle = mask;
+    g.fillRect(0, 0, width, height);
+    g.globalCompositeOperation = "source-over";
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(wall, 0, 0, width / WALL_SCALE, height / WALL_SCALE);
+    // a white flash when the show changes
+    if (k < 0.5 && index > 0) {
+        const flash = ctx.createRadialGradient(s.cx, s.cy, 0, s.cx, s.cy, s.h * 1.4);
+
+        flash.addColorStop(0, `rgba(255, 255, 255, ${(0.5 - k) * 1.2})`);
+        flash.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.fillStyle = flash;
+        ctx.fillRect(s.cx - s.h * 1.4, s.cy - s.h * 1.4, s.h * 2.8, s.h * 2.8);
+    }
     ctx.globalCompositeOperation = "source-over";
 }
 
-// the singer, a silhouette against the light (original shapes, feet at the origin, height 1)
+// the lasers from the stage, on the kicks
+function drawLasers(t, s) {
+    const flash = Math.max(wd.beat, 0.15 * wd.energy);
+
+    if (flash < 0.05) {
+        return;
+    }
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = 1.6 * u;
+    for (let i = 0; i < 8; i++) {
+        const side = i < 4 ? -1 : 1;
+        const fx = s.cx + side * s.w * (0.9 + (i % 4) * 0.35);
+        const a = -Math.PI / 2 + side * (0.2 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.7 + i)));
+        const length = wd.height * 0.85;
+        const tx = fx + Math.cos(a) * length;
+        const ty = s.floor + Math.sin(a) * length;
+        const beam = ctx.createLinearGradient(fx, s.floor, tx, ty);
+
+        beam.addColorStop(0, `rgba(${i % 2 ? "120, 160, 255" : "200, 120, 255"}, ${0.7 * flash})`);
+        beam.addColorStop(1, "rgba(120, 160, 255, 0)");
+        ctx.strokeStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(fx, s.floor);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+    }
+    ctx.globalCompositeOperation = "source-over";
+}
+
+// Ado as a silhouette against the light, as on stage: the long flared dress with its ruffles, the hair, the microphone
+// at her mouth and the other arm in the big gestures of the concerts; feet at (x, y), height h
 function drawSilhouette(x, y, h, t) {
-    const bob = Math.sin(t * 2.2) * 0.004 + wd.beat * 0.01;
-    const sway = Math.sin(t * 1.1) * 0.01 + wd.mid * 0.02;
-    const p = (px, py) => [x + px * h, y + (py - bob) * h];
-    const path = points => {
-        ctx.moveTo(...p(points[0][0], points[0][1]));
-        for (let i = 1; i < points.length; i += 3) {
-            ctx.bezierCurveTo(...p(...points[i]), ...p(...points[i + 1]), ...p(...points[i + 2]));
+    const sway = 0.05 * Math.sin(t * 1.1) + wd.beat * 0.04;
+    const gesture = 0.5 + 0.5 * Math.sin(t * 0.8 + Math.sin(t * 0.37) * 2);
+    const wave = Math.sin(t * 2.3);
+    const at = (px, py) => [x + px * h, y + py * h];
+    // the upper body leans around the waist
+    const up = (px, py) => {
+        const dy = py + 0.5;
+
+        return at(px * Math.cos(sway) - dy * Math.sin(sway), -0.5 + px * Math.sin(sway) + dy * Math.cos(sway));
+    };
+    const limb = (points, width) => {
+        ctx.lineWidth = width * h;
+        ctx.beginPath();
+        points.forEach((point, i) => (i ? ctx.lineTo(...point) : ctx.moveTo(...point)));
+        ctx.stroke();
+    };
+    const blob = (point, rx, ry) => {
+        ctx.beginPath();
+        ctx.ellipse(...point, rx * h, ry * h, sway, 0, Math.PI * 2);
+        ctx.fill();
+    };
+    const mix = (a, b) => [a[0] + (b[0] - a[0]) * gesture, a[1] + (b[1] - a[1]) * gesture];
+    const shape = () => {
+        // the dress: a wide bell from the waist, the hem in ruffles
+        const hemLeft = -0.3 - 0.02 * wave;
+        const hemRight = 0.3 + 0.02 * wave;
+
+        ctx.beginPath();
+        ctx.moveTo(...up(-0.06, -0.5));
+        ctx.quadraticCurveTo(...at(-0.19 - 0.02 * wave, -0.32), ...at(hemLeft, -0.03));
+        for (let i = 0; i < 7; i++) {
+            ctx.quadraticCurveTo(...at(hemLeft + (hemRight - hemLeft) * (i + 0.5) / 7, 0.01),
+                ...at(hemLeft + (hemRight - hemLeft) * (i + 1) / 7, -0.03));
         }
+        ctx.quadraticCurveTo(...at(0.19 + 0.02 * wave, -0.32), ...up(0.06, -0.5));
+        ctx.closePath();
+        ctx.fill();
+        // the bodice, the shoulders, the neck
+        ctx.beginPath();
+        ctx.moveTo(...up(-0.062, -0.5));
+        ctx.lineTo(...up(-0.085, -0.7));
+        ctx.quadraticCurveTo(...up(-0.09, -0.745), ...up(-0.04, -0.75));
+        ctx.lineTo(...up(0.04, -0.75));
+        ctx.quadraticCurveTo(...up(0.09, -0.745), ...up(0.085, -0.7));
+        ctx.lineTo(...up(0.062, -0.5));
+        ctx.closePath();
+        ctx.fill();
+        limb([up(0, -0.74), up(0.005, -0.79)], 0.035);
+        // the microphone at her mouth
+        const micShoulder = up(0.08, -0.72);
+        const micElbow = up(0.105, -0.6);
+        const micHand = up(0.04, -0.745);
+
+        limb([micShoulder, micElbow, micHand], 0.034);
+        blob(micHand, 0.022, 0.022);
+        limb([micHand, up(0.028, -0.79)], 0.016);
+        blob(up(0.024, -0.8), 0.02, 0.02);
+        // the other arm: low and open, then raised high
+        const shoulder = up(-0.08, -0.72);
+        const elbow = mix(up(-0.17, -0.6), up(-0.17, -0.82));
+        const hand = mix(up(-0.24 - 0.01 * wave, -0.47), up(-0.3, -0.97 + 0.02 * wave));
+
+        limb([shoulder, elbow, hand], 0.032);
+        blob(hand, 0.022, 0.022);
+        // the head and the hair, its volume and its long locks
+        blob(up(0.005, -0.83), 0.064, 0.07);
+        blob(up(-0.008, -0.85), 0.08, 0.065);
+        ctx.beginPath();
+        ctx.moveTo(...up(-0.075, -0.86));
+        ctx.quadraticCurveTo(...up(-0.13 - 0.02 * wave, -0.74), ...up(-0.12 - 0.03 * wave, -0.56));
+        ctx.quadraticCurveTo(...up(-0.09, -0.58), ...up(-0.065, -0.6));
+        ctx.quadraticCurveTo(...up(-0.07, -0.74), ...up(-0.03, -0.8));
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(...up(0.07, -0.86));
+        ctx.quadraticCurveTo(...up(0.12 + 0.015 * wave, -0.74), ...up(0.11 + 0.02 * wave, -0.58));
+        ctx.quadraticCurveTo(...up(0.09, -0.6), ...up(0.07, -0.62));
+        ctx.quadraticCurveTo(...up(0.075, -0.74), ...up(0.04, -0.8));
+        ctx.closePath();
+        ctx.fill();
     };
 
     ctx.save();
-    ctx.fillStyle = "#03050d";
-    ctx.strokeStyle = `rgba(${SKY}, 0.45)`;
-    ctx.lineWidth = 1.5 * u;
-    ctx.shadowColor = `rgba(${BLUE}, 0.9)`;
-    ctx.shadowBlur = 14 * u;
-    ctx.beginPath();
-    // long hair, falling behind the shoulders
-    path([[-0.07, -0.95], [-0.15, -0.9], [-0.16 - sway, -0.62], [-0.13 - sway, -0.47], [-0.08, -0.5], [-0.05, -0.62],
-        [-0.03, -0.8], [0.03, -0.8], [0.06, -0.62], [0.08, -0.5], [0.14 + sway, -0.47], [0.16 + sway, -0.62],
-        [0.15, -0.9], [0.07, -0.95], [0, -0.99], [-0.07, -0.95]]);
-    // body: shoulders, waist, long coat, legs
-    path([[-0.11, -0.76], [-0.1, -0.66], [-0.07, -0.56], [-0.065, -0.5], [-0.12, -0.36], [-0.16, -0.24], [-0.15, -0.2],
-        [-0.08, -0.2], [-0.05, -0.1], [-0.045, 0], [-0.01, 0], [-0.01, -0.1], [0, -0.17], [0.01, -0.1], [0.01, 0],
-        [0.045, 0], [0.05, -0.1], [0.08, -0.2], [0.15, -0.2], [0.16, -0.24], [0.12, -0.36], [0.065, -0.5],
-        [0.07, -0.56], [0.1, -0.66], [0.11, -0.76], [0.05, -0.8], [-0.05, -0.8], [-0.11, -0.76]]);
-    // arm holding the microphone to the face
-    path([[0.1, -0.74], [0.17, -0.66], [0.15, -0.6], [0.1, -0.62], [0.07, -0.66], [0.05, -0.74], [0.04, -0.78],
-        [0.06, -0.8], [0.08, -0.77], [0.12, -0.7], [0.13, -0.72], [0.11, -0.745], [0.1, -0.74]]);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(...p(0, -0.875), 0.055 * h, 0.065 * h, 0, 0, Math.PI * 2);
-    ctx.ellipse(...p(0.035, -0.8), 0.014 * h, 0.02 * h, -0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#02030a";
+    ctx.fillStyle = "#02030a";
+    // the light behind her wraps around the shape first, then the black shape
+    ctx.shadowColor = "rgba(255, 255, 255, 0.85)";
+    ctx.shadowBlur = 12 * u;
+    shape();
+    ctx.shadowBlur = 0;
+    shape();
     ctx.restore();
 }
 
-// Ado sings in a lit cage: a slowly swaying cube of light around the silhouette
-function drawCage(t) {
-    const cx = wd.width * 0.31;
-    const cy = wd.height * 0.56;
-    const size = wd.height * 0.17;
-    const yaw = 0.55 + Math.sin(t * 0.18) * 0.35;
-    const pitch = -0.2;
-    const corners = [];
+// the box: its side seen a little, the light behind its bars, her inside, the lattice, the head band of small windows
+function drawBox(t, s, show) {
+    const bar = s.h * 0.012;
+    const side = s.h * 0.028;
+    const top = s.h * 0.13;
+    const plinth = s.h * 0.07;
+    const depth = s.w * 0.13;
+    const inner = { x: s.x + side, y: s.y + top, w: s.w - side * 2, h: s.h - top - plinth };
+    const dark = "#03050c";
 
-    drawRays(t, cx, cy);
-    for (const x of [-1, 1]) {
-        for (const y of [-1, 1]) {
-            for (const z of [-1, 1]) {
-                const x1 = x * Math.cos(yaw) - z * Math.sin(yaw);
-                const z1 = x * Math.sin(yaw) + z * Math.cos(yaw);
-                const y1 = y * Math.cos(pitch) - z1 * Math.sin(pitch);
-                const z2 = y * Math.sin(pitch) + z1 * Math.cos(pitch);
-                const k = 4 / (4 + z2);
-
-                corners.push({ x: cx + x1 * size * k, y: cy + y1 * size * k, z: z2 });
-            }
-        }
-    }
-    const edges = [];
-
-    for (let a = 0; a < 8; a++) {
-        for (let b = a + 1; b < 8; b++) {
-            if ([1, 2, 4].includes(a ^ b)) {
-                edges.push([corners[a], corners[b], (corners[a].z + corners[b].z) / 2]);
-            }
-        }
-    }
-    const stroke = list => {
-        ctx.save();
-        ctx.strokeStyle = `rgba(${SKY}, ${0.75 + wd.beat * 0.25})`;
-        ctx.lineWidth = 2.5 * u;
-        ctx.shadowColor = `rgb(${BLUE})`;
-        ctx.shadowBlur = 18 * u;
-        ctx.beginPath();
-        for (const [a, b] of list) {
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-        }
-        ctx.stroke();
-        ctx.restore();
-    };
-    const floor = ctx.createRadialGradient(cx, cy + size * 1.1, 0, cx, cy + size * 1.1, size * 1.8);
-
-    floor.addColorStop(0, `rgba(${BLUE}, ${0.35 + wd.bass * 0.3})`);
-    floor.addColorStop(1, `rgba(${BLUE}, 0)`);
-    ctx.fillStyle = floor;
+    ctx.fillStyle = dark;
     ctx.beginPath();
-    ctx.ellipse(cx, cy + size * 1.1, size * 1.8, size * 0.35, 0, 0, Math.PI * 2);
+    ctx.moveTo(s.x + s.w, s.y);
+    ctx.lineTo(s.x + s.w + depth, s.y + s.h * 0.035);
+    ctx.lineTo(s.x + s.w + depth, s.y + s.h * 0.98);
+    ctx.lineTo(s.x + s.w, s.y + s.h);
+    ctx.closePath();
     ctx.fill();
-    stroke(edges.filter(edge => edge[2] > 0));
-    drawSilhouette(cx, cy + size * 0.92, size * 1.75, t);
-    stroke(edges.filter(edge => edge[2] <= 0));
+    ctx.fillStyle = `rgba(${show.light}, ${0.2 + wd.bass * 0.15})`;
+    for (let i = 0; i < 3; i++) {
+        const fx = s.x + s.w + depth * (i + 0.6) / 3.4;
+        const lean = s.h * 0.035 * (i + 0.6) / 3.4;
+
+        ctx.fillRect(fx, inner.y + lean, depth * 0.11, inner.h - lean * 1.5);
+    }
+    const light = ctx.createRadialGradient(s.cx, inner.y + inner.h * 0.45, 0, s.cx, inner.y + inner.h * 0.45, inner.h * 0.85);
+
+    light.addColorStop(0, "rgba(255, 255, 255, 0.97)");
+    light.addColorStop(0.45, `rgba(${show.light}, ${0.85 + wd.beat * 0.15})`);
+    light.addColorStop(1, `rgba(${BLUE}, 0.92)`);
+    ctx.fillStyle = light;
+    ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
+    drawSilhouette(s.cx + s.w * 0.04, inner.y + inner.h, inner.h * 0.78, t);
+    ctx.fillStyle = dark;
+    for (let i = 1; i < 12; i++) {
+        ctx.fillRect(inner.x + inner.w * i / 12 - bar / 2, inner.y, bar, inner.h);
+    }
+    for (let i = 1; i < 6; i++) {
+        ctx.fillRect(inner.x, inner.y + inner.h * i / 6 - bar / 2, inner.w, bar);
+    }
+    ctx.fillRect(s.x, s.y, s.w, top);
+    ctx.fillRect(s.x, s.y + s.h - plinth, s.w, plinth);
+    ctx.fillRect(s.x, s.y, side, s.h);
+    ctx.fillRect(s.x + s.w - side, s.y, side, s.h);
+    // the windows of the head band, a chase of light running through them
+    const columns = 24;
+    const cell = (s.w - side * 2) / columns;
+
+    for (let row = 0; row < 3; row++) {
+        for (let i = 0; i < columns; i++) {
+            const on = 0.25 + 0.5 * Math.max(0, Math.sin(i * 0.5 - t * 3 + row)) + wd.beat * 0.25;
+
+            ctx.fillStyle = `rgba(${show.light}, ${Math.min(1, on)})`;
+            ctx.fillRect(s.x + side + i * cell + cell * 0.18, s.y + top * (0.16 + row * 0.27), cell * 0.64, top * 0.17);
+        }
+    }
+    ctx.strokeStyle = `rgba(${show.light}, ${0.35 + wd.beat * 0.4})`;
+    ctx.lineWidth = 1.5 * u;
+    ctx.strokeRect(s.x - 1.5 * u, s.y - 1.5 * u, s.w + 3 * u, s.h + 3 * u);
+}
+
+// the stage under the box and the moving lights along its edge, their beams up into the haze
+function drawPlatform(t, s, show) {
+    const left = 0;
+    const right = s.cx + s.w * 1.25;
+    const height = s.h * 0.12;
+    const slab = ctx.createLinearGradient(left, 0, right, 0);
+
+    slab.addColorStop(0, "rgba(2, 3, 10, 1)");
+    slab.addColorStop(0.85, "rgba(2, 3, 10, 0.95)");
+    slab.addColorStop(1, "rgba(2, 3, 10, 0)");
+    ctx.fillStyle = slab;
+    ctx.fillRect(left, s.floor, right - left, height);
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 12; i++) {
+        const lx = s.cx - s.w * 1.45 + i * s.w * 0.24;
+        const ly = s.floor + height * 0.45;
+        const on = 0.35 + 0.65 * Math.max(wd.beat, 0.5 + 0.5 * Math.sin(t * 3 + i * 0.8));
+        const color = show.lamps[i % 2];
+        const glow = ctx.createRadialGradient(lx, ly, 0, lx, ly, 16 * u);
+
+        glow.addColorStop(0, `rgba(${color}, ${on})`);
+        glow.addColorStop(1, `rgba(${color}, 0)`);
+        ctx.fillStyle = glow;
+        ctx.fillRect(lx - 16 * u, ly - 16 * u, 32 * u, 32 * u);
+        const a = -Math.PI / 2 + Math.sin(t * 0.9 + i * 1.3) * 0.35;
+        const reach = s.h * 0.9;
+        const beam = ctx.createLinearGradient(lx, ly, lx + Math.cos(a) * reach, ly + Math.sin(a) * reach);
+
+        beam.addColorStop(0, `rgba(${color}, ${0.12 * on})`);
+        beam.addColorStop(1, `rgba(${color}, 0)`);
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + Math.cos(a - 0.08) * reach, ly + Math.sin(a - 0.08) * reach);
+        ctx.lineTo(lx + Math.cos(a + 0.08) * reach, ly + Math.sin(a + 0.08) * reach);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+}
+
+// the crowd in front of the stage: heads and shoulders, the penlights waving with the music
+function drawCrowd(t, show) {
+    for (const fan of crowd) {
+        const fx = fan.x * wd.width * 0.64;
+        const r = wd.height * 0.028 * fan.size;
+        const fy = wd.height - r * (fan.back ? 1.6 : 0.7);
+
+        ctx.globalAlpha = Math.min(1, (1 - fan.x) * 4);
+        if (fan.light) {
+            const a = Math.sin(t * 2.4 + fan.phase) * 0.45 + wd.beat * 0.3 * Math.sin(fan.phase);
+            const hx = fx + r * 0.9;
+            const hy = fy - r * 1.3;
+            const tx = hx + Math.sin(a) * r * 2.4;
+            const ty = hy - Math.cos(a) * r * 2.4;
+
+            ctx.strokeStyle = "#010208";
+            ctx.lineCap = "round";
+            ctx.lineWidth = r * 0.35;
+            ctx.beginPath();
+            ctx.moveTo(fx + r * 0.6, fy + r * 0.4);
+            ctx.lineTo(hx, hy);
+            ctx.stroke();
+            ctx.globalCompositeOperation = "lighter";
+            for (const [width, alpha] of [[8 * u, 0.3], [3 * u, 1]]) {
+                ctx.strokeStyle = `rgba(${show.pen}, ${alpha})`;
+                ctx.lineWidth = width;
+                ctx.beginPath();
+                ctx.moveTo(hx, hy);
+                ctx.lineTo(tx, ty);
+                ctx.stroke();
+            }
+            ctx.globalCompositeOperation = "source-over";
+        }
+        ctx.fillStyle = "#010208";
+        ctx.beginPath();
+        ctx.arc(fx, fy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(fx, fy + r * 1.7, r * 1.8, r * 1.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+// The stage from the concert itself: the clip of the Ado Box made by wd-wallpaper (radio.json "media": wide shots of the
+// official live video of 心という名の不可解 at K-Arena, a personal copy), its edges melted into the rose; the drawn stage
+// above until it is made
+let stageVideo = null;
+const stageLayer = document.createElement("canvas");
+
+function drawConcert() {
+    const w = wd.width * 0.68;
+    const h = w * stageVideo.videoHeight / stageVideo.videoWidth;
+    const x = wd.width * 0.31 - w / 2;
+    const y = wd.height * 0.54 - h / 2;
+    const g = stageLayer.getContext("2d");
+    const lw = Math.round(w / 2);
+    const lh = Math.round(h / 2);
+
+    if (stageLayer.width !== lw || stageLayer.height !== lh) {
+        stageLayer.width = lw;
+        stageLayer.height = lh;
+    }
+    g.globalCompositeOperation = "source-over";
+    g.drawImage(stageVideo, 0, 0, lw, lh);
+    // an oval mask: the shot fades into the rose around it
+    g.save();
+    g.globalCompositeOperation = "destination-in";
+    g.translate(lw / 2, lh / 2);
+    g.scale(1, lh / lw);
+    const mask = g.createRadialGradient(0, 0, lw * 0.28, 0, 0, lw / 2);
+
+    mask.addColorStop(0, "rgba(0, 0, 0, 1)");
+    mask.addColorStop(1, "rgba(0, 0, 0, 0)");
+    g.fillStyle = mask;
+    g.fillRect(-lw / 2, -lw / 2, lw, lw);
+    g.restore();
+    ctx.drawImage(stageLayer, x, y, w, h);
+    // the kicks light it up a little more
+    if (wd.beat > 0.2) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = wd.beat * 0.25;
+        ctx.drawImage(stageLayer, x, y, w, h);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+    }
+}
+
+function drawCage(t) {
+    const s = stage();
+    const show = SHOWS[Math.floor(t / SHOW_TIME) % SHOWS.length];
+
+    stageVideo = stageVideo || wd.video("stage", { loop: true });
+    if (stageVideo && stageVideo.readyState >= 2) {
+        drawConcert();
+        return;
+    }
+    drawWall(t, s);
+    drawLasers(t, s);
+    drawBox(t, s, show);
+    drawPlatform(t, s, show);
+    drawCrowd(t, show);
 }
 
 function drawPetals(t, dt) {
@@ -532,50 +1071,60 @@ function drawPetals(t, dt) {
 // World domination
 // =========================
 function drawDomination(t) {
-    const x = 64 * u;
-    const y = 112 * u;
+    const x = 56 * u;
+    const y = 82 * u;
+    const w = 660 * u;
+    const h = 214 * u;
     const percent = Math.min(100, 87 + t / 60);
     const conquered = Math.floor(CITIES.length * percent / 100);
     const glitch = wd.beat > 0.4 ? wd.beat * 4 * u : 0;
+    const segments = 24;
 
-    ctx.font = `600 ${14 * u}px ${MONO}`;
-    ctx.fillStyle = `rgba(${SKY}, 0.75)`;
-    ctx.fillText("ADO  //  世界征服  PROTOCOL", x, y);
-    ctx.font = `900 ${46 * u}px ${SANS}`;
+    frame(x, y, w, h, "ado // protocol", t, true);
+    // 世界征服, written down the left side
+    ctx.font = `900 ${30 * u}px ${JP}`;
+    ctx.fillStyle = `rgba(${SKY}, 0.9)`;
+    [..."世界征服"].forEach((ch, i) => ctx.fillText(ch, x + 22 * u, y + 76 * u + i * 33 * u));
+    const left = x + 74 * u;
+
+    ctx.font = `italic 900 ${34 * u}px ${SANS}`;
     if (glitch) {
-        ctx.fillStyle = "rgba(255, 42, 74, 0.6)";
-        ctx.fillText("WORLD DOMINATION", x - glitch, y + 52 * u);
-        ctx.fillStyle = "rgba(0, 220, 255, 0.6)";
-        ctx.fillText("WORLD DOMINATION", x + glitch, y + 52 * u);
+        ctx.fillStyle = `rgba(${RED}, 0.65)`;
+        ctx.fillText("WORLD DOMINATION", left - glitch, y + 84 * u);
+        ctx.fillStyle = "rgba(0, 220, 255, 0.65)";
+        ctx.fillText("WORLD DOMINATION", left + glitch, y + 84 * u);
     }
     ctx.fillStyle = "#eaf1ff";
-    ctx.fillText("WORLD DOMINATION", x, y + 52 * u);
+    ctx.fillText("WORLD DOMINATION", left, y + 84 * u);
+    // segmented progress, the last segment blinks
+    const filled = percent / 100 * segments;
+    const segment = 13 * u;
 
-    const bar = { x: x, y: y + 72 * u, w: 420 * u, h: 10 * u };
-    const fill = ctx.createLinearGradient(bar.x, 0, bar.x + bar.w, 0);
+    for (let i = 0; i < segments; i++) {
+        const on = i < Math.floor(filled) || (i === Math.floor(filled) && Math.sin(t * 8) > 0);
 
-    fill.addColorStop(0, `rgb(${BLUE})`);
-    fill.addColorStop(1, `rgb(${SKY})`);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
-    rounded(bar.x, bar.y, bar.w, bar.h, bar.h / 2);
-    ctx.fill();
-    ctx.fillStyle = fill;
-    rounded(bar.x, bar.y, bar.w * percent / 100, bar.h, bar.h / 2);
-    ctx.fill();
-    ctx.font = `600 ${15 * u}px ${MONO}`;
+        ctx.fillStyle = on ? (i > segments - 4 ? `rgb(${RED})` : `rgb(${i % 2 ? SKY : BLUE})`) : "rgba(255, 255, 255, 0.08)";
+        ctx.fillRect(left + i * (segment + 3 * u), y + 106 * u, segment, 12 * u);
+    }
+    // the percentage, its emote right after it (measured: never on the digits), the stats after both
+    const label = `${percent.toFixed(1)}%`;
+
+    ctx.font = `900 ${46 * u}px ${SANS}`;
     ctx.fillStyle = "#eaf1ff";
-    ctx.fillText(`${percent.toFixed(1)} %`, bar.x + bar.w + 14 * u, bar.y + bar.h);
-    const line = percent < 100 ? `cities conquered  ${conquered} / ${CITIES.length}` : "COMPLETE  ·  next target: the moon";
+    ctx.fillText(label, left, y + 170 * u);
+    const end = left + ctx.measureText(label).width;
+    const stats = end + 54 * u;
 
+    drawEmote(percent < 100 ? "rose" : "crown", end + 10 * u, y + 135 * u, 32 * u);
+    ctx.font = `600 ${12 * u}px ${MONO}`;
     ctx.fillStyle = `rgba(${SKY}, 0.8)`;
-    ctx.fillText(line, x, bar.y + 34 * u);
-    const end = x + ctx.measureText(line).width + 10 * u;
-
-    drawEmote(percent < 100 ? "rose" : "crown", end, bar.y + 18 * u, 22 * u);
-    drawGlobe(t, x + 640 * u, y + 52 * u, 92 * u, conquered);
+    ctx.fillText(`CITIES  ${conquered}/${CITIES.length}`, stats, y + 148 * u);
+    ctx.fillText(`STATUS  ${percent < 100 ? "SPREADING" : "DONE \u00b7 NEXT: MOON"}`, stats, y + 168 * u);
+    ctx.fillText(`FANS    ${(393939 + Math.floor(t * 7)).toLocaleString("en")}`, stats, y + 188 * u);
+    drawGlobe(t, x + w - 104 * u, y + 122 * u, 74 * u, conquered);
 }
 
-// the earth as dots, the conquered cities as blue roses
+// the earth as dots inside an orbit, a scan line, the conquered cities as blue roses
 function drawGlobe(t, cx, cy, r, conquered) {
     const spin = t * 0.35;
     const tilt = 0.45;
@@ -589,13 +1138,8 @@ function drawGlobe(t, cx, cy, r, conquered) {
         return { x: cx + Math.cos(a) * Math.sin(b) * r, y: cy - (y * Math.cos(tilt) - z * Math.sin(tilt)) * r,
             z: y * Math.sin(tilt) + z * Math.cos(tilt) };
     };
-    const halo = ctx.createRadialGradient(cx, cy, r * 0.8, cx, cy, r * 1.5);
 
-    halo.addColorStop(0, `rgba(${BLUE}, ${0.25 + wd.bass * 0.2})`);
-    halo.addColorStop(1, `rgba(${BLUE}, 0)`);
-    ctx.fillStyle = halo;
-    ctx.fillRect(cx - r * 1.5, cy - r * 1.5, r * 3, r * 3);
-    ctx.fillStyle = "rgba(5, 8, 20, 0.85)";
+    ctx.fillStyle = "rgba(2, 4, 12, 0.9)";
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
@@ -604,98 +1148,118 @@ function drawGlobe(t, cx, cy, r, conquered) {
             const p = point(lat, lon);
 
             if (p.z > 0) {
-                ctx.fillStyle = `rgba(${SKY}, ${0.15 + p.z * 0.55})`;
-                ctx.fillRect(p.x - 1, p.y - 1, 2 * u + p.z, 2 * u + p.z);
+                ctx.fillStyle = `rgba(${SKY}, ${0.12 + p.z * 0.5})`;
+                ctx.fillRect(p.x - 1, p.y - 1, 2 * u, 2 * u);
             }
         }
     }
-    ctx.strokeStyle = `rgba(${SKY}, 0.5)`;
+    ctx.strokeStyle = `rgba(${SKY}, 0.55)`;
     ctx.lineWidth = 1.2 * u;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.textAlign = "center";
+    ctx.strokeStyle = `rgba(${BLUE}, 0.7)`;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r * 1.25, r * 0.35, -0.35, 0, Math.PI * 2);
+    ctx.stroke();
+    const scan = cy - r + ((t * 0.4) % 1) * 2 * r;
+
+    ctx.fillStyle = `rgba(${SKY}, 0.25)`;
+    ctx.fillRect(cx - Math.sqrt(Math.max(0, r * r - (scan - cy) ** 2)), scan, 2 * Math.sqrt(Math.max(0, r * r - (scan - cy) ** 2)), 1.5 * u);
+    // the roses of the cities, and the name of the one facing us (one name: no overlap)
+    let front = null;
+
     CITIES.slice(0, conquered).forEach(([name, lat, lon]) => {
         const p = point(lat, lon);
 
         if (p.z > 0.15) {
-            ctx.globalAlpha = Math.min(1, p.z * 1.5);
-            const size = (14 + p.z * 8) * u;
+            const size = (12 + p.z * 8) * u;
 
+            ctx.globalAlpha = Math.min(1, p.z * 1.5);
             drawEmote("rose", p.x - size / 2, p.y - size / 2, size);
-            if (p.z > 0.75) {
-                ctx.font = `600 ${10 * u}px ${MONO}`;
-                ctx.fillStyle = "#eaf1ff";
-                ctx.fillText(name, p.x, p.y - 12 * u);
-            }
             ctx.globalAlpha = 1;
+            if (!front || p.z > front.z) {
+                front = { name: name, x: p.x, y: p.y, z: p.z };
+            }
         }
     });
-    ctx.textAlign = "start";
+    if (front && front.z > 0.6) {
+        ctx.font = `700 ${9 * u}px ${MONO}`;
+        ctx.fillStyle = "#eaf1ff";
+        ctx.textAlign = "center";
+        ctx.fillText(front.name, front.x, front.y - 12 * u);
+        ctx.textAlign = "start";
+    }
 }
 
 // =========================
 // Fan chat, reactions
 // =========================
 function drawChat(t, dt) {
-    const width = 360 * u;
-    const x = wd.width - width - 44 * u;
-    const bottom = wd.height - 70 * u;
-    const height = 58 * u;
+    const w = 390 * u;
+    const x = wd.width - w - 44 * u;
+    const y = wd.height * 0.4;
+    const h = wd.height - y - 64 * u;
+    const row = 54 * u;
+    const top = y + 44 * u;
+    const bottom = y + h - 12 * u;
 
     nextMessage -= dt * (1 + wd.energy * 3);
     if (nextMessage <= 0 || (wd.beat > 0.95 && random() < 0.05)) {
         const fan = FANS[Math.floor(random() * FANS.length)];
-
-        // now and then a fan wears one of the user's emotes
+        // now and then a fan wears one of the user's emotes, or sends a super chat
         const avatar = userEmotes.length && random() < 0.4 ? userEmotes[Math.floor(random() * userEmotes.length)] : null;
 
         chat.push({ fan: fan, avatar: avatar, text: MESSAGES[Math.floor(random() * MESSAGES.length)], born: t,
-            y: bottom + height, likes: Math.floor(random() * 40) });
-        nextMessage = 2.2 + random() * 2.5;
-        if (chat.length > 6) {
+            y: bottom, superchat: random() < 0.12 });
+        nextMessage = 2 + random() * 2.4;
+        if (chat.length > 9) {
             chat.shift();
         }
     }
-    // the channel name stays right above the oldest message
-    if (chat.length) {
-        ctx.font = `700 ${13 * u}px ${SANS}`;
-        ctx.fillStyle = `rgba(${SKY}, 0.8)`;
-        ctx.fillText("#ado-fans  ·  live", x + 4 * u, chat[0].y - 12 * u);
-    }
+    frame(x, y, w, h, "live chat \u00b7 #ado-fans", t, true, false, `${(39393 + Math.floor(t)).toLocaleString("en")} \u25c9`);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, top, w, bottom - top);
+    ctx.clip();
     chat.forEach((message, i) => {
-        const target = bottom - (chat.length - i) * height;
+        const target = bottom - (chat.length - i) * row;
         const age = t - message.born;
 
         message.y += (target - message.y) * (1 - Math.exp(-dt * 10));
-        ctx.globalAlpha = Math.min(1, age * 3) * (i === 0 && chat.length >= 6 ? 0.45 : 1);
-        ctx.fillStyle = "rgba(8, 12, 30, 0.72)";
-        rounded(x, message.y, width, height - 8 * u, 12 * u);
-        ctx.fill();
+        ctx.globalAlpha = Math.min(1, age * 3) * Math.max(0, Math.min(1, (message.y - top) / (row * 0.8)));
+        if (message.superchat) {
+            const band = ctx.createLinearGradient(x, 0, x + w, 0);
+
+            band.addColorStop(0, `rgba(${BLUE}, 0.55)`);
+            band.addColorStop(1, `rgba(${BLUE}, 0.08)`);
+            ctx.fillStyle = band;
+            ctx.fillRect(x + 10 * u, message.y + 3 * u, w - 20 * u, row - 6 * u);
+            ctx.font = `800 ${11 * u}px ${MONO}`;
+            ctx.fillStyle = "#ffd166";
+            ctx.fillText("\u00a53,939", x + w - 74 * u, message.y + 20 * u);
+        }
         ctx.fillStyle = message.fan[2];
         ctx.beginPath();
-        ctx.arc(x + 26 * u, message.y + 25 * u, 17 * u, 0, Math.PI * 2);
+        ctx.arc(x + 32 * u, message.y + row / 2, 15 * u, 0, Math.PI * 2);
         ctx.fill();
         if (message.avatar) {
-            ctx.drawImage(message.avatar, x + 11 * u, message.y + 10 * u, 30 * u, 30 * u);
+            ctx.drawImage(message.avatar, x + 18 * u, message.y + row / 2 - 14 * u, 28 * u, 28 * u);
         } else {
-            drawEmote(message.fan[1], x + 10 * u, message.y + 8 * u, 32 * u);
+            drawEmote(message.fan[1], x + 17 * u, message.y + row / 2 - 15 * u, 30 * u);
         }
         ctx.font = `700 ${12 * u}px ${SANS}`;
         ctx.fillStyle = message.fan[2];
-        ctx.fillText(message.fan[0], x + 50 * u, message.y + 20 * u);
+        ctx.fillText(message.fan[0], x + 56 * u, message.y + 20 * u);
         ctx.font = `${13 * u}px ${SANS}`;
         ctx.fillStyle = "#eaf1ff";
-        richText(message.text, x + 50 * u, message.y + 41 * u, 22 * u, width - 64 * u);
-        ctx.font = `${11 * u}px ${SANS}`;
-        ctx.fillStyle = `rgba(${SKY}, 0.8)`;
-        drawEmote("rose", x + width - 58 * u, message.y + 8 * u, 16 * u);
-        ctx.fillText(`${message.likes + Math.floor(age * 2)}`, x + width - 40 * u, message.y + 20 * u);
+        richText(message.text, x + 56 * u, message.y + 40 * u, 20 * u, w - 76 * u);
         ctx.globalAlpha = 1;
     });
-    // the reactions rise from above the chat, never over the messages
-    if (chat.length && ((wd.beat > 0.9 && random() < 0.3) || random() < dt * 0.6)) {
-        reactions.push({ x: x + width - 30 * u - random() * 160 * u, y: chat[0].y - 34 * u,
+    ctx.restore();
+    // reactions rise from the top of the chat, over the rose
+    if ((wd.beat > 0.9 && random() < 0.3) || random() < dt * 0.6) {
+        reactions.push({ x: x + w - 40 * u - random() * 200 * u, y: y - 6 * u,
             emote: REACTIONS[Math.floor(random() * REACTIONS.length)], born: t, speed: (70 + random() * 60) * u,
             image: userEmotes.length && random() < 0.35 ? userEmotes[Math.floor(random() * userEmotes.length)] : null,
             phase: random() * 6.28 });
@@ -727,28 +1291,20 @@ function drawChat(t, dt) {
 // =========================
 function drawRadio(t, dt) {
     const p = panel;
-    const over = wd.hit(p);
     const on = radio.playing() && !wd.radio.paused;
-    const cx = p.x + 86 * u;
-    const cy = p.y + p.h / 2;
-    const r = 60 * u;
+    const r = 56 * u;
+    const cx = p.x + 30 * u + r;
+    const cy = p.y + p.h / 2 + 4 * u;
 
-    ctx.fillStyle = "rgba(5, 8, 20, 0.78)";
-    ctx.strokeStyle = `rgba(${SKY}, ${over ? 0.6 : 0.28})`;
-    ctx.lineWidth = 1.2 * u;
-    rounded(p.x, p.y, p.w, p.h, 20 * u);
-    ctx.fill();
-    ctx.stroke();
-
-    // the record turns at 33 rpm while it plays, the arm comes onto it
+    frame(p.x, p.y, p.w, p.h, "", t, false, wd.hit(p));
+    // the record turns at 33 rpm while it plays
     disc += dt * (on ? 3.46 : 0);
-    arm += ((on ? 0.5 : 0) - arm) * (1 - Math.exp(-dt * 4));
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(disc);
     ctx.fillStyle = "#07070c";
     ctx.beginPath();
-    ctx.arc(0, 0, r * (1 + (on ? wd.beat * 0.03 : 0)), 0, Math.PI * 2);
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
     ctx.lineWidth = 1;
@@ -772,36 +1328,39 @@ function drawRadio(t, dt) {
     ctx.fill();
     drawEmote("rose", -r * 0.3, -r * 0.3, r * 0.6);
     ctx.restore();
+    // the arm: pivot at the top right of the record, off the record at rest, on the outer grooves while it plays
+    arm += ((on ? 0.3 : -0.06) - arm) * (1 - Math.exp(-dt * 4));
     ctx.save();
     ctx.translate(cx + r * 1.05, cy - r * 0.95);
-    ctx.rotate(0.35 + arm);
+    ctx.rotate(arm);
     ctx.strokeStyle = "#c9d6f2";
     ctx.lineWidth = 3 * u;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, r * 1.2);
-    ctx.lineTo(-r * 0.12, r * 1.38);
+    ctx.lineTo(-r * 0.12, r * 1.36);
     ctx.stroke();
     ctx.fillStyle = "#c9d6f2";
+    ctx.fillRect(-r * 0.2, r * 1.3, r * 0.16, r * 0.1);
     ctx.beginPath();
     ctx.arc(0, 0, 6 * u, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    const x = p.x + 188 * u;
+    const x = p.x + 196 * u;
 
     ctx.font = `700 ${12 * u}px ${MONO}`;
     ctx.fillStyle = `rgba(${SKY}, 0.85)`;
     ctx.fillText("ADO RADIO", x, p.y + 30 * u);
-    drawEmote("rose", x + 80 * u, p.y + 15 * u, 18 * u);
+    drawEmote("rose", x + ctx.measureText("ADO RADIO").width + 8 * u, p.y + 15 * u, 18 * u);
     ctx.font = `600 ${15 * u}px ${JP}`;
     ctx.fillStyle = "#eaf1ff";
-    wd.marquee(ctx, radio.title(), x, p.y + 56 * u, p.w - 210 * u, t);
+    wd.marquee(ctx, radio.title(), x, p.y + 57 * u, p.w - 216 * u, t);
     ctx.font = `${12 * u}px ${MONO}`;
-    ctx.fillStyle = radio.playing() && !wd.radio.paused ? "#ff5a6e" : `rgba(${SKY}, 0.7)`;
-    ctx.fillText(radio.status(), x, p.y + 78 * u);
+    ctx.fillStyle = on ? `rgb(${RED})` : `rgba(${SKY}, 0.7)`;
+    ctx.fillText(radio.status(), x, p.y + 79 * u);
     wd.cursor(radio.rects.some(wd.hit));
-    radio.buttons(ctx, x, p.y + 96 * u, 16 * u, {
+    radio.buttons(ctx, x, p.y + 96 * u, 14 * u, {
         accent: `rgb(${BLUE})`, onAccent: "#eaf1ff", button: "rgba(255, 255, 255, 0.08)", hover: `rgba(${SKY}, 0.3)`,
         icon: "#eaf1ff",
     });
