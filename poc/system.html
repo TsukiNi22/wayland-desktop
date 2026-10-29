@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>System desktop</title>
+    <link rel="stylesheet" href="kit/kit.css">
+    <style>
+        /* ===== Tokens (dark default, body.light switches them) ===== */
+
+        :root {
+            --k-accent: #5aa9ff;
+            --k-bg: rgba(21, 27, 35, 0.94);
+            --k-bar: #1c242f;
+            --k-line: #2a3441;
+            --k-text: #d6dde7;
+            --k-muted: #7b8798;
+            --k-term: #0a0d11;
+            --k-glow-2: #5fd38d;
+            --pill: rgba(17, 22, 29, 0.78);
+            --ok: #5fd38d;
+            --warn: #f2c14e;
+            --bad: #ff6b6b;
+            --bright: 1;
+        }
+
+        body.light {
+            --k-bg: rgba(250, 251, 253, 0.96);
+            --k-bar: #eef1f5;
+            --k-line: #d5dbe3;
+            --k-text: #1d2430;
+            --k-muted: #6a7586;
+            --k-hover: rgba(0, 0, 0, 0.05);
+            --k-input: rgba(0, 0, 0, 0.05);
+            --k-term: #f6f8fa;
+            --k-shadow: 0 14px 40px rgba(30, 40, 60, 0.18);
+            --pill: rgba(255, 255, 255, 0.82);
+        }
+
+        body {
+            background:
+                radial-gradient(1200px 700px at 75% 20%, color-mix(in srgb, var(--k-accent) 12%, transparent), transparent 60%),
+                repeating-linear-gradient(0deg, transparent 0 47px, rgba(255, 255, 255, 0.025) 47px 48px),
+                repeating-linear-gradient(90deg, transparent 0 47px, rgba(255, 255, 255, 0.025) 47px 48px),
+                #0e1217;
+        }
+
+        body.light {
+            background: radial-gradient(1200px 700px at 75% 20%, color-mix(in srgb, var(--k-accent) 18%, transparent), transparent 60%), #e6ebf2;
+        }
+
+        body.wall-aurora {
+            background:
+                radial-gradient(60vw 40vh at 20% 30%, rgba(95, 211, 141, 0.35), transparent 70%),
+                radial-gradient(50vw 45vh at 70% 25%, rgba(90, 169, 255, 0.4), transparent 70%),
+                radial-gradient(40vw 40vh at 55% 70%, rgba(180, 140, 255, 0.3), transparent 70%),
+                #070b14;
+        }
+
+        body.wall-ridges {
+            background:
+                linear-gradient(transparent 55%, #121a28 55%) no-repeat,
+                conic-gradient(from 210deg at 30% 60%, transparent 0 60deg, #1a2638 60deg 120deg, transparent 120deg),
+                conic-gradient(from 200deg at 70% 55%, transparent 0 70deg, #22324a 70deg 130deg, transparent 130deg),
+                linear-gradient(#f2a65a, #c45c7c 35%, #3a3d6b 60%);
+        }
+
+        body.night::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: 9000;
+            background: rgba(255, 140, 40, 0.16);
+            mix-blend-mode: multiply;
+            pointer-events: none;
+        }
+
+        .desk {
+            --area-top: 56px;
+            --area-left: 74px;
+            filter: brightness(var(--bright));
+        }
+
+        body.k-dim .win:not(.is-active) {
+            filter: brightness(0.82);
+        }
+
+        /* ===== Bar: floating pill modules (Waybar / Quickshell rices) ===== */
+
+        .bar {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            right: 10px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .pill {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            height: 100%;
+            padding: 0 14px;
+            border-radius: 12px;
+            background: var(--pill);
+            border: 1px solid var(--k-line);
+            backdrop-filter: blur(12px);
+            font: 12px var(--k-mono);
+            color: var(--k-text);
+            transition: background 0.2s, transform 0.2s var(--k-ease);
+        }
+
+        button.pill:hover, .pill button:hover {
+            color: var(--k-accent);
+        }
+
+        .pill b {
+            font-weight: 600;
+            color: var(--k-accent);
+        }
+
+        .logo {
+            font-size: 18px;
+            color: var(--k-accent);
+        }
+
+        .ws {
+            gap: 6px;
+        }
+
+        .ws button {
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: var(--k-line);
+            transition: width 0.3s var(--k-ease), background 0.3s;
+        }
+
+        .ws button.is-on {
+            width: 36px;
+            background: var(--k-accent);
+        }
+
+        .ws button:hover:not(.is-on) {
+            background: var(--k-muted);
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        .center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--k-font);
+            font-weight: 600;
+        }
+
+        .np {
+            max-width: 220px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .meter {
+            display: inline-block;
+            width: 30px;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--k-line);
+            overflow: hidden;
+            vertical-align: 1px;
+        }
+
+        .meter i {
+            display: block;
+            height: 100%;
+            width: var(--v);
+            background: var(--k-accent);
+            transition: width 0.6s;
+        }
+
+        /* ===== Dock ===== */
+
+        .dock {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 16px;
+            background: var(--pill);
+            border: 1px solid var(--k-line);
+            backdrop-filter: blur(12px);
+            z-index: 1000;
+        }
+
+        .dock button {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            font-size: 20px;
+            background: var(--k-hover);
+            transition: transform 0.2s var(--k-ease);
+        }
+
+        .dock button:hover {
+            transform: scale(1.12);
+        }
+
+        .dock button.is-open::before {
+            content: "";
+            position: absolute;
+            left: -6px;
+            top: 50%;
+            width: 3px;
+            height: 16px;
+            margin-top: -8px;
+            border-radius: 2px;
+            background: var(--k-accent);
+        }
+
+        /* ===== Monitor ===== */
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .card {
+            padding: 12px;
+            border-radius: 8px;
+            background: var(--k-hover);
+            border: 1px solid var(--k-line);
+        }
+
+        .label {
+            margin-bottom: 8px;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--k-muted);
+        }
+
+        .cores {
+            display: flex;
+            align-items: flex-end;
+            gap: 5px;
+            height: 70px;
+        }
+
+        .cores i {
+            flex: 1;
+            height: 10%;
+            border-radius: 3px 3px 0 0;
+            background: linear-gradient(var(--k-accent), color-mix(in srgb, var(--k-accent) 50%, #000));
+            transition: height 0.8s var(--k-ease);
+        }
+
+        .bar-line {
+            height: 8px;
+            margin: 6px 0 10px;
+            border-radius: 4px;
+            background: var(--k-line);
+            overflow: hidden;
+        }
+
+        .bar-line i {
+            display: block;
+            height: 100%;
+            width: var(--v);
+            background: var(--c, var(--k-accent));
+            transition: width 0.8s;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            font: 12px var(--k-mono);
+        }
+
+        .ring {
+            display: grid;
+            place-items: center;
+            width: 86px;
+            height: 86px;
+            margin: auto;
+            border-radius: 50%;
+            background: conic-gradient(var(--warn) 0 68%, var(--k-line) 68% 100%);
+        }
+
+        .ring span {
+            display: grid;
+            place-items: center;
+            width: 66px;
+            height: 66px;
+            border-radius: 50%;
+            background: var(--k-bg);
+            font: 600 15px var(--k-mono);
+        }
+
+        .net svg {
+            display: block;
+            width: 100%;
+            height: 70px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font: 12px var(--k-mono);
+        }
+
+        th {
+            padding: 4px 6px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--k-muted);
+            border-bottom: 1px solid var(--k-line);
+        }
+
+        td {
+            padding: 4px 6px;
+        }
+
+        tr.hot td {
+            color: var(--warn);
+        }
+
+        tbody tr:hover td {
+            background: var(--k-hover);
+            cursor: pointer;
+        }
+
+        /* ===== Quick settings ===== */
+
+        .tiles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .tile {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            text-align: left;
+            background: var(--k-hover);
+            border: 1px solid var(--k-line);
+            transition: background 0.2s;
+        }
+
+        .tile small {
+            color: var(--k-muted);
+        }
+
+        .tile.is-on {
+            color: var(--k-accent-text);
+            background: var(--k-accent);
+            border-color: var(--k-accent);
+        }
+
+        .tile.is-on small {
+            color: inherit;
+            opacity: 0.8;
+        }
+
+        .slider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .slider input {
+            flex: 1;
+            accent-color: var(--k-accent);
+        }
+
+        .seg {
+            display: flex;
+            margin-top: 12px;
+            border: 1px solid var(--k-line);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .seg button {
+            flex: 1;
+            padding: 6px;
+        }
+
+        .seg button.is-on {
+            color: var(--k-accent-text);
+            background: var(--k-accent);
+        }
+
+        /* ===== Calendar popover ===== */
+
+        .cal {
+            position: absolute;
+            top: 54px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-8px);
+            width: 280px;
+            padding: 14px;
+            border-radius: 14px;
+            background: var(--k-bg);
+            border: 1px solid var(--k-line);
+            box-shadow: var(--k-shadow);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.25s var(--k-ease);
+            z-index: 1001;
+        }
+
+        .cal.is-open {
+            opacity: 1;
+            transform: translateX(-50%);
+            pointer-events: auto;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            margin-top: 8px;
+            text-align: center;
+            font: 12px var(--k-mono);
+        }
+
+        .cal-grid .head {
+            color: var(--k-muted);
+        }
+
+        .cal-grid .today {
+            border-radius: 6px;
+            color: var(--k-accent-text);
+            background: var(--k-accent);
+        }
+    </style>
+</head>
+<body class="k-glow k-dim">
+    <div class="desk">
+        <header class="bar">
+            <button class="pill logo" data-app="launcher" title="Apps (Ctrl+Space)">◆</button>
+            <div class="pill ws">
+                <button data-scene="desktop" title="1 Desktop"></button>
+                <button data-scene="files" title="3 Files"></button>
+                <button data-scene="browser" title="4 Browser"></button>
+                <button data-scene="terminal" title="5 Terminal"></button>
+                <button data-scene="music" title="6 Music"></button>
+            </div>
+            <div class="pill np" id="np">♪ —</div>
+            <button class="pill center" id="clock-pill"><span data-clock="date"></span>&nbsp;&nbsp;<span data-clock="hm"></span></button>
+            <div class="spacer"></div>
+            <div class="pill">
+                <span>cpu <b id="t-cpu">23%</b> <span class="meter"><i id="t-cpu-bar" style="--v: 23%"></i></span></span>
+                <span>mem <b id="t-mem">9.8G</b></span>
+                <span>net <b id="t-net">↓1.2M</b></span>
+            </div>
+            <button class="pill" data-app="quick" title="Quick settings">
+                <span id="t-wifi">📶 wifi</span><span>vol <b>60</b></span><span>bat <b>87%</b></span>
+            </button>
+        </header>
+
+        <div class="cal" id="cal">
+            <div class="row"><b id="cal-title"></b><span class="k-muted">week 44</span></div>
+            <div class="cal-grid" id="cal-grid"></div>
+        </div>
+
+        <nav class="dock">
+            <button data-app="monitor" title="System monitor">📊</button>
+            <button data-app="files" title="Files">📁</button>
+            <button data-app="browser" title="Browser">🌐</button>
+            <button data-app="terminal" title="Terminal">⌨️</button>
+            <button data-app="music" title="Music">🎧</button>
+            <button data-app="settings" title="Settings">⚙️</button>
+        </nav>
+
+        <!-- System monitor: live values -->
+        <section class="win" id="monitor" data-title="System monitor" data-icon="📊" style="left: 90px; top: 70px; width: min(640px, 50vw)">
+            <div class="grid2">
+                <div class="card">
+                    <div class="label">CPU · 8 cores · <span id="cpu-total">23%</span></div>
+                    <div class="cores" id="cores"></div>
+                </div>
+                <div class="card net">
+                    <div class="label">Network · wlp2s0</div>
+                    <svg viewBox="0 0 200 70" preserveAspectRatio="none">
+                        <polyline id="net-down" fill="none" stroke="var(--k-accent)" stroke-width="2"/>
+                        <polyline id="net-up" fill="none" stroke="var(--ok)" stroke-width="2" opacity="0.8"/>
+                    </svg>
+                    <div class="row"><span style="color: var(--k-accent)" id="down">↓ 1.2 MB/s</span><span style="color: var(--ok)" id="up">↑ 84 kB/s</span></div>
+                </div>
+                <div class="card">
+                    <div class="label">Memory</div>
+                    <div class="row"><span>RAM</span><span id="ram">9.8 / 32 GB</span></div>
+                    <div class="bar-line"><i id="ram-bar" style="--v: 31%"></i></div>
+                    <div class="row"><span>Swap</span><span>0.2 / 8 GB</span></div>
+                    <div class="bar-line"><i style="--v: 3%; --c: var(--ok)"></i></div>
+                    <div class="row"><span>GPU</span><span id="gpu">1.4 / 8 GB</span></div>
+                    <div class="bar-line"><i id="gpu-bar" style="--v: 18%; --c: #b48cff"></i></div>
+                </div>
+                <div class="card">
+                    <div class="label">Disk · /</div>
+                    <div class="ring"><span>68%</span></div>
+                    <div class="row" style="margin-top: 8px"><span>634 GB used</span><span class="k-muted">1 TB</span></div>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 12px">
+                <div class="label">Processes · click one to end it</div>
+                <table>
+                    <thead><tr><th>PID</th><th>Name</th><th>CPU</th><th>Mem</th><th>State</th></tr></thead>
+                    <tbody id="procs"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Quick settings: every tile works -->
+        <section class="win" id="quick" data-title="Quick settings" data-icon="🎛️" style="left: calc(100% - 340px); top: 70px; width: 320px">
+            <div class="tiles">
+                <button class="tile is-on" data-q="wifi"><b>Wi-Fi</b><small>home-5G</small></button>
+                <button class="tile" data-q="bt"><b>Bluetooth</b><small>off</small></button>
+                <button class="tile is-on" data-q="dark"><b>Dark style</b><small>on</small></button>
+                <button class="tile" data-q="night"><b>Night light</b><small>off</small></button>
+                <button class="tile" data-q="dnd"><b>Do not disturb</b><small>off</small></button>
+                <button class="tile" data-q="tile"><b>Tiling</b><small>floating</small></button>
+            </div>
+            <div class="slider"><span>☀</span><input type="range" id="bright" min="40" max="120" value="100"><span id="bright-value">100%</span></div>
+            <div class="seg" id="power"><button>Saver</button><button class="is-on">Balanced</button><button>Performance</button></div>
+            <div class="row" style="margin-top: 12px"><span class="k-muted">fedora · up <span id="uptime">0 min</span></span><button class="k-btn" data-scene="lock">🔒 Lock</button></div>
+        </section>
+    </div>
+
+    <script src="kit/kit.js"></script>
+    <script>
+        // ===== Kit =====
+
+        Kit.init({
+            name: "System", user: "tsukini", host: "fedora",
+            desktop: ["monitor", "quick"],
+            scenes: {terminal: ["terminal", "monitor"]},
+            accents: ["#5aa9ff", "#5fd38d", "#b48cff", "#f2994a", "#ff6b9a"],
+            wallpapers: [{label: "Grid", cls: ""}, {label: "Aurora", cls: "wall-aurora"}, {label: "Ridges", cls: "wall-ridges"}],
+            toggles: [{label: "Dim inactive windows", key: "dim", on: true, cls: "k-dim"}, {label: "Animated active border", key: "glow", on: true, cls: "k-glow"}],
+            lock: {hint: "Any password unlocks · Esc does nothing, this is a POC"},
+            browser: {engine: "DuckDuck-POC", hero: "<div style=\"font: 700 40px var(--k-font)\">◆ fedora</div>"},
+            terminal: {startup: ["neofetch"]},
+            context: [{label: "Toggle dark / light", run: () => quick("dark")}],
+        });
+
+        // ===== Live system monitor =====
+
+        const PROCS = [
+            {pid: 4242, name: "clang++", cpu: 71, mem: "1.1G", state: "R"},
+            {pid: 1880, name: "nvim", cpu: 3, mem: "212M", state: "S"},
+            {pid: 1203, name: "gnome-shell", cpu: 3, mem: "540M", state: "S"},
+            {pid: 2210, name: "firefox", cpu: 9, mem: "1.8G", state: "S"},
+            {pid: 977, name: "tmux: server", cpu: 0, mem: "18M", state: "S"},
+            {pid: 1, name: "systemd", cpu: 0, mem: "14M", state: "S"},
+        ];
+        const cores = document.getElementById("cores");
+        const down = Array.from({length: 20}, () => 30 + Math.random() * 30);
+        const up = Array.from({length: 20}, () => 55 + Math.random() * 8);
+        const walk = (value, step, min, max) => Math.max(min, Math.min(max, value + (Math.random() - 0.5) * step));
+        let core_values = Array.from({length: 8}, () => 20 + Math.random() * 60);
+
+        cores.innerHTML = "<i></i>".repeat(8);
+
+        function render_procs()
+        {
+            document.getElementById("procs").innerHTML = PROCS.map((proc, index) => {
+                return `<tr class="${proc.cpu > 50 ? "hot" : ""}" data-proc="${index}"><td>${proc.pid}</td><td>${proc.name}</td><td>${proc.cpu.toFixed(1)}%</td><td>${proc.mem}</td><td>${proc.state}</td></tr>`;
+            }).join("");
+        }
+
+        function tick_monitor()
+        {
+            const total = core_values.reduce((a, b) => a + b, 0) / core_values.length;
+            const points = (values) => values.map((value, index) => `${(index * 200) / (values.length - 1)},${value}`).join(" ");
+
+            core_values = core_values.map((value) => walk(value, 30, 4, 98));
+            [...cores.children].forEach((bar, index) => (bar.style.height = `${core_values[index]}%`));
+            down.push(walk(down.at(-1), 18, 8, 62));
+            up.push(walk(up.at(-1), 6, 45, 66));
+            down.shift();
+            up.shift();
+            document.getElementById("net-down").setAttribute("points", points(down));
+            document.getElementById("net-up").setAttribute("points", points(up));
+            document.getElementById("down").textContent = `↓ ${((70 - down.at(-1)) / 30).toFixed(1)} MB/s`;
+            document.getElementById("cpu-total").textContent = `${total.toFixed(0)}%`;
+            document.getElementById("t-cpu").textContent = `${total.toFixed(0)}%`;
+            document.getElementById("t-cpu-bar").style.setProperty("--v", `${total}%`);
+            document.getElementById("t-net").textContent = `↓${((70 - down.at(-1)) / 30).toFixed(1)}M`;
+            document.getElementById("ram-bar").style.setProperty("--v", `${walk(31, 4, 25, 40)}%`);
+            document.getElementById("uptime").textContent = `${Math.floor(performance.now() / 60000)} min`;
+            PROCS.forEach((proc) => (proc.cpu = proc.name === "clang++" ? walk(proc.cpu, 20, 40, 99) : walk(proc.cpu, 3, 0, 15)));
+            render_procs();
+        }
+
+        document.getElementById("procs").addEventListener("click", (event) => {
+            const row = event.target.closest("[data-proc]");
+
+            if (!row)
+                return;
+            const [proc] = PROCS.splice(Number(row.dataset.proc), 1);
+
+            Kit.notify("Process ended", `${proc.name} (pid ${proc.pid}) received SIGTERM`, "📊");
+            render_procs();
+        });
+        tick_monitor();
+        setInterval(tick_monitor, 1200);
+
+        // ===== Quick settings =====
+
+        function quick(name)
+        {
+            const tile = document.querySelector(`[data-q="${name}"]`);
+            const on = tile.classList.toggle("is-on");
+            const label = tile.querySelector("small");
+
+            if (name === "dark")
+                document.body.classList.toggle("light", !on);
+            else if (name === "night")
+                document.body.classList.toggle("night", on);
+            else if (name === "dnd")
+                Kit.state.dnd = on;
+            else if (name === "tile")
+                Kit.set_layout(on ? "tile" : "float");
+            else if (name === "wifi")
+                document.getElementById("t-wifi").textContent = on ? "📶 wifi" : "✈ offline";
+            label.textContent = name === "tile" ? (on ? "tiling" : "floating") : name === "wifi" ? (on ? "home-5G" : "off") : on ? "on" : "off";
+        }
+
+        document.getElementById("quick").addEventListener("click", (event) => {
+            const tile = event.target.closest("[data-q]");
+            const power = event.target.closest("#power button");
+
+            if (tile)
+                quick(tile.dataset.q);
+            if (power) {
+                document.querySelectorAll("#power button").forEach((button) => button.classList.toggle("is-on", button === power));
+                Kit.notify("Power profile", power.textContent, "⚡");
+            }
+        });
+        document.getElementById("bright").addEventListener("input", (event) => {
+            document.body.style.setProperty("--bright", event.target.value / 100);
+            document.getElementById("bright-value").textContent = `${event.target.value}%`;
+        });
+        Kit.on("layout", (mode) => {
+            const tile = document.querySelector("[data-q=\"tile\"]");
+
+            tile.classList.toggle("is-on", mode === "tile");
+            tile.querySelector("small").textContent = mode === "tile" ? "tiling" : "floating";
+        });
+
+        // ===== Calendar popover + now playing =====
+
+        const now = new Date();
+        const first = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
+        const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+        document.getElementById("cal-title").textContent = now.toLocaleDateString("en-GB", {month: "long", year: "numeric"});
+        document.getElementById("cal-grid").innerHTML = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => `<span class="head">${day}</span>`).join("")
+            + "<span></span>".repeat(first)
+            + Array.from({length: days}, (_, index) => `<span class="${index + 1 === now.getDate() ? "today" : ""}">${index + 1}</span>`).join("");
+        document.getElementById("clock-pill").addEventListener("click", (event) => {
+            event.stopPropagation();
+            document.getElementById("cal").classList.toggle("is-open");
+        });
+        document.addEventListener("click", (event) => {
+            if (!event.target.closest("#cal"))
+                document.getElementById("cal").classList.remove("is-open");
+        });
+        Kit.on("music", ({playing, track}) => (document.getElementById("np").textContent = playing ? `♪ ${track.title}` : "♪ paused"));
+        setTimeout(() => Kit.notify("Updates installed", "42 packages updated · reboot not required", "✅"), 900);
+    </script>
+</body>
+</html>

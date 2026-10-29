@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Desktop POCs</title>
+    <style>
+        /* ===== Tokens ===== */
+
+        :root {
+            --bg: #101114;
+            --surface: #181a1f;
+            --line: #2a2d35;
+            --text: #e6e8ee;
+            --muted: #8b90a0;
+            --accent: #5aa9ff;
+            --sans: "Adwaita Sans", "Cantarell", system-ui, sans-serif;
+            --mono: "Adwaita Mono", monospace;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font: 15px/1.55 var(--sans);
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        main {
+            max-width: 1160px;
+            margin: 0 auto;
+            padding: 48px 16px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 30px;
+        }
+
+        h2 {
+            margin: 40px 0 12px;
+            font-size: 18px;
+        }
+
+        .lead {
+            margin: 0 0 28px;
+            color: var(--muted);
+        }
+
+        kbd {
+            padding: 1px 6px;
+            font: 12px var(--mono);
+            border: 1px solid var(--line);
+            border-bottom-width: 2px;
+            border-radius: 4px;
+        }
+
+        /* ===== Cards ===== */
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 18px;
+        }
+
+        .card {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            transition: transform 0.2s cubic-bezier(0.05, 0.9, 0.1, 1.05), border-color 0.15s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: #4a5060;
+        }
+
+        .preview {
+            display: flex;
+            align-items: flex-end;
+            height: 140px;
+            padding: 12px;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .info {
+            flex: 1;
+            padding: 14px 16px 10px;
+        }
+
+        .info h3 {
+            margin: 0 0 4px;
+            font-size: 18px;
+        }
+
+        .info p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .scenes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 0 16px 14px;
+        }
+
+        .scenes a {
+            padding: 2px 9px;
+            font-size: 12px;
+            color: var(--muted);
+            text-decoration: none;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+        }
+
+        .scenes a:hover {
+            color: var(--text);
+            border-color: var(--accent);
+        }
+
+        /* ===== Help ===== */
+
+        .help {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 10px 28px;
+            padding: 16px 18px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .help b {
+            color: var(--text);
+        }
+
+        .credits {
+            margin-top: 28px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .credits a {
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Desktop POCs</h1>
+        <p class="lead">Six desktop styles built on one small kit (HTML / CSS / JS): windows, lock screen, files, browser, terminal, music and settings work for real in every style. Open a page full screen (<kbd>F11</kbd>). <a href="https://tsukini22.github.io/wayland-desktop/" style="color: var(--accent)">Documentation</a></p>
+
+        <div class="grid" id="grid"></div>
+
+        <h2>Everywhere</h2>
+        <div class="help">
+            <div><b>Scenes</b>: keys <kbd>1</kbd>–<kbd>7</kbd> or the bar at the bottom left (desktop, lock, files, browser, terminal, music, settings).</div>
+            <div><b>Windows</b>: drag by the title bar, resize from the corner, double-click to maximize, minimize / close, reopen from the dock or the task list.</div>
+            <div><b>Launcher</b>: <kbd>Ctrl</kbd>+<kbd>Space</kbd>, type, <kbd>Enter</kbd>. <b>Right-click</b> the desktop for the context menu.</div>
+            <div><b>Terminal</b>: <code>help</code>, <code>ls</code>, <code>cd</code>, <code>cat</code>, <code>tree</code>, <code>neofetch</code>, <code>open</code>, <code>play</code>, <code>mkdir</code>, <code>lock</code>, history with ↑ ↓, completion with <kbd>Tab</kbd>, plus commands of each style.</div>
+            <div><b>Files</b>: click to preview, double-click to open (text, images, music), filter, grid / list. <b>Browser</b>: tabs, address bar, search, links, back / forward.</div>
+            <div><b>Music</b>: a small synth plays original tracks live; the style reacts to the beat. <b>Settings</b>: accent color, wallpaper, tiling layout (Hyprland-like), animations, volume.</div>
+        </div>
+
+        <p class="credits">
+            Motion inspired by Hyprland (popin windows with an overshoot curve, sliding workspaces, animated gradient border) and Waybar / Quickshell rices (pill modules).
+            Assets: blue rose photo by Noumenon (CC BY-SA 3.0, Wikimedia Commons) · Hatsune Miku art by KEI and logo © Crypton Future Media, INC. (piapro.net, non-commercial license) · photographer placeholders from picsum.photos.
+            Details in <a href="assets/CREDITS.md">assets/CREDITS.md</a>.
+        </p>
+    </main>
+
+    <script>
+        // ===== Cards =====
+
+        const STYLES = [
+            ["system.html", "System", "PILLS · MONITOR", "radial-gradient(circle at 75% 20%, rgba(90, 169, 255, 0.3), transparent 60%), #0e1217", "#5aa9ff",
+                "Hyprland-like rice: floating pill bar, workspaces = scenes, live system monitor, quick settings that work (dark / light, night light, tiling, brightness)."],
+            ["dev.html", "Dev / low level", "0x40113e => mov", "repeating-linear-gradient(0deg, #040705 0 3px, #07120b 3px 4px)", "#39ff88",
+                "A playable debugger: step, continue, breakpoints, registers, flags, memory and stack updating, real printf output, BIOS lock screen."],
+            ["jpop.html", "Ado / blue rose", "🌹 青い薔薇 · うっせぇわ", "linear-gradient(90deg, rgba(5, 8, 20, 0.9), rgba(5, 8, 20, 0.2)), url('assets/rose-dew.jpg') center / cover", "#9fc3ff",
+                "Ado Box stage (backlit cage, the silhouette bends back singing), Ado TV with the official MVs / lives / streams, 3D blue roses, Usseewa stamp, wishes, timeline, stickers."],
+            ["tty.html", "Terminal / better-tty", "❯ EDIT 0:zsh*", "#191724", "#c4a7e7",
+                "No desktop: tmux-like tiling with Ctrl+b keys, getty login, w3m browser, git / cmake / nvim commands, btop and calendar panes (rose-pine)."],
+            ["miku.html", "Miku", "🥬 MIKU MIKU BEAM", "repeating-linear-gradient(-45deg, #0b2b2c 0 14px, #10393a 14px 28px)", "#39c5bb",
+                "Official KEI art, vocal editor whose melody she sings, hold-to-charge beam with leek rain, editable sticky note, hair follows the accent."],
+            ["photographer.html", "Photographer", "Untitled #01", "linear-gradient(90deg, #c96a3d 0 30%, #121110 30% 72%, #2c4f72 72%)", "#ece8e1",
+                "Photo wall with lightbox and slideshow, real histogram of the shown photo, black & white mode, viewfinder lock screen."],
+        ];
+        const SCENES = ["desktop", "lock", "files", "browser", "terminal", "music", "settings"];
+
+        document.getElementById("grid").innerHTML = STYLES.map(([href, name, tag, background, color, text]) => `
+            <article class="card">
+                <a class="preview" href="${href}" style="background: ${background}; color: ${color}">${tag}</a>
+                <div class="info"><h3>${name}</h3><p>${text}</p></div>
+                <div class="scenes">${SCENES.map((scene) => `<a href="${href}#scene-${scene}">${scene}</a>`).join("")}</div>
+            </article>`).join("");
+    </script>
+</body>
+</html>

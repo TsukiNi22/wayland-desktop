@@ -1,0 +1,47 @@
+# wayland-desktop documentation site (better-html-doc), on the gh-pages branch: the POCs are in poc/ (copy of the poc branch)
+# build from the root of gh-pages: python3 <skills>/better-html-doc/scripts/build_site.py --site src/site --out . --version <x.y.z>
+
+[site]
+name = "wayland-desktop"
+langs = ["en", "fr"]
+repo = "https://github.com/TsukiNi22/wayland-desktop"
+edit_url = ""
+pages_url = "https://tsukini22.github.io/wayland-desktop/"
+storage_key = "wayland-desktop-docs"
+logo = "logo.svg"
+css = ["assets/extra.css"]   # light border darkened to 3:1 on the surface
+copy = ["images/system-desktop.jpg", "images/dev-desktop.jpg", "images/jpop-desktop.jpg", "images/tty-desktop.jpg", "images/miku-desktop.jpg", "images/photographer-desktop.jpg"]   # screenshots shown on the styles page
+
+[home]
+title = { en = "Desktop POCs", fr = "POC de bureaux" }
+tagline = { en = "Six interactive desktop styles in HTML / CSS / JS, built on one small kit, before the real Wayland configuration.", fr = "Six styles de bureau interactifs en HTML / CSS / JS, construits sur un petit kit, avant la vraie configuration Wayland." }
+changelog = ""
+links = [
+    { href = "https://tsukini22.github.io/wayland-desktop/poc/index.html", text = { en = "Live demo", fr = "Démo en ligne" } },
+    { href = "getting-started.html", text = { en = "Getting started", fr = "Premiers pas" } },
+    { href = "kit-api.html", text = { en = "Kit API", fr = "API du kit" } },
+]
+
+[[sections]]
+id = "guide"
+title = { en = "User guide", fr = "Guide utilisateur" }
+desc = { en = "Run the POCs, scenes, windows, apps and the six styles.", fr = "Lancer les POC, situations, fenêtres, applis et les six styles." }
+icon = '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/>'
+
+[[sections]]
+id = "concepts"
+title = { en = "Concepts", fr = "Concepts" }
+desc = { en = "How the kit works: style pages, windows and tiling, the synth.", fr = "Comment marche le kit : pages de style, fenêtres et mosaïque, synthé." }
+icon = '<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5M12 12l-6 5M12 12l6 5"/>'
+
+[[sections]]
+id = "reference"
+title = { en = "Reference", fr = "Référence" }
+desc = { en = "Kit API, CSS variables, terminal commands (read from the code).", fr = "API du kit, variables CSS, commandes du terminal (lues dans le code)." }
+icon = '<path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/>'
+
+[[sections]]
+id = "resources"
+title = { en = "Resources", fr = "Ressources" }
+desc = { en = "FAQ, credits and licenses of the assets.", fr = "FAQ, crédits et licences des ressources." }
+icon = '<path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/>'

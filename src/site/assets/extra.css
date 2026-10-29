@@ -1,0 +1,15 @@
+/* Project additions on top of the site style: the light border color is darkened to reach 3:1 on the surface (WCAG non-text contrast) */
+
+:root {
+    --line: #828893;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --line: #747a85;
+    }
+}
+
+:root[data-theme="dark"] {
+    --line: #747a85;
+}

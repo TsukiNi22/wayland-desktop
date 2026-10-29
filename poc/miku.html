@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Miku desktop</title>
+    <link rel="stylesheet" href="kit/kit.css">
+    <style>
+        /* ===== Tokens ===== */
+
+        :root {
+            --k-accent: #39c5bb;
+            --deep: color-mix(in srgb, var(--k-accent) 45%, #02100f);
+            --ink: #0b2b2c;
+            --pink: #e12885;
+            --grey: #3b4a4f;
+            --k-bg: rgba(9, 36, 37, 0.92);
+            --k-bar: linear-gradient(90deg, var(--k-accent), var(--deep));
+            --k-line: color-mix(in srgb, var(--k-accent) 40%, #0b2b2c);
+            --k-text: #e9fffd;
+            --k-muted: #86b9b5;
+            --k-accent-text: var(--ink);
+            --k-input: rgba(0, 0, 0, 0.3);
+            --k-page: #0d2c2d;
+            --k-term: #061a1b;
+            --k-radius: 8px;
+            --k-shadow: 8px 8px 0 rgba(0, 0, 0, 0.35);
+            --k-blur: blur(10px);
+            --k-lock-bg: rgba(6, 30, 31, 0.94);
+            --k-t-user: var(--pink);
+            --k-viz: linear-gradient(var(--pink), var(--k-accent));
+        }
+
+        body {
+            background:
+                repeating-linear-gradient(-45deg, transparent 0 22px, color-mix(in srgb, var(--k-accent) 6%, transparent) 22px 44px),
+                radial-gradient(ellipse at 25% 60%, #1a4d4e 0%, var(--ink) 65%);
+        }
+
+        body.wall-stage {
+            background: radial-gradient(ellipse at 50% 100%, var(--pink) -20%, #2a0f2f 40%, #0a0612 80%);
+        }
+
+        body.wall-night {
+            background:
+                radial-gradient(2px 2px at 20% 30%, #fff, transparent), radial-gradient(2px 2px at 70% 20%, #fff, transparent),
+                radial-gradient(1px 1px at 40% 60%, #fff, transparent), radial-gradient(1px 1px at 85% 55%, #fff, transparent),
+                linear-gradient(#020a1a, #0b2b2c);
+        }
+
+        .desk {
+            --area-top: 36px;
+            --area-bottom: 76px;
+        }
+
+        /* ===== Window skin ===== */
+
+        .win-bar {
+            color: var(--ink);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border-bottom: 0;
+        }
+
+        .win-ctl button {
+            color: var(--ink);
+        }
+
+        .win.is-active {
+            box-shadow: 8px 8px 0 color-mix(in srgb, var(--pink) 50%, transparent);
+            border-color: var(--k-accent);
+        }
+
+        /* ===== Decor ===== */
+
+        .big39 {
+            position: absolute;
+            right: -2vw;
+            bottom: -8vh;
+            font: 900 48vh/1 var(--k-font);
+            color: transparent;
+            -webkit-text-stroke: 3px color-mix(in srgb, var(--k-accent) 22%, transparent);
+            user-select: none;
+        }
+
+        .notes span {
+            position: absolute;
+            bottom: -40px;
+            font-size: 22px;
+            color: color-mix(in srgb, var(--k-accent) 50%, transparent);
+            animation: drift linear infinite;
+        }
+
+        @keyframes drift {
+            to { transform: translate(40px, -115vh) rotate(30deg); }
+        }
+
+        /* ===== Character ===== */
+
+        .chara {
+            position: absolute;
+            left: 2vw;
+            bottom: 0;
+            height: 90vh;
+            cursor: pointer;
+            filter: drop-shadow(0 0 22px color-mix(in srgb, var(--k-accent) 45%, transparent));
+            transition: transform 0.12s;
+            --sway: 2.6s;
+        }
+
+        .chara.hop, .art.hop {
+            transform: translateY(-10px);
+        }
+
+        .art {
+            position: absolute;
+            left: 3vw;
+            bottom: 0;
+            height: 94vh;
+            cursor: pointer;
+            filter: drop-shadow(0 0 24px color-mix(in srgb, var(--k-accent) 55%, transparent));
+            transition: transform 0.12s;
+            animation: bob 3.9s ease-in-out infinite;
+        }
+
+        .art.jump {
+            animation: jump 0.5s ease-out;
+        }
+
+        body.svg-chara .art, body:not(.svg-chara) .chara {
+            display: none;
+        }
+
+        body.no-chara .art, body.no-chara .chara {
+            display: none !important;
+        }
+
+        .credit {
+            position: absolute;
+            right: 12px;
+            bottom: 6px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.45);
+            z-index: 1001;
+        }
+
+        .lock-art {
+            position: absolute;
+            right: 6vw;
+            bottom: 0;
+            height: 92vh;
+            filter: drop-shadow(0 0 30px var(--k-accent));
+        }
+
+        .lock-logo {
+            width: 260px;
+            margin-bottom: 10px;
+        }
+
+        .chara.jump {
+            animation: jump 0.5s ease-out;
+        }
+
+        @keyframes jump {
+            40% { transform: translateY(-50px) rotate(-3deg); }
+        }
+
+        .chara .all {
+            animation: bob 3.9s ease-in-out infinite;
+        }
+
+        @keyframes bob {
+            50% { transform: translateY(-8px); }
+        }
+
+        .chara .tail {
+            transform-box: fill-box;
+            transform-origin: 50% 0;
+            animation: swing var(--sway) ease-in-out infinite alternate;
+        }
+
+        .chara .tail.right {
+            animation-delay: calc(var(--sway) / -2);
+        }
+
+        @keyframes swing {
+            from { transform: rotate(-3deg); }
+            to { transform: rotate(3deg); }
+        }
+
+        .chara .eyes {
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: blink 4.2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 93%, 100% { transform: scaleY(1); }
+            96% { transform: scaleY(0.08); }
+        }
+
+        .bubble {
+            position: absolute;
+            left: calc(3vw + 46vh);
+            top: 9vh;
+            max-width: 260px;
+            padding: 10px 16px;
+            border-radius: 16px 16px 16px 4px;
+            font-weight: 800;
+            color: var(--ink);
+            background: #fff;
+            box-shadow: 4px 4px 0 var(--pink);
+            opacity: 0;
+            transform: scale(0.6);
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+            z-index: 6;
+        }
+
+        .bubble.is-on {
+            opacity: 1;
+            transform: none;
+        }
+
+        .sing {
+            position: absolute;
+            font: 900 18px var(--k-font);
+            color: var(--pink);
+            text-shadow: 0 0 8px #fff;
+            pointer-events: none;
+            animation: sing 1.4s ease-out forwards;
+            z-index: 6;
+        }
+
+        @keyframes sing {
+            to { transform: translate(60px, -90px) scale(1.4); opacity: 0; }
+        }
+
+        /* ===== Top bar + dock ===== */
+
+        .topbar {
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 0 14px;
+            background: rgba(9, 36, 37, 0.88);
+            border-bottom: 2px solid var(--k-accent);
+            z-index: 1000;
+        }
+
+        .badge {
+            padding: 0 8px;
+            font: 900 15px var(--k-mono);
+            color: var(--pink);
+            border: 2px solid var(--pink);
+            border-radius: 3px;
+        }
+
+        .tasks {
+            flex: 1;
+            display: flex;
+            gap: 4px;
+            overflow: hidden;
+        }
+
+        .task {
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--k-muted);
+            border: 1px solid transparent;
+        }
+
+        .task.is-active {
+            color: var(--k-text);
+            border-color: var(--k-accent);
+        }
+
+        .task.is-min {
+            opacity: 0.55;
+        }
+
+        .digital {
+            font: 700 18px var(--k-mono);
+            color: var(--k-accent);
+            text-shadow: 0 0 10px var(--k-accent);
+        }
+
+        .dock {
+            position: absolute;
+            left: 50%;
+            bottom: 12px;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            padding: 6px;
+            background: rgba(9, 36, 37, 0.9);
+            border: 2px solid var(--k-accent);
+            border-radius: 12px;
+            z-index: 1000;
+        }
+
+        .dock button {
+            position: relative;
+            width: 46px;
+            height: 46px;
+            border-radius: 8px;
+            font-size: 22px;
+            background: color-mix(in srgb, var(--k-accent) 12%, transparent);
+            transition: transform 0.12s;
+        }
+
+        .dock button:hover {
+            transform: translateY(-5px);
+            background: color-mix(in srgb, var(--pink) 40%, transparent);
+        }
+
+        .dock button.is-open::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: 2px;
+            width: 6px;
+            height: 6px;
+            margin-left: -3px;
+            border-radius: 50%;
+            background: var(--pink);
+        }
+
+        /* ===== Vocal editor ===== */
+
+        #editor .win-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .ed-roll {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 34px 1fr;
+            border: 1px solid var(--k-line);
+        }
+
+        .ed-keys {
+            display: grid;
+            grid-template-rows: repeat(8, 1fr);
+            font: 9px var(--k-mono);
+        }
+
+        .ed-keys span {
+            display: flex;
+            align-items: center;
+            padding-left: 3px;
+            color: var(--ink);
+            background: #f2fbfa;
+            border-bottom: 1px solid #c5d6d4;
+        }
+
+        .ed-keys span:nth-child(3n) {
+            color: #f2fbfa;
+            background: var(--grey);
+        }
+
+        .ed-grid {
+            display: grid;
+            grid-template-columns: repeat(32, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            touch-action: none;
+            user-select: none;
+        }
+
+        .ed-grid button {
+            min-height: 18px;
+            font: 700 8px var(--k-font);
+            color: var(--ink);
+            border-right: 1px solid color-mix(in srgb, var(--k-accent) 10%, transparent);
+            border-bottom: 1px solid color-mix(in srgb, var(--k-accent) 10%, transparent);
+        }
+
+        .ed-grid button:nth-child(4n + 1) {
+            border-left: 1px solid color-mix(in srgb, var(--k-accent) 30%, transparent);
+        }
+
+        .ed-grid button:hover {
+            background: color-mix(in srgb, var(--k-accent) 20%, transparent);
+        }
+
+        .ed-grid button.now {
+            background: color-mix(in srgb, var(--pink) 18%, transparent);
+        }
+
+        .ed-grid button.on {
+            background: var(--k-accent);
+            border-radius: 3px;
+            box-shadow: inset 0 0 0 1px #c6fff9;
+        }
+
+        .ed-grid button.on.now {
+            color: #fff;
+            background: var(--pink);
+        }
+
+        .ed-ctl {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ed-ctl label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font: 12px var(--k-mono);
+        }
+
+        .ed-ctl input[type="range"] {
+            width: 90px;
+            accent-color: var(--pink);
+        }
+
+        /* ===== Beam control ===== */
+
+        .bm-label {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .bm-charge {
+            height: 16px;
+            margin: 6px 0 12px;
+            border: 1px solid var(--k-accent);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .bm-charge i {
+            display: block;
+            width: 0;
+            height: 100%;
+            background: repeating-linear-gradient(-45deg, var(--k-accent) 0 8px, #b4fff7 8px 16px);
+        }
+
+        .bm-charge.full i {
+            background: repeating-linear-gradient(-45deg, var(--pink) 0 8px, #ffc2e0 8px 16px);
+            animation: flash 0.2s steps(1) infinite;
+        }
+
+        @keyframes flash {
+            50% { opacity: 0.6; }
+        }
+
+        .bm-fire {
+            width: 100%;
+            padding: 14px;
+            border-radius: 6px;
+            font-weight: 900;
+            font-size: 16px;
+            letter-spacing: 0.05em;
+            color: #fff;
+            background: linear-gradient(90deg, var(--pink), #ff6fb5);
+            box-shadow: 0 4px 0 #8c1453;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .bm-fire:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #8c1453;
+        }
+
+        .bm-count {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        /* ===== Sticky note ===== */
+
+        .note-card {
+            position: absolute;
+            right: 4vw;
+            bottom: 96px;
+            width: 230px;
+            padding: 14px 16px;
+            color: #3b3a2a;
+            background: #fff8b8;
+            transform: rotate(4deg);
+            box-shadow: 4px 6px 14px rgba(0, 0, 0, 0.4);
+            font-size: 15px;
+            outline: none;
+            z-index: 6;
+        }
+
+        .note-card b {
+            color: var(--pink);
+        }
+
+        /* ===== The beam ===== */
+
+        .beam-ray {
+            position: fixed;
+            height: var(--h, 120px);
+            width: 0;
+            border-radius: 0 999px 999px 0;
+            background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--k-accent) 80%, transparent) 22%, #fff 50%, color-mix(in srgb, var(--pink) 80%, transparent) 78%, transparent);
+            box-shadow: 0 0 60px 20px color-mix(in srgb, var(--k-accent) 60%, transparent);
+            pointer-events: none;
+            z-index: 3000;
+            opacity: 0;
+        }
+
+        .beam-text {
+            position: fixed;
+            left: 50%;
+            top: 10vh;
+            transform: translateX(-50%) scale(0);
+            font: italic 900 calc(4vw + 6vw * var(--p, 1))/1 var(--k-font);
+            white-space: nowrap;
+            color: #fff;
+            -webkit-text-stroke: 4px var(--pink);
+            text-shadow: 6px 6px 0 var(--k-accent);
+            pointer-events: none;
+            z-index: 3001;
+        }
+
+        .flash {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 2999;
+        }
+
+        body.beaming .beam-ray {
+            animation: ray 2.4s ease-out forwards;
+        }
+
+        body.beaming .beam-text {
+            animation: shout 2.4s ease-out forwards;
+        }
+
+        body.beaming .flash {
+            animation: white 0.5s ease-out;
+        }
+
+        body.beaming .desk {
+            animation: shake 0.1s linear 14;
+        }
+
+        @keyframes ray {
+            0% { width: 0; opacity: 1; }
+            20%, 75% { width: 100vw; opacity: 1; }
+            100% { width: 100vw; opacity: 0; }
+        }
+
+        @keyframes shout {
+            0% { transform: translateX(-50%) scale(0) rotate(-8deg); }
+            20% { transform: translateX(-50%) scale(1.1) rotate(-4deg); }
+            80% { transform: translateX(-50%) scale(1) rotate(-4deg); opacity: 1; }
+            100% { transform: translateX(-50%) scale(1.3) rotate(-4deg); opacity: 0; }
+        }
+
+        @keyframes white {
+            10% { opacity: 0.8; }
+        }
+
+        @keyframes shake {
+            25% { transform: translate(5px, -4px); }
+            75% { transform: translate(-5px, 4px); }
+        }
+
+        .leek {
+            position: fixed;
+            top: -60px;
+            font-size: 40px;
+            pointer-events: none;
+            z-index: 3002;
+            animation: fall 2.6s ease-in forwards;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(115vh) rotate(720deg); }
+        }
+
+        /* ===== Apps skin ===== */
+
+        .miku-hero {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font: 900 44px var(--k-font);
+            color: var(--k-accent);
+            text-shadow: 4px 4px 0 var(--pink);
+        }
+
+        .lock-39 {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font: 900 70vh/1 var(--k-font);
+            color: transparent;
+            -webkit-text-stroke: 4px color-mix(in srgb, var(--k-accent) 30%, transparent);
+        }
+
+        .lock-clock {
+            font-family: var(--k-mono);
+            font-weight: 700;
+            color: var(--k-accent);
+            text-shadow: 0 0 30px var(--k-accent), 6px 6px 0 var(--pink);
+        }
+
+        .lock-avatar {
+            color: var(--ink);
+        }
+    </style>
+</head>
+<body class="k-glow">
+    <div class="desk">
+        <div class="big39" aria-hidden="true">39</div>
+        <div class="notes" id="notes" aria-hidden="true"></div>
+
+        <!-- Character: drawn with paths, hair follows the accent color -->
+        <svg class="chara" id="chara" viewBox="0 0 400 760" aria-label="Twin-tails character, click me">
+            <defs>
+                <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" style="stop-color: color-mix(in srgb, var(--k-accent) 70%, #fff)"/>
+                    <stop offset="1" style="stop-color: color-mix(in srgb, var(--k-accent) 55%, #000)"/>
+                </linearGradient>
+            </defs>
+            <g class="all">
+                <g class="tail left">
+                    <path d="M118 130 C40 150 0 300 20 470 C35 600 10 690 0 760 L70 760 C85 660 70 520 90 400 C100 300 110 220 140 160 Z" fill="url(#hair)"/>
+                    <path d="M100 180 C60 260 50 360 55 470" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="6" stroke-linecap="round"/>
+                </g>
+                <g class="tail right">
+                    <path d="M282 130 C360 150 400 300 380 470 C365 600 390 690 400 760 L330 760 C315 660 330 520 310 400 C300 300 290 220 260 160 Z" fill="url(#hair)"/>
+                    <path d="M300 180 C340 260 350 360 345 470" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="6" stroke-linecap="round"/>
+                </g>
+                <ellipse cx="200" cy="192" rx="100" ry="104" fill="url(#hair)"/>
+                <rect x="100" y="112" width="36" height="36" rx="6" fill="#e12885" transform="rotate(-18 118 130)"/>
+                <rect x="264" y="112" width="36" height="36" rx="6" fill="#e12885" transform="rotate(18 282 130)"/>
+
+                <!-- legs and boots -->
+                <path d="M152 556 L172 556 L170 700 L152 700 Z" fill="#f8e6da"/>
+                <path d="M228 556 L248 556 L248 700 L230 700 Z" fill="#f8e6da"/>
+                <path d="M144 680 L176 680 L178 760 L138 760 Z" fill="#3b4a4f"/>
+                <path d="M224 680 L256 680 L262 760 L222 760 Z" fill="#3b4a4f"/>
+                <path d="M144 684 L176 684" stroke="var(--k-accent)" stroke-width="5"/>
+                <path d="M224 684 L256 684" stroke="var(--k-accent)" stroke-width="5"/>
+
+                <!-- body -->
+                <rect x="182" y="276" width="36" height="46" fill="#f8e6da"/>
+                <path d="M140 474 L118 474 C112 420 116 370 140 330" fill="none" stroke="#f8e6da" stroke-width="22" stroke-linecap="round"/>
+                <path d="M260 474 L282 474 C288 420 284 370 260 330" fill="none" stroke="#f8e6da" stroke-width="22" stroke-linecap="round"/>
+                <path d="M96 418 L134 418 L138 506 L92 506 Z" fill="#3b4a4f"/>
+                <path d="M266 418 L304 418 L308 506 L262 506 Z" fill="#3b4a4f"/>
+                <path d="M96 424 L134 424 M266 424 L304 424" stroke="var(--k-accent)" stroke-width="5"/>
+                <path d="M140 318 L260 318 L278 472 L122 472 Z" fill="#c9d3d4"/>
+                <path d="M140 318 L170 318 L200 350 L230 318 L260 318 L262 340 L138 340 Z" fill="#9fb0b2"/>
+                <path d="M192 334 L208 334 L214 424 L200 444 L186 424 Z" fill="var(--k-accent)"/>
+                <path d="M120 470 L280 470 L306 560 L94 560 Z" fill="#2b3539"/>
+                <path d="M100 546 L300 546" stroke="var(--k-accent)" stroke-width="5"/>
+
+                <!-- face -->
+                <ellipse cx="200" cy="205" rx="80" ry="86" fill="#f8e6da"/>
+                <ellipse cx="150" cy="248" rx="13" ry="6" fill="#ff8fb3" opacity="0.45"/>
+                <ellipse cx="250" cy="248" rx="13" ry="6" fill="#ff8fb3" opacity="0.45"/>
+                <g class="eyes">
+                    <ellipse cx="168" cy="215" rx="17" ry="22" fill="color-mix(in srgb, var(--k-accent) 60%, #000)" style="fill: color-mix(in srgb, var(--k-accent) 60%, #000)"/>
+                    <ellipse cx="232" cy="215" rx="17" ry="22" style="fill: color-mix(in srgb, var(--k-accent) 60%, #000)"/>
+                    <ellipse cx="168" cy="221" rx="9" ry="13" fill="#0b2b2c"/>
+                    <ellipse cx="232" cy="221" rx="9" ry="13" fill="#0b2b2c"/>
+                    <circle cx="162" cy="207" r="5" fill="#fff"/>
+                    <circle cx="226" cy="207" r="5" fill="#fff"/>
+                    <circle cx="174" cy="227" r="2.5" fill="#fff"/>
+                    <circle cx="238" cy="227" r="2.5" fill="#fff"/>
+                    <path d="M148 198 Q168 186 188 198 M212 198 Q232 186 252 198" fill="none" stroke="#1a2b2c" stroke-width="4" stroke-linecap="round"/>
+                </g>
+                <ellipse id="mouth" cx="200" cy="262" rx="9" ry="3" fill="#c0506b"/>
+                <path d="M116 200 C110 100 290 100 284 200 C276 160 262 140 244 128 C246 160 236 175 226 186 C222 158 212 140 200 132 C188 140 178 158 174 186 C164 175 154 160 156 128 C138 140 124 160 116 200 Z" fill="url(#hair)"/>
+                <path d="M118 170 C108 230 112 300 128 350 L142 346 C134 300 134 240 140 190 Z" fill="url(#hair)"/>
+                <path d="M282 170 C292 230 288 300 272 350 L258 346 C266 300 266 240 260 190 Z" fill="url(#hair)"/>
+
+                <!-- headset -->
+                <rect x="102" y="194" width="22" height="46" rx="9" fill="#3b4a4f"/>
+                <rect x="276" y="194" width="22" height="46" rx="9" fill="#3b4a4f"/>
+                <rect x="108" y="206" width="10" height="22" rx="4" fill="var(--k-accent)"/>
+                <rect x="282" y="206" width="10" height="22" rx="4" fill="var(--k-accent)"/>
+                <path d="M286 238 C292 272 262 286 232 282" fill="none" stroke="#3b4a4f" stroke-width="4"/>
+                <circle cx="230" cy="282" r="5" fill="var(--k-accent)"/>
+            </g>
+        </svg>
+        <img class="art" id="art" src="assets/miku-kei.png" alt="Hatsune Miku, art by KEI" draggable="false">
+        <div class="bubble" id="bubble"></div>
+        <div class="credit">Hatsune Miku art by KEI © Crypton Future Media, INC. (piapro.net, CC BY-NC) · music: original synth</div>
+
+        <header class="topbar">
+            <span class="badge">01</span>
+            <span>🥬 negi-os</span>
+            <div class="tasks" data-kit="tasks"></div>
+            <span data-clock="date"></span>
+            <span class="digital" data-clock="hms"></span>
+        </header>
+
+        <!-- Vocal editor: the grid is the melody of track 1 -->
+        <section class="win" id="editor" data-title="Vocal editor" data-icon="🎹" style="left: calc(3vw + 60vh); top: 56px; width: 680px; height: 330px">
+            <div><b>My negi song</b> <span class="k-muted">— click / drag on the grid to write the melody, she sings it</span></div>
+            <div class="ed-roll"><div class="ed-keys" id="keys"></div><div class="ed-grid" id="grid"></div></div>
+            <div class="ed-ctl">
+                <button class="k-btn k-primary" id="ed-play">▶ Sing</button>
+                <button class="k-btn" id="ed-random">🎲 Random</button>
+                <button class="k-btn" id="ed-clear">Clear</button>
+                <label>BPM <input type="range" id="ed-bpm" min="90" max="190" value="140"><b id="ed-bpm-value">140</b></label>
+                <select class="k-input" id="ed-wave"><option>square</option><option>sawtooth</option><option>triangle</option></select>
+            </div>
+        </section>
+
+        <!-- Beam control -->
+        <section class="win" id="beam" data-title="Beam control" data-icon="✨" style="left: calc(100% - 330px); top: 56px; width: 300px">
+            <div class="bm-label"><span>charge</span><b id="bm-pct">0%</b></div>
+            <div class="bm-charge" id="bm-charge"><i id="bm-bar"></i></div>
+            <button class="bm-fire" id="bm-fire">HOLD · MIKU MIKU BEAM!</button>
+            <div class="k-muted bm-count">beams fired: <b id="bm-count">0</b> · full power: <b id="bm-full">0</b></div>
+        </section>
+
+        <div class="note-card" contenteditable="true" spellcheck="false">
+            today's mood: 🥬🥬🥬<br>
+            <b>39</b> = san-kyu = thank you<br>
+            ✨ ♪ (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧
+        </div>
+
+        <nav class="dock">
+            <button data-app="editor" title="Vocal editor">🎹</button>
+            <button data-app="beam" title="Beam control">✨</button>
+            <button data-app="music" title="Music">🎧</button>
+            <button data-app="files" title="Files">📁</button>
+            <button data-app="browser" title="Browser">🌐</button>
+            <button data-app="terminal" title="Terminal">⌨️</button>
+            <button data-app="settings" title="Settings">⚙️</button>
+            <button data-app="launcher" title="All apps (Ctrl+Space)">▦</button>
+        </nav>
+    </div>
+
+    <div class="flash"></div>
+    <div class="beam-ray" id="ray"></div>
+    <div class="beam-text" id="shout"></div>
+
+    <script src="kit/kit.js"></script>
+    <script>
+        // ===== Tracks (track 1 is written by the vocal editor) =====
+
+        const SCALE = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96];
+        const SYLLABLES = ["mi", "ku", "ne", "gi", "bi", "i", "mu", "la", "lu", "ra", "39", "♪"];
+        const TRACKS = [
+            {
+                title: "My negi song", artist: "you + 39", bpm: 140, wave: "square", gain: 0.1, vibrato: 6, loops: 8,
+                cover: "linear-gradient(135deg, var(--k-accent), #e12885)", cover_text: "39", scale: SCALE,
+                lead: "5.5.7.5.4.2.4...5.5.7.9.8.7.5...", bass: "0...0...3...3...4...4...2...2...", drums: "k.h.s.h.k.k.s.hh",
+            },
+            {
+                title: "Negi Beam Polka", artist: "39 Channel", bpm: 152, wave: "square", gain: 0.09, vibrato: 4,
+                cover: "linear-gradient(135deg, #7ad7ff, var(--k-accent))", cover_text: "🥬", scale: SCALE,
+                lead: "4.4.5.4.2.2.0.2.4.4.5.7.7-......7.7.8.7.5.5.4.2.4.5.4.2.0-......",
+                bass: "0.4.0.4.3.7.3.7.", drums: "k.s.k.s.k.s.k.ss",
+            },
+            {
+                title: "Teal Twin-tails", artist: "39 Channel", bpm: 124, wave: "triangle", gain: 0.2, vibrato: 7,
+                cover: "linear-gradient(135deg, #2b3539, var(--k-accent))", cover_text: "01", scale: SCALE,
+                lead: "7---9-7-5---4---5-7-9-a-9---7---4---5-4-2---0---2-4-5-7-5-------",
+                bass: "0-------5-------3-------4-------", drums: "k...s...k.k.s..h",
+            },
+        ];
+        const ROWS = [9, 8, 7, 6, 5, 4, 3, 2];
+        const LINES = ["Let's sing! ♪", "Negi power! 🥬", "39 = thank you!", "Beam charged? ✨", "Mi-ku-mi-ku~", "Write me a melody!"];
+
+        // ===== Kit =====
+
+        let beams = 0;
+        let full_beams = 0;
+
+        Kit.init({
+            name: "Miku", user: "tsukini", host: "negi-os",
+            desktop: ["editor", "beam", "music"],
+            scenes: {music: ["music", "editor"]},
+            positions: {music: {left: "calc(100% - 450px)", top: "230px"}},
+            tracks: TRACKS,
+            accents: ["#39c5bb", "#e12885", "#7ad7ff", "#ffd166", "#b48cff"],
+            wallpapers: [{label: "Stripes", cls: ""}, {label: "Stage", cls: "wall-stage"}, {label: "Night", cls: "wall-night"}],
+            toggles: [
+                {label: "Character", key: "chara", on: true, run: (value) => document.body.classList.toggle("no-chara", !value)},
+                {label: "Animated drawing instead of the official art", key: "svg", on: false, cls: "svg-chara"},
+            ],
+            icons: {dir: "📂", audio: "🎶", music: "🎧"},
+            lock: {
+                decor: "<div class=\"lock-39\">39</div><img class=\"lock-art\" src=\"assets/miku-kei.png\" alt=\"\">", avatar: "🥬", placeholder: "Password ♪",
+                hint: "Unlock to sing ♪ (any password)", welcome: "Okaeri! ♪",
+            },
+            browser: {
+                engine: "Negi search",
+                hero: "<img class=\"lock-logo\" src=\"assets/miku-logo.png\" alt=\"Hatsune Miku\"><div class=\"miku-hero\"><span>🥬</span>Negi search</div>",
+                tiles: [
+                    {name: "Vocal tips", url: "poc://wiki", icon: "🎤"},
+                    {name: "Concert", url: "poc://video", icon: "🎪"},
+                    {name: "Leek news", url: "poc://news", icon: "📰"},
+                    {name: "Recipes", url: "poc://search?q=leek%20recipes", icon: "🍲"},
+                ],
+                news: {
+                    title: "Local leek prices reach a record high",
+                    lead: "Fans buying leeks by the crate to wave at concerts pushed prices to a new peak this week.",
+                    body: ["Greengrocers report queues on concert days, with teal ribbons tied around every bundle.",
+                        "Experts recommend spinning the leek clockwise for the best results."],
+                },
+                video: {title: "39 minutes of beam charging (no talking)", channel: "Negi TV", background: "radial-gradient(circle, #e12885, #39c5bb 60%, #0b2b2c)"},
+                wiki: {
+                    title: "Twin-tail aerodynamics",
+                    body: [["Overview", "Long twin-tails act like two stabilizers: they sway with the rhythm and keep the singer balanced during jumps."],
+                        ["Beam physics", "A full MIKU MIKU BEAM needs a complete charge. Releasing early gives a smaller, cuter beam."],
+                        ["Leeks", "The leek is the standard accessory. It can be spun, waved or used as a microphone in emergencies."]],
+                },
+            },
+            terminal: {
+                prompt: (term, path) => `<span class="t-user">♪ ${Kit.esc(Kit.fs.home().split("/").pop())}</span> <span class="t-path">${Kit.esc(path)}</span> <span class="t-accent">❯</span> `,
+                motd: "<span class=\"t-accent\">negi-os</span> · try <span class=\"t-accent\">beam</span>, <span class=\"t-accent\">sing</span>, <span class=\"t-accent\">negi</span>, <span class=\"t-accent\">neofetch</span>",
+                logo: "   ▄▄▄▄▄▄▄▄\n ▐█ ◕  ‿ ◕ █▌\n ▐█▄▄▄▄▄▄▄▄█▌\n ▐▌  ▐▀▀▌  ▐▌\n ▐▌  ▐▌▐▌  ▐▌\n  ▀  ▝▘▝▘  ▀",
+                palette: ["#39c5bb", "#e12885", "#7ad7ff", "#ffd166", "#3b4a4f", "#f2fbfa"],
+                commands: {
+                    beam: (args) => (fire(Math.min(1, Number(args[0] ?? 1) || 1)), "<span class=\"t-accent\">✨ BEAAAAAM!!!</span>"),
+                    sing: () => (Kit.open("editor"), Kit.play(0), "♪ singing <span class=\"t-accent\">My negi song</span>"),
+                    negi: () => "<span class=\"t-accent\">      \\\\  //\n       \\\\//\n        ||\n        ||   🥬 one fresh leek\n       (__)</span>",
+                    39: () => "thank you! ♪",
+                },
+            },
+            files: {
+                "~/Music/projects/my-negi-song.vsqx": {kind: "doc", size: "48 KB"},
+                "~/Pictures/leek.png": {kind: "image", fallback: "linear-gradient(160deg, #e8ffe0, #6fbf5a 50%, #f2fbfa)", size: "1.1 MB"},
+                "~/Pictures/miku-kei.png": {kind: "image", src: "assets/miku-kei.png", fallback: "#39c5bb", size: "105 KB"},
+                "~/Documents/lyrics.txt": {kind: "text", content: "mi ku ne gi\nbi i mu la\n39 39 39\n♪ ♪ ♪\n"},
+            },
+            context: [{label: "✨ MIKU MIKU BEAM!", run: () => fire(1)}, {label: "♪ Sing my melody", run: () => (Kit.open("editor"), Kit.play(0))}],
+        });
+
+        // ===== Floating notes =====
+
+        const notes = document.getElementById("notes");
+
+        for (let i = 0; i < 14; ++i)
+            notes.insertAdjacentHTML("beforeend", `<span style="left: ${Math.random() * 100}%; animation-duration: ${14 + Math.random() * 12}s; animation-delay: ${-Math.random() * 20}s">${["♪", "♫", "♬", "🥬"][i % 4]}</span>`);
+
+        // ===== Character: sings with the music, hops on the beat, talks when clicked =====
+
+        const chara = document.getElementById("chara");
+        const art = document.getElementById("art");
+        const mouth = document.getElementById("mouth");
+        const use_svg = () => document.body.classList.contains("svg-chara");
+        const actor = () => (use_svg() ? chara : art);
+
+        // point of the visible character in screen pixels (fx, fy: position inside the official art)
+        function art_point(fx, fy)
+        {
+            const box = art.getBoundingClientRect();
+
+            return {x: box.left + box.width * fx, y: box.top + box.height * fy};
+        }
+        const bubble = document.getElementById("bubble");
+        let bubble_timer = 0;
+
+        function say(text, time = 1800)
+        {
+            bubble.textContent = text;
+            bubble.classList.add("is-on");
+            clearTimeout(bubble_timer);
+            bubble_timer = setTimeout(() => bubble.classList.remove("is-on"), time);
+        }
+
+        function sing(syllable)
+        {
+            const box = mouth.getBoundingClientRect();
+            const point = use_svg() ? {x: box.right + 6, y: box.top - 10} : art_point(0.5, 0.16);
+            const span = Kit.element(`<span class="sing">${syllable}</span>`);
+
+            span.style.left = `${point.x}px`;
+            span.style.top = `${point.y}px`;
+            document.body.append(span);
+            setTimeout(() => span.remove(), 1400);
+        }
+
+        for (const target of [chara, art]) target.addEventListener("click", () => {
+            target.classList.remove("jump");
+            void target.getBoundingClientRect();
+            target.classList.add("jump");
+            say(LINES[Math.floor(Math.random() * LINES.length)]);
+            Kit.note(72 + [0, 4, 7, 12][Math.floor(Math.random() * 4)], 0.18, "square");
+        });
+        Kit.on("beat", () => {
+            const target = actor();
+
+            target.classList.add("hop");
+            setTimeout(() => target.classList.remove("hop"), 110);
+        });
+        Kit.on("step", ({index, note, track}) => {
+            if (typeof note === "number" && index % 2 === 0)
+                sing(track === TRACKS[0] ? SYLLABLES[index % SYLLABLES.length] : "♪");
+        });
+        Kit.on("music", ({playing}) => {
+            chara.style.setProperty("--sway", playing ? "0.45s" : "2.6s");
+            if (playing)
+                say("♪ ♪ ♪", 1200);
+        });
+        (function animate_mouth()
+        {
+            mouth.setAttribute("ry", 3 + Math.min(11, Kit.level() * 38));
+            requestAnimationFrame(animate_mouth);
+        })();
+
+        // ===== Vocal editor =====
+
+        const grid = document.getElementById("grid");
+        const song = TRACKS[0];
+        const columns = Array.from({length: 32}, () => []);
+        let painting = null;
+        let last_column = 0;
+
+        document.getElementById("keys").innerHTML = ROWS.map((row) => `<span>${SYLLABLES[row % SYLLABLES.length]}</span>`).join("");
+        ROWS.forEach((row) => {
+            for (let step = 0; step < 32; ++step) {
+                const cell = Kit.element(`<button data-step="${step}" data-row="${row}"></button>`);
+
+                columns[step].push(cell);
+                grid.append(cell);
+            }
+        });
+
+        function render_grid()
+        {
+            for (let step = 0; step < 32; ++step) {
+                for (const cell of columns[step]) {
+                    const on = song.lead[step] === Number(cell.dataset.row);
+
+                    cell.classList.toggle("on", on);
+                    cell.textContent = on ? SYLLABLES[step % SYLLABLES.length] : "";
+                }
+            }
+        }
+
+        function paint(cell)
+        {
+            const step = Number(cell.dataset.step);
+            const row = Number(cell.dataset.row);
+
+            song.lead[step] = painting === "erase" ? null : row;
+            if (painting !== "erase")
+                Kit.note(SCALE[row], 0.15, song.wave);
+            render_grid();
+        }
+
+        grid.addEventListener("pointerdown", (event) => {
+            const cell = event.target.closest("button");
+
+            if (!cell)
+                return;
+            painting = song.lead[cell.dataset.step] === Number(cell.dataset.row) ? "erase" : "draw";
+            paint(cell);
+        });
+        grid.addEventListener("pointerover", (event) => {
+            const cell = event.target.closest("button");
+
+            if (cell && painting)
+                paint(cell);
+        });
+        addEventListener("pointerup", () => (painting = null));
+
+        document.getElementById("ed-play").addEventListener("click", () => {
+            if (Kit.audio.playing && Kit.audio.index === 0)
+                Kit.pause();
+            else
+                Kit.play(0);
+        });
+        document.getElementById("ed-random").addEventListener("click", () => {
+            song.lead = song.lead.map((_, step) => (step % 2 === 0 && Math.random() < 0.75 ? ROWS[Math.floor(Math.random() * ROWS.length)] : null));
+            render_grid();
+        });
+        document.getElementById("ed-clear").addEventListener("click", () => {
+            song.lead = song.lead.map(() => null);
+            render_grid();
+        });
+        document.getElementById("ed-bpm").addEventListener("input", (event) => {
+            song.bpm = Number(event.target.value);
+            document.getElementById("ed-bpm-value").textContent = song.bpm;
+            if (Kit.audio.playing && Kit.audio.index === 0)
+                Kit.play(0);
+        });
+        document.getElementById("ed-wave").addEventListener("change", (event) => (song.wave = event.target.value));
+        Kit.on("music", ({playing, index}) => {
+            document.getElementById("ed-play").textContent = playing && index === 0 ? "■ Stop" : "▶ Sing";
+        });
+        Kit.on("step", ({index, track}) => {
+            columns[last_column].forEach((cell) => cell.classList.remove("now"));
+            if (track !== song)
+                return;
+            last_column = index % 32;
+            columns[last_column].forEach((cell) => cell.classList.add("now"));
+        });
+        render_grid();
+
+        // ===== Beam: hold to charge, release to fire =====
+
+        const fire_button = document.getElementById("bm-fire");
+        const bar = document.getElementById("bm-bar");
+        let charge = 0;
+        let charging = false;
+
+        function set_charge(value)
+        {
+            charge = value;
+            bar.style.width = `${charge * 100}%`;
+            document.getElementById("bm-pct").textContent = `${Math.round(charge * 100)}%`;
+            document.getElementById("bm-charge").classList.toggle("full", charge >= 1);
+        }
+
+        function fire(power)
+        {
+            const eyes = chara.querySelector(".eyes").getBoundingClientRect();
+            const origin = use_svg() ? {x: eyes.right - 20, y: eyes.top + eyes.height / 2} : art_point(0.47, 0.135);
+            const ray = document.getElementById("ray");
+            const height = 50 + 170 * power;
+
+            ray.style.setProperty("--h", `${height}px`);
+            ray.style.left = `${origin.x}px`;
+            ray.style.top = `${origin.y - height / 2}px`;
+            document.getElementById("shout").textContent = `BE${"A".repeat(2 + Math.round(power * 10))}M${"!".repeat(1 + Math.round(power * 4))}`;
+            document.getElementById("shout").style.setProperty("--p", power);
+            document.body.classList.remove("beaming");
+            void document.body.offsetWidth;
+            document.body.classList.add("beaming");
+            [60, 64, 67, 72, 76, 79, 84].slice(0, 3 + Math.round(power * 4)).forEach((midi, index) => setTimeout(() => Kit.note(midi, 0.25, "sawtooth", 0.1), index * 60));
+            document.getElementById("bm-count").textContent = ++beams;
+            if (power >= 0.99) {
+                document.getElementById("bm-full").textContent = ++full_beams;
+                for (let i = 0; i < 36; ++i) {
+                    const leek = Kit.element(`<span class="leek" style="left: ${Math.random() * 100}vw; animation-delay: ${Math.random() * 0.8}s">🥬</span>`);
+
+                    document.body.append(leek);
+                    setTimeout(() => leek.remove(), 3600);
+                }
+                Kit.notify("FULL POWER BEAM", "36 leeks deployed", "🥬");
+            }
+            say(power >= 0.99 ? "MIKU MIKU BEAAAM!!!" : "beam~ ✨", 1600);
+        }
+
+        fire_button.addEventListener("pointerdown", (event) => {
+            const start = performance.now();
+
+            fire_button.setPointerCapture(event.pointerId);
+            charging = true;
+            (function grow()
+            {
+                if (!charging)
+                    return;
+                set_charge(Math.min(1, (performance.now() - start) / 1300));
+                requestAnimationFrame(grow);
+            })();
+        });
+        fire_button.addEventListener("pointerup", () => {
+            if (!charging)
+                return;
+            charging = false;
+            fire(Math.max(0.15, charge));
+            setTimeout(() => set_charge(0), 300);
+        });
+    </script>
+</body>
+</html>
