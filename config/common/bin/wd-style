@@ -6,6 +6,7 @@
 #   next | prev          switch to the next / previous style
 #   menu                 choose a style in a wofi menu (run again: closes it)
 #   overview | apps      GNOME-like overview / applications grid (quickshell, else the wofi launcher)
+#   help                 every key and control in a card (quickshell, Super+F1)
 #   wallpaper [mode]     live (animated, follows the music) | still | toggle
 #   cursor [mode]        on (animated cursors of the style, the default) | off (normal) | toggle
 #   radio <command>      the radio of a style (its folder: mp3 files + online.md): list [style] | add <style>
@@ -483,6 +484,7 @@ case "${1:-}" in
     menu) menu ;;
     overview) overview toggle ;;
     apps) overview apps ;;
+    help) overview help ;;
     wallpaper) set_wallpaper "${2:-toggle}" ;;
     cursor) set_cursor "${2:-toggle}" ;;
     radio) exec "$WALLPAPER_BIN" --radio "${@:2}" ;;
@@ -497,7 +499,7 @@ case "${1:-}" in
         session "$(current)"
         ;;
     *)
-        sed -n '2,22s/^# \?//p' "$0"
+        sed -n '2,23s/^# \?//p' "$0"
         exit 1
         ;;
 esac

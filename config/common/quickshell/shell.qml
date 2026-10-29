@@ -5,6 +5,7 @@
 // GNOME workspaces: an emptied workspace goes away and the ones after it move down (no hole); a window dropped on the
 // "new workspace" card of the overview creates one, and so does Enter or a click on it (the arrows only select a card)
 // The lock of better-tty (a shell) and Dev (a getty) is a session lock drawn here (LockScreen.qml, wd-style lock)
+// Super+F1: every key and control in a card (Help.qml)
 
 import QtQuick
 import Quickshell
@@ -93,6 +94,34 @@ ShellRoot {
         appid: "wayland-desktop"
         name: "apps"
         onPressed: root.apps()
+    }
+
+    // =========================
+    // Help: the keys and controls (Super+F1)
+    // =========================
+    property bool helpOpen: false
+
+    function help() {
+        root.close();
+        root.helpOpen = !root.helpOpen;
+    }
+
+    GlobalShortcut {
+        appid: "wayland-desktop"
+        name: "help"
+        onPressed: root.help()
+    }
+
+    // on the focused screen, made at each opening (nothing kept while closed)
+    LazyLoader {
+        active: root.helpOpen
+
+        Help {
+            screen: Quickshell.screens.find(s => Hyprland.focusedMonitor && s.name === Hyprland.focusedMonitor.name)
+                || Quickshell.screens[0]
+            theme: styleTheme
+            onCloseRequested: root.helpOpen = false
+        }
     }
 
     // =========================
@@ -227,6 +256,10 @@ ShellRoot {
 
         function close(): void {
             root.close();
+        }
+
+        function help(): void {
+            root.help();
         }
     }
 

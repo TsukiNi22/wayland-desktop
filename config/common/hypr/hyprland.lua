@@ -147,6 +147,8 @@ hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("hyprctl dispatch 'hl.dsp.exit()'"))
 -- GNOME: Super alone (released without another key) the overview, Super twice or Super+A the applications
 hl.bind(mainMod .. " + SUPER_L", overview("overview"), { release = true })
 hl.bind(mainMod .. " + A", overview("apps"))
+-- every key and control in a card
+hl.bind(mainMod .. " + F1", overview("help"))
 
 -- styles: menu / next, power menu, live or still wallpaper, animated or normal cursor, radio shown or hidden (the
 -- styles that hide it by default) (wd-style)
