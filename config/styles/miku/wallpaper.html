@@ -85,10 +85,11 @@ function drawNote(dt) {
 // The beam of "M@GICAL☆CURE! LOVE ♥ SHOT!" (SAWTOWNE feat. Hatsune Miku): its part of the official video (radio.json
 // "media", cut once by wd-wallpaper from 1:25.28 of the video, a personal copy) gives the sound and the clock; on that
 // clock, before the video shows: its subtitles, the "Now Loading..." card, the three lights of the count with their
-// flashes (measured on the cuts of the video); from "Ready?" (its next cut) on, the video itself: MIKU MIKU BEAAAAM!!
-const LINES = [[0, 2.15, "and now it's time..."], [2.2, 4.75, "for the moment you've been waiting for!"], [4.88, 6, "One!"],
-    [6.04, 7.2, "Two!"], [7.24, 8.36, "Three——!!!"]];
-const COUNT = [4.88, 6.04, 7.24];
+// flashes (on the voice: its accents measured in the sound, the cuts of the video come 0.2 s before "Two" and
+// "Three"); from "Ready?" (its next cut) on, the video itself: MIKU MIKU BEAAAAM!!
+const LINES = [[0, 2.15, "and now it's time..."], [2.2, 4.75, "for the moment you've been waiting for!"], [4.89, 6.2, "One!"],
+    [6.23, 7.45, "Two!"], [7.48, 8.36, "Three——!!!"]];
+const COUNT = [4.89, 6.23, 7.48];
 const READY = 8.36;
 const END = 19.3;
 let beamVideo = null;
