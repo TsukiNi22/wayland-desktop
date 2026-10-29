@@ -96,12 +96,22 @@ Item {
                 required property var modelData
                 readonly property var ipc: modelData.lastIpcObject
                 readonly property bool placed: !!(ipc && ipc.at && ipc.size)
+                // a window is placed from the corner of its own monitor
+                readonly property real fromX: modelData.monitor ? modelData.monitor.x : card.originX
+                readonly property real fromY: modelData.monitor ? modelData.monitor.y : card.originY
 
-                x: placed ? (ipc.at[0] - card.originX) * card.ratio : frame.width * 0.15
-                y: placed ? (ipc.at[1] - card.originY) * card.ratio : frame.height * 0.15
+                x: placed ? (ipc.at[0] - fromX) * card.ratio : frame.width * 0.15
+                y: placed ? (ipc.at[1] - fromY) * card.ratio : frame.height * 0.15
                 width: placed ? Math.max(12, ipc.size[0] * card.ratio) : frame.width * 0.7
                 height: placed ? Math.max(12, ipc.size[1] * card.ratio) : frame.height * 0.7
-                opacity: card.host.dragged === modelData ? 0.35 : 1
+                // hidden until Hyprland gave its place (no jump), dimmed while dragged
+                opacity: !placed ? 0 : (card.host.dragged === modelData ? 0.35 : 1)
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 180
+                    }
+                }
 
                 ClippingRectangle {
                     anchors.fill: parent
@@ -116,12 +126,20 @@ Item {
                         anchors.fill: parent
                         captureSource: card.host.shown ? thumb.modelData.wayland : null
                         live: true
+                        opacity: hasContent ? 1 : 0
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 220
+                            }
+                        }
                     }
 
                     IconImage {
                         anchors.centerIn: parent
                         visible: !copy.hasContent
-                        implicitSize: Math.min(parent.width, parent.height) * 0.45
+                        // never 0: an icon without size is drawn at the size of its SVG (huge, slow)
+                        implicitSize: Math.max(16, Math.min(parent.width, parent.height) * 0.45)
                         source: card.host.iconOf(thumb.modelData)
                     }
                 }
@@ -130,7 +148,7 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.verticalCenter: parent.bottom
                     visible: copy.hasContent && parent.height > 40
-                    implicitSize: Math.min(28, parent.width * 0.4)
+                    implicitSize: Math.max(12, Math.min(28, parent.width * 0.4))
                     source: card.host.iconOf(thumb.modelData)
                 }
 

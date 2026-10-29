@@ -46,14 +46,25 @@ Item {
     // =========================
     // Data
     // =========================
+    // every numbered workspace: the ones quickshell tracks, the ones of the windows (it may miss a creation) and the
+    // active one, then one empty workspace after the last (GNOME)
     readonly property var workspaces: {
         const name = overview.monitor ? overview.monitor.name : "";
-        const list = Hyprland.workspaces.values.filter(w => w.id > 0 && (!name || !w.monitor || w.monitor.name === name));
-        const ids = list.map(w => w.id).sort((a, b) => a - b);
+        const ids = new Set(Hyprland.workspaces.values.filter(w => w.id > 0 && (!name || !w.monitor || w.monitor.name === name))
+            .map(w => w.id));
 
-        // GNOME: one empty workspace after the last one
-        ids.push(ids.length ? ids[ids.length - 1] + 1 : 1);
-        return ids;
+        for (const toplevel of Hyprland.toplevels.values) {
+            const id = overview.workspaceOf(toplevel);
+
+            if (id > 0)
+                ids.add(id);
+        }
+        if (overview.activeWorkspace > 0)
+            ids.add(overview.activeWorkspace);
+        const sorted = [...ids].sort((a, b) => a - b);
+
+        sorted.push(sorted.length ? sorted[sorted.length - 1] + 1 : 1);
+        return sorted;
     }
     readonly property int activeWorkspace: overview.monitor && overview.monitor.activeWorkspace
         ? overview.monitor.activeWorkspace.id : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1)
@@ -115,8 +126,16 @@ Item {
 
     onResultsChanged: selected = 0
 
+    function workspaceOf(toplevel) {
+        if (toplevel.workspace)
+            return toplevel.workspace.id;
+        const ipc = toplevel.lastIpcObject;
+
+        return ipc && ipc.workspace ? ipc.workspace.id : 0;
+    }
+
     function windowsOf(id) {
-        return Hyprland.toplevels.values.filter(t => t.workspace && t.workspace.id === id);
+        return Hyprland.toplevels.values.filter(t => overview.workspaceOf(t) === id);
     }
 
     function icon(name) {
@@ -158,7 +177,7 @@ Item {
     function moveDragged(id) {
         if (overview.dragged)
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${id}, window = "address:${address(overview.dragged)}" })`);
-        refresh.restart();
+        refresh.start();
     }
 
     function launch(entry) {
@@ -277,8 +296,19 @@ Item {
         onFinished: overview.hidden()
     }
 
+    // workspaces first, then the windows (quickshell 0.2 crashes on a window of an unknown workspace)
     Timer {
         id: refresh
+
+        interval: 120
+        onTriggered: {
+            Hyprland.refreshWorkspaces();
+            refreshWindows.restart();
+        }
+    }
+
+    Timer {
+        id: refreshWindows
 
         interval: 120
         onTriggered: Hyprland.refreshToplevels()
@@ -556,7 +586,7 @@ Item {
         IconImage {
             anchors.centerIn: parent
             implicitSize: 44
-            source: overview.iconOf(overview.dragged)
+            source: overview.dragged ? overview.iconOf(overview.dragged) : ""
         }
     }
 
