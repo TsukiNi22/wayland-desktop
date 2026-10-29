@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Low level desktop</title>
+    <link rel="stylesheet" href="kit/kit.css">
+    <style>
+        /* ===== Tokens ===== */
+
+        :root {
+            --k-accent: #39ff88;
+            --amber: #ffb000;
+            --cyan: #4fd1ff;
+            --red: #ff4f5e;
+            --dim: #2f7a4f;
+            --k-font: "Adwaita Mono", "JetBrains Mono", "Fira Code", monospace;
+            --k-size: 12px;
+            --k-bg: rgba(6, 14, 9, 0.94);
+            --k-bar: #0a1d12;
+            --k-line: #1c4a2e;
+            --k-text: #b8f5cf;
+            --k-muted: var(--dim);
+            --k-accent-text: #040705;
+            --k-hover: rgba(57, 255, 136, 0.07);
+            --k-input: #020403;
+            --k-page: #040805;
+            --k-term: #020403;
+            --k-radius: 0;
+            --k-radius-small: 0;
+            --k-shadow: 0 0 0 1px #000, 0 0 30px rgba(57, 255, 136, 0.06);
+            --k-t-user: var(--amber);
+            --k-t-dir: var(--cyan);
+            --k-glow-2: var(--cyan);
+            --k-open: k-fade;
+            --k-open-time: 0.12s;
+            --k-lock-bg: #000;
+            --k-lock-blur: none;
+        }
+
+        body {
+            background: #040705;
+        }
+
+        body.wall-amber {
+            --k-accent: #ffb000;
+            --k-text: #ffe2a8;
+            --k-line: #4a3a12;
+            --k-bar: #1d160a;
+            --dim: #7a5f2f;
+        }
+
+        .desk {
+            --area-top: 26px;
+            --area-bottom: 24px;
+        }
+
+        /* ===== Background hex dump + scanlines ===== */
+
+        .dump {
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            padding: 0 20px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: color-mix(in srgb, var(--k-accent) 14%, #040705);
+            white-space: pre;
+            animation: scroll 120s linear infinite;
+        }
+
+        @keyframes scroll {
+            to { transform: translateY(-50%); }
+        }
+
+        .scanlines {
+            position: fixed;
+            inset: 0;
+            z-index: 8500;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+        }
+
+        /* ===== Window skin ===== */
+
+        .win-bar {
+            height: 22px;
+            padding: 0 6px;
+            font-weight: 400;
+            color: var(--k-accent);
+        }
+
+        .win-bar::before {
+            content: "[";
+            color: var(--dim);
+        }
+
+        .win-title::after {
+            content: "]";
+            color: var(--dim);
+        }
+
+        .win-ctl button {
+            width: auto;
+            height: auto;
+            padding: 0 2px;
+            color: var(--dim);
+            line-height: 1;
+        }
+
+        .win.is-active {
+            border-color: var(--k-accent);
+            box-shadow: 0 0 0 1px #000, 0 0 30px color-mix(in srgb, var(--k-accent) 20%, transparent);
+        }
+
+        .win-body {
+            padding: 8px 10px;
+        }
+
+        #code, #reg-view, #mem-view, #stack-view, #out-view {
+            white-space: pre;
+        }
+
+        .g { color: var(--k-accent); }
+        .a { color: var(--amber); }
+        .c { color: var(--cyan); }
+        .r { color: var(--red); }
+        .d { color: var(--dim); }
+
+        /* ===== Bars ===== */
+
+        .topbar, .status {
+            position: absolute;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 0 12px;
+            background: #020403;
+            z-index: 1000;
+        }
+
+        .topbar {
+            top: 0;
+            height: 26px;
+            border-bottom: 1px solid var(--k-line);
+        }
+
+        .status {
+            bottom: 0;
+            height: 24px;
+            border-top: 1px solid var(--k-line);
+            color: var(--dim);
+        }
+
+        .ring {
+            padding: 0 6px;
+            font-weight: 700;
+            color: #040705;
+            background: var(--k-accent);
+        }
+
+        .apps {
+            display: flex;
+            gap: 2px;
+        }
+
+        .apps button {
+            padding: 0 6px;
+            color: var(--dim);
+        }
+
+        .apps button:hover, .apps button.is-open {
+            color: var(--k-accent);
+        }
+
+        .apps button.is-open::before {
+            content: "*";
+        }
+
+        .right {
+            margin-left: auto;
+            display: flex;
+            gap: 18px;
+        }
+
+        .task {
+            color: var(--dim);
+        }
+
+        .task.is-active {
+            color: var(--k-accent);
+        }
+
+        /* ===== Debugger ===== */
+
+        .dbg-ctl {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            white-space: normal;
+        }
+
+        .dbg-ctl button {
+            padding: 1px 8px;
+            color: var(--k-accent);
+            border: 1px solid var(--k-line);
+        }
+
+        .dbg-ctl button:hover {
+            color: #040705;
+            background: var(--k-accent);
+        }
+
+        .ins {
+            position: relative;
+            display: block;
+            padding-left: 14px;
+            cursor: pointer;
+        }
+
+        .ins:hover {
+            background: var(--k-hover);
+        }
+
+        .ins.bp::before {
+            content: "●";
+            position: absolute;
+            left: 0;
+            color: var(--red);
+        }
+
+        .ins.pc {
+            background: color-mix(in srgb, var(--k-accent) 14%, transparent);
+            outline: 1px solid color-mix(in srgb, var(--k-accent) 40%, transparent);
+        }
+
+        .ins.pc .addr::before {
+            content: "=> ";
+            color: var(--k-accent);
+        }
+
+        .changed {
+            color: var(--amber);
+        }
+
+        .flags {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .flags span {
+            padding: 0 4px;
+            color: var(--dim);
+            border: 1px solid var(--k-line);
+        }
+
+        .flags .on {
+            color: #040705;
+            background: var(--k-accent);
+            border-color: var(--k-accent);
+        }
+
+        .byte {
+            cursor: pointer;
+        }
+
+        .byte:hover, .byte.sel {
+            color: #040705;
+            background: var(--cyan);
+        }
+
+        .byte.var {
+            color: #040705;
+            background: var(--amber);
+        }
+
+        /* ===== Binary clock ===== */
+
+        .bin {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 6px 0 2px;
+        }
+
+        .bin .col {
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 5px;
+        }
+
+        .bin .col:nth-child(3), .bin .col:nth-child(5) {
+            margin-left: 8px;
+        }
+
+        .bin i {
+            width: 14px;
+            height: 14px;
+            border: 1px solid var(--k-line);
+        }
+
+        .bin i.on {
+            background: var(--k-accent);
+            border-color: var(--k-accent);
+            box-shadow: 0 0 8px var(--k-accent);
+        }
+
+        .blink {
+            animation: blink 1s steps(1) infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* ===== Lock: firmware prompt ===== */
+
+        .lock {
+            place-items: start;
+            padding: 6vh 6vw;
+            font: 15px/1.7 var(--k-font);
+            color: var(--k-accent);
+        }
+
+        .lock-inner {
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .lock pre {
+            margin: 0;
+            font: inherit;
+        }
+
+        .lock .lock-input {
+            width: 320px;
+            padding: 0;
+            font: inherit;
+            text-align: left;
+            color: var(--k-accent);
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            caret-color: var(--k-accent);
+        }
+
+        .lock .lock-hint {
+            opacity: 1;
+            color: var(--dim);
+        }
+
+        .b-home pre {
+            margin: 0;
+            color: var(--k-accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="desk">
+        <pre class="dump" id="dump" aria-hidden="true"></pre>
+
+        <header class="topbar">
+            <span class="ring">RING 3</span>
+            <nav class="apps">
+                <button data-app="disasm">disasm</button><button data-app="regs">regs</button><button data-app="mem">mem</button>
+                <button data-app="stack">stack</button><button data-app="out">out</button><button data-app="files">files</button>
+                <button data-app="browser">web</button><button data-app="terminal">term</button><button data-app="music">music</button>
+                <button data-app="settings">cfg</button><button data-app="launcher">run…</button>
+            </nav>
+            <div class="right">
+                <span>pid <span class="g">4242</span></span>
+                <span>t=<span class="a" data-clock="hex"></span></span>
+                <span data-clock="hms"></span>
+            </div>
+        </header>
+
+        <section class="win" id="disasm" data-title="disasm &lt;main&gt; ./a.out" style="left: 16px; top: 40px; width: 600px; height: 470px">
+            <div class="dbg-ctl"><button data-dbg="si" title="Step one instruction">si</button><button data-dbg="c" title="Continue to the next breakpoint">continue</button><button data-dbg="reset">reset</button><span class="d">click a line = breakpoint</span></div>
+            <div id="code"></div>
+        </section>
+
+        <section class="win" id="regs" data-title="regs thread 1" style="left: 630px; top: 40px; width: 330px">
+            <div id="reg-view"></div>
+        </section>
+
+        <section class="win" id="mem" data-title="mem stack frame" style="left: 16px; top: 528px; width: 640px">
+            <div id="mem-view"></div>
+        </section>
+
+        <section class="win" id="stack" data-title="stack" style="left: 674px; top: 528px; width: 286px">
+            <div id="stack-view"></div>
+        </section>
+
+        <section class="win" id="out" data-title="stdout + strace" style="left: calc(100% - 500px); top: 250px; width: 480px; height: 260px">
+            <div id="out-view"></div>
+        </section>
+
+        <section class="win" id="clock" data-title="clock bcd" style="left: calc(100% - 250px); top: 40px; width: 230px">
+            <div class="bin" id="binclock"></div>
+            <div class="d" style="text-align: center">h h  m m  s s</div>
+        </section>
+
+        <footer class="status">
+            <span class="g">(gdb)</span>
+            <span id="last">ready</span>
+            <span>bp <span class="r" id="bp-count">1</span></span>
+            <span>rip <span class="g" id="rip">0x401126</span></span>
+            <span>endian <span class="g">little</span></span>
+            <div class="right"><div data-kit="tasks" style="display: flex; gap: 10px"></div></div>
+        </footer>
+    </div>
+    <div class="scanlines"></div>
+
+    <script src="kit/kit.js"></script>
+    <script>
+        // ===== Program: a tiny loop printing 0..8, executed by a fake CPU =====
+
+        const hex = (value, width = 16) => `0x${value.toString(16).padStart(width, "0")}`;
+        const BASE_RSP = 0x7ffd3c2a1d38;
+        const PROGRAM = [
+            {at: 0x401126, bytes: "55", op: "push", args: "rbp", run: (s) => (s.rsp -= 8)},
+            {at: 0x401127, bytes: "48 89 e5", op: "mov", args: "rbp, rsp", run: (s) => (s.rbp = s.rsp)},
+            {at: 0x40112a, bytes: "48 83 ec 20", op: "sub", args: "rsp, <a>0x20</a>", run: (s) => (s.rsp -= 0x20)},
+            {at: 0x40112e, bytes: "89 7d ec", op: "mov", args: "DWORD PTR [rbp-<a>0x14</a>], edi", run: (s) => (s.argc = s.rdi)},
+            {at: 0x401131, bytes: "48 89 75 e0", op: "mov", args: "QWORD PTR [rbp-<a>0x20</a>], rsi", run: (s) => (s.argv = s.rsi)},
+            {at: 0x401135, bytes: "c7 45 fc 00 00 00 00", op: "mov", args: "DWORD PTR [rbp-<a>0x4</a>], <a>0x0</a>", run: (s) => (s.i = 0)},
+            {at: 0x40113c, bytes: "eb 18", op: "jmp", args: "<c>0x401156</c>", branch: true, run: () => 0x401156},
+            {at: 0x40113e, bytes: "8b 45 fc", op: "mov", args: "eax, DWORD PTR [rbp-<a>0x4</a>]", run: (s) => (s.rax = s.i)},
+            {at: 0x401141, bytes: "89 c6", op: "mov", args: "esi, eax", run: (s) => (s.rsi = s.rax)},
+            {at: 0x401143, bytes: "bf 10 20 40 00", op: "mov", args: "edi, <a>0x402010</a>  <d>; \"%d\\n\"</d>", run: (s) => (s.rdi = 0x402010)},
+            {at: 0x401148, bytes: "b8 00 00 00 00", op: "mov", args: "eax, <a>0x0</a>", run: (s) => (s.rax = 0)},
+            {at: 0x40114d, bytes: "e8 de fe ff ff", op: "call", args: "<c>0x401030</c> <d>&lt;printf@plt&gt;</d>", run: (s) => printf(s)},
+            {at: 0x401152, bytes: "83 45 fc 01", op: "add", args: "DWORD PTR [rbp-<a>0x4</a>], <a>0x1</a>", run: (s) => (s.i += 1)},
+            {at: 0x401156, bytes: "83 7d fc 09", op: "cmp", args: "DWORD PTR [rbp-<a>0x4</a>], <a>0x9</a>", run: (s) => Object.assign(s.flags, {ZF: s.i === 9, SF: s.i < 9, CF: s.i < 9, PF: s.i % 2 === 0})},
+            {at: 0x40115a, bytes: "7e e2", op: "jle", args: "<c>0x40113e</c>", branch: true, run: (s) => (s.flags.ZF || s.flags.SF ? 0x40113e : undefined)},
+            {at: 0x40115c, bytes: "b8 00 00 00 00", op: "mov", args: "eax, <a>0x0</a>", run: (s) => (s.rax = 0)},
+            {at: 0x401161, bytes: "c9", op: "leave", args: "", run: (s) => ((s.rsp = s.rbp + 8), (s.rbp = 0x7ffd3c2a1d50))},
+            {at: 0x401162, bytes: "c3", op: "ret", args: "", branch: true, run: (s) => exit_program(s)},
+        ];
+        const REGS = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "rip"];
+        const breakpoints = new Set([0x40113e]);
+        let cpu = null;
+        let previous = {};
+
+        function fresh_cpu()
+        {
+            return {
+                rax: 0x401126, rbx: 0x7ffd3c2a1e48, rcx: 0x403e18, rdx: 0x7ffd3c2a1e58, rsi: 0x7ffd3c2a1e48, rdi: 1,
+                rbp: 0x7ffd3c2a1d50, rsp: BASE_RSP, rip: 0x401126, i: null, argc: null, argv: null, done: false,
+                flags: {CF: false, PF: true, AF: false, ZF: true, SF: false, TF: false, IF: true, DF: false, OF: false},
+            };
+        }
+
+        function printf(state)
+        {
+            out(`<span class="g">${state.rsi}</span>`);
+            out(`<span class="c">write</span>(1, <span class="g">"${state.rsi}\\n"</span>, 2) = <span class="a">2</span>`);
+            state.rax = 2;
+        }
+
+        function exit_program(state)
+        {
+            state.done = true;
+            out("<span class=\"c\">exit_group</span>(0) = ?\n<span class=\"a\">[Inferior 1 (process 4242) exited normally]</span>");
+            Kit.notify("Process exited", "a.out returned 0 · reset to run it again", "⏏");
+            return state.rip;
+        }
+
+        function out(markup)
+        {
+            const view = document.getElementById("out-view");
+
+            view.insertAdjacentHTML("beforeend", `${markup}\n`);
+            view.parentElement.scrollTop = view.parentElement.scrollHeight;
+        }
+
+        function step()
+        {
+            const index = PROGRAM.findIndex((ins) => ins.at === cpu.rip);
+            const ins = PROGRAM[index];
+            let target;
+
+            if (cpu.done || !ins)
+                return false;
+            previous = {...cpu, flags: {...cpu.flags}};
+            target = ins.run(cpu);
+            cpu.rip = ins.branch && typeof target === "number" ? target : PROGRAM[index + 1]?.at ?? cpu.rip;
+            return true;
+        }
+
+        function run_command(name)
+        {
+            if (name === "si") {
+                step();
+            } else if (name === "c") {
+                for (let count = 0; step() && count < 500 && !breakpoints.has(cpu.rip); ++count)
+                    ;
+            } else if (name === "reset") {
+                cpu = fresh_cpu();
+                previous = {};
+                document.getElementById("out-view").textContent = "";
+                out("<span class=\"d\">$ ./a.out</span>");
+            }
+            document.getElementById("last").textContent = name === "c" ? `continue → ${hex(cpu.rip, 6)}` : name;
+            render();
+        }
+
+        // ===== Views =====
+
+        function render_code()
+        {
+            document.getElementById("code").innerHTML = PROGRAM.map((ins) => {
+                const args = ins.args.replace(/<a>/g, "<span class=\"a\">").replace(/<c>/g, "<span class=\"c\">").replace(/<d>/g, "<span class=\"d\">").replace(/<\/[acd]>/g, "</span>");
+                const op_class = ["call", "ret"].includes(ins.op) ? "r" : ins.op.startsWith("j") ? "a" : "c";
+                const classes = `ins${ins.at === cpu.rip && !cpu.done ? " pc" : ""}${breakpoints.has(ins.at) ? " bp" : ""}`;
+
+                return `<span class="${classes}" data-at="${ins.at}"><span class="addr d">${hex(ins.at, 6)}</span>  <span class="d">${ins.bytes.padEnd(21)}</span> <span class="${op_class}">${ins.op.padEnd(6)}</span> ${args}</span>`;
+            }).join("");
+            document.getElementById("bp-count").textContent = breakpoints.size;
+            document.getElementById("rip").textContent = hex(cpu.rip, 6);
+        }
+
+        function render_regs()
+        {
+            const lines = REGS.map((reg) => {
+                const changed = previous[reg] !== undefined && previous[reg] !== cpu[reg];
+
+                return `${reg.padEnd(4)} <span class="${changed ? "changed" : "g"}">${hex(cpu[reg])}</span>${changed ? " <span class=\"d\">*</span>" : ""}`;
+            });
+
+            document.getElementById("reg-view").innerHTML = lines.join("\n")
+                + `\n<div class="flags">${Object.entries(cpu.flags).map(([flag, on]) => `<span class="${on ? "on" : ""}">${flag}</span>`).join("")}</div>`;
+        }
+
+        function render_mem()
+        {
+            const base = 0x7ffd3c2a1d10;
+            const bytes = new Array(64).fill(0);
+            const put = (offset, value, size) => {
+                for (let i = 0; i < size; ++i)
+                    bytes[offset + i] = Math.floor(value / 256 ** i) % 256;
+            };
+            let html = "<span class=\"d\">address           00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f  ascii</span>\n";
+
+            // frame (rbp = base + 0x20): argv at rbp-0x20, argc at rbp-0x14, i at rbp-0x4, saved rbp, return address
+            if (cpu.argv !== null)
+                put(0x00, cpu.argv, 8);
+            if (cpu.argc !== null)
+                put(0x0c, cpu.argc, 4);
+            if (cpu.i !== null)
+                put(0x1c, cpu.i, 4);
+            put(0x20, 0x7ffd3c2a1d50, 8);
+            put(0x28, 0x7f1e4c2c924a, 8);
+            for (let line = 0; line < 4; ++line) {
+                const row = bytes.slice(line * 16, line * 16 + 16);
+                const cells = row.map((byte, index) => {
+                    const offset = line * 16 + index;
+                    const is_var = offset >= 0x1c && offset < 0x20 && cpu.i !== null;
+
+                    return `<span class="byte${is_var ? " var" : ""}" data-addr="${base + offset}">${byte.toString(16).padStart(2, "0")}</span>${index === 7 ? " " : ""}`;
+                }).join(" ");
+                const ascii = row.map((byte) => (byte >= 32 && byte < 127 ? String.fromCharCode(byte) : ".")).join("");
+
+                html += `<span class="c">${hex(base + line * 16, 12).slice(2)}</span>  ${cells}  <span class="d">${Kit.esc(ascii)}</span>\n`;
+            }
+            document.getElementById("mem-view").innerHTML = `${html}<span class="d">amber = i (rbp-0x4) · click a byte</span>`;
+        }
+
+        function render_stack()
+        {
+            const value = (v) => (v === null ? "<span class=\"d\">??</span>" : `<span class="a">${v}</span>`);
+
+            document.getElementById("stack-view").innerHTML = "<span class=\"d\">#0</span> <span class=\"g\">main</span>      <span class=\"d\">a.c:4</span>\n"
+                + "<span class=\"d\">#1</span> __libc_start_call_main\n<span class=\"d\">#2</span> __libc_start_main\n<span class=\"d\">#3</span> _start\n\n"
+                + `<span class="d">rbp-0x04</span>  i    = ${value(cpu.i)}\n<span class="d">rbp-0x14</span>  argc = ${value(cpu.argc)}\n`
+                + `<span class="d">rbp-0x20</span>  argv = ${cpu.argv === null ? value(null) : `<span class="c">${hex(cpu.argv, 12)}</span>`}`;
+        }
+
+        function render()
+        {
+            render_code();
+            render_regs();
+            render_mem();
+            render_stack();
+        }
+
+        document.getElementById("disasm").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-dbg]");
+            const line = event.target.closest(".ins");
+
+            if (button) {
+                run_command(button.dataset.dbg);
+            } else if (line) {
+                const at = Number(line.dataset.at);
+
+                if (breakpoints.has(at))
+                    breakpoints.delete(at);
+                else
+                    breakpoints.add(at);
+                render_code();
+            }
+        });
+        document.getElementById("mem").addEventListener("click", (event) => {
+            const byte = event.target.closest(".byte");
+
+            if (!byte)
+                return;
+            document.querySelectorAll(".byte.sel").forEach((other) => other.classList.remove("sel"));
+            byte.classList.add("sel");
+            document.getElementById("last").textContent = `x/1xb ${hex(Number(byte.dataset.addr), 12)} = 0x${byte.textContent}`;
+        });
+
+        // ===== Kit =====
+
+        const CHIP = [60, 62, 63, 65, 67, 68, 70, 72, 74, 75, 77, 79, 80, 82, 84, 86];
+
+        Kit.init({
+            name: "Dev / low level", user: "tsukini", host: "ring3",
+            desktop: ["disasm", "regs", "mem", "stack", "out", "clock"],
+            scenes: {terminal: ["terminal", "regs", "out"]},
+            chrome: {min: "[_]", max: "[□]", close: "[x]"},
+            icons: {dir: "▣", text: "≡", code: "⌘", image: "▨", audio: "♪", doc: "▤", archive: "▦", files: "▣", browser: "◎", terminal: "&gt;_", music: "♪", settings: "⚙", viewer: "▨", lock: "⊘"},
+            accents: ["#39ff88", "#ffb000", "#4fd1ff", "#ff4f5e"],
+            wallpapers: [{label: "Phosphor", cls: ""}, {label: "Amber CRT", cls: "wall-amber"}],
+            toggles: [{label: "Scanlines", key: "scan", on: true, run: (value) => (document.querySelector(".scanlines").style.display = value ? "" : "none")}],
+            tracks: [
+                {title: "Stack Overflow", artist: "8-bit ABI", bpm: 150, wave: "square", gain: 0.07, scale: CHIP,
+                    lead: "0.4.7.b.7.4.0.4.5.9.c.9.5.9.7.4.0.4.7.b.e.b.7.b.c---a---9-------", bass: "0.0.7.7.5.5.4.4.", drums: "k.h.s.h.k.k.s.h."},
+                {title: "Segfault Blues", artist: "8-bit ABI", bpm: 108, wave: "triangle", gain: 0.2, scale: CHIP,
+                    lead: "4---7-9-a-9-7---4---2-0-2-4-------7---9-b-c-b-9---7-4-2-4-0-------", bass: "0-------3-------5-------4-------", drums: "k...s...k.k.s..."},
+            ],
+            lock: {
+                html: "<pre>POC-BIOS v4.0  (C) 2026 ring3 firmware\nCPU: x86_64 · 8 cores @ 3.80 GHz\nMemory test: 33554432 KB OK\n\nSystem locked. Enter the passphrase to resume the session.\n</pre>"
+                    + "<pre>passphrase&gt; <input class=\"lock-input\" type=\"password\" autocomplete=\"off\"><span class=\"blink\">█</span></pre>"
+                    + "<pre class=\"lock-hint\">(any passphrase · Enter)</pre>",
+                welcome: "Session resumed",
+            },
+            browser: {
+                engine: "grep://web",
+                hero: "<pre>  ___  ___  ___ ___\n | _ \\/ _ \\/ __| _ \\\n |  _/ (_) | (_| __/\n |_|  \\___/ \\___|_|   web</pre>",
+                wiki: {title: "x86-64 calling convention", body: [["Arguments", "rdi, rsi, rdx, rcx, r8, r9 carry the first six integer arguments; rax returns the value."], ["Stack", "The stack grows down and must be 16-byte aligned before a call."]]},
+                news: {title: "New microcode fixes a rare cache bug", lead: "The update lands in linux-firmware this week.", body: ["Only a narrow family of CPUs is affected.", "Run journalctl -k | grep microcode to check the loaded revision."]},
+            },
+            terminal: {
+                prompt: (term, path) => `<span class="t-user">[${Kit.esc(path)}]</span><span class="t-accent">#</span> `,
+                motd: "ring3 debug shell · <span class=\"t-accent\">si</span> <span class=\"t-accent\">c</span> <span class=\"t-accent\">regs</span> <span class=\"t-accent\">b 0x401152</span> <span class=\"t-accent\">xxd file</span> <span class=\"t-accent\">base 255</span>",
+                logo: " .-------.\n | 01001 |\n | 10110 |\n | 0x2A  |\n '-------'",
+                palette: ["#39ff88", "#ffb000", "#4fd1ff", "#ff4f5e", "#2f7a4f", "#b8f5cf"],
+                commands: {
+                    si: () => (run_command("si"), `rip = ${hex(cpu.rip, 6)}`),
+                    c: () => (run_command("c"), `stopped at ${hex(cpu.rip, 6)}${cpu.done ? " (exited)" : ""}`),
+                    reset: () => (run_command("reset"), "program restarted"),
+                    regs: () => REGS.map((reg) => `${reg.padEnd(4)} ${hex(cpu[reg])}`).join("\n"),
+                    b: (args) => {
+                        const at = Number(args[0]);
+
+                        if (!PROGRAM.some((ins) => ins.at === at))
+                            return "<span class=\"t-err\">no instruction at that address</span>";
+                        breakpoints.add(at);
+                        render_code();
+                        return `Breakpoint ${breakpoints.size} at ${hex(at, 6)}`;
+                    },
+                    xxd: (args, term) => {
+                        const node = Kit.fs.get(Kit.fs.resolve(term.cwd, args[0] ?? ""));
+                        const bytes = [...new TextEncoder().encode(node?.content ?? "")].slice(0, 160);
+
+                        if (!node?.content)
+                            return "<span class=\"t-err\">xxd: no text file</span>";
+                        return Array.from({length: Math.ceil(bytes.length / 16)}, (_, line) => {
+                            const row = bytes.slice(line * 16, line * 16 + 16);
+                            const ascii = row.map((byte) => (byte >= 32 && byte < 127 ? String.fromCharCode(byte) : ".")).join("");
+
+                            return `<span class="t-dir">${(line * 16).toString(16).padStart(8, "0")}</span>: ${row.map((byte) => byte.toString(16).padStart(2, "0")).join(" ").padEnd(47)}  ${Kit.esc(ascii)}`;
+                        }).join("\n");
+                    },
+                    base: (args) => {
+                        const value = Number(args[0]);
+
+                        return Number.isFinite(value) ? `dec ${value}\nhex 0x${value.toString(16)}\noct 0o${value.toString(8)}\nbin 0b${value.toString(2)}` : "usage: base <number>";
+                    },
+                },
+            },
+            context: [{label: "si (step)", run: () => run_command("si")}, {label: "continue", run: () => run_command("c")}],
+        });
+
+        cpu = fresh_cpu();
+        out("<span class=\"d\">$ gdb ./a.out · break *0x40113e · run</span>");
+        render();
+
+        // ===== Background dump + binary clock =====
+
+        const random_byte = () => Math.floor(Math.random() * 256);
+        const lines = Array.from({length: 160}, (_, index) => {
+            const bytes = Array.from({length: 16}, random_byte);
+
+            return `${(0x400000 + index * 16).toString(16).padStart(8, "0")}  ${bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ")}   ${bytes.slice(0, 4).map((b) => b.toString(2).padStart(8, "0")).join(" ")}`;
+        });
+        const clock = document.getElementById("binclock");
+
+        document.getElementById("dump").textContent = lines.concat(lines).join("\n");
+        for (const count of [2, 4, 3, 4, 3, 4])
+            clock.insertAdjacentHTML("beforeend", `<div class="col">${"<i></i>".repeat(count)}</div>`);
+        (function update_binary_clock()
+        {
+            const now = new Date();
+            const digits = [now.getHours(), now.getMinutes(), now.getSeconds()].flatMap((value) => [Math.floor(value / 10), value % 10]);
+
+            clock.querySelectorAll(".col").forEach((column, index) => {
+                column.querySelectorAll("i").forEach((led, bit) => led.classList.toggle("on", ((digits[index] >> bit) & 1) === 1));
+            });
+            setTimeout(update_binary_clock, 1000);
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ado blue rose</title>
+    <link rel="stylesheet" href="kit/kit.css">
+    <style>
+        /* ===== Tokens: Ado's blue (the blue rose = wishes come true) ===== */
+
+        :root {
+            --k-accent: #2f6bff;
+            --ice: #9fc3ff;
+            --night: #050814;
+            --ink: #04060f;
+            --k-font: "Noto Sans CJK JP", "Adwaita Sans", system-ui, sans-serif;
+            --k-size: 14px;
+            --k-bg: rgba(8, 14, 34, 0.78);
+            --k-bar: transparent;
+            --k-line: rgba(159, 195, 255, 0.18);
+            --k-text: #eaf1ff;
+            --k-muted: #8ea3cc;
+            --k-accent-text: #fff;
+            --k-hover: rgba(159, 195, 255, 0.08);
+            --k-input: rgba(159, 195, 255, 0.07);
+            --k-page: rgba(6, 10, 26, 0.94);
+            --k-term: rgba(4, 6, 16, 0.94);
+            --k-radius: 18px;
+            --k-radius-small: 10px;
+            --k-blur: blur(18px);
+            --k-glow-1: var(--k-accent);
+            --k-glow-2: var(--ice);
+            --k-viz: linear-gradient(var(--ice), var(--k-accent));
+            --k-t-user: var(--ice);
+            --k-lock-bg: linear-gradient(90deg, rgba(5, 8, 20, 0.92) 0%, rgba(5, 8, 20, 0.55) 45%, rgba(5, 8, 20, 0.1) 100%), url("assets/rose-dew.jpg") center / cover;
+            --k-lock-blur: none;
+            --scenebar-bottom: 14px;
+        }
+
+        body {
+            background:
+                linear-gradient(90deg, var(--night) 0%, rgba(5, 8, 20, 0.92) 38%, rgba(5, 8, 20, 0.35) 75%, rgba(5, 8, 20, 0.6) 100%),
+                url("assets/rose-dew.jpg") right center / cover no-repeat,
+                var(--night);
+        }
+
+        /* Uta (One Piece Film Red): red and white */
+        body.wall-uta {
+            --k-accent: #e0303f;
+            --ice: #ffd9dc;
+            background:
+                radial-gradient(ellipse at 70% 40%, rgba(224, 48, 63, 0.45), transparent 60%),
+                linear-gradient(115deg, #fff4f4 0 18%, #160608 18% 100%);
+        }
+
+        body.wall-stem {
+            background:
+                linear-gradient(90deg, var(--night) 0%, rgba(5, 8, 20, 0.85) 40%, rgba(5, 8, 20, 0.2) 100%),
+                url("assets/rose-stem.jpg") 85% center / auto 100% no-repeat,
+                #e9e1d6;
+        }
+
+        .desk {
+            --area-top: 52px;
+            --area-bottom: 86px;
+        }
+
+        /* ===== Window skin ===== */
+
+        .win-bar {
+            height: 38px;
+            padding: 0 12px 0 18px;
+            border-bottom: 0;
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ice);
+        }
+
+        .win-ctl button {
+            border-radius: 50%;
+        }
+
+        /* ===== Decor: thorns, roses, petals, silhouette ===== */
+
+        .thorns {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+
+        .thorns path.vine {
+            fill: none;
+            stroke: #0b1736;
+            stroke-width: 5;
+            stroke-linecap: round;
+            stroke-dasharray: 1400;
+            stroke-dashoffset: 1400;
+            animation: draw 4s ease-out forwards;
+        }
+
+        .thorns path.spike {
+            fill: #0b1736;
+            opacity: 0;
+            animation: appear 0.6s 3s forwards;
+        }
+
+        .thorns use {
+            opacity: 0;
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: bloom 0.8s var(--k-ease) forwards;
+        }
+
+        @keyframes draw {
+            to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes appear {
+            to { opacity: 1; }
+        }
+
+        @keyframes bloom {
+            from { opacity: 0; transform: scale(0) rotate(-90deg); }
+            to { opacity: 1; transform: scale(1) rotate(0); }
+        }
+
+        .rose-img {
+            position: absolute;
+            width: var(--s);
+            aspect-ratio: 1;
+            background: url("assets/rose-black.jpg") center / cover;
+            border-radius: 50%;
+            mix-blend-mode: screen;
+            cursor: pointer;
+            animation: turn 40s linear infinite;
+            transition: filter 0.2s;
+        }
+
+        .rose-img:hover {
+            filter: brightness(1.4) drop-shadow(0 0 12px var(--k-accent));
+        }
+
+        .rose-img.pop {
+            animation: pop 0.5s var(--k-ease);
+        }
+
+        @keyframes turn {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pop {
+            50% { transform: scale(1.4); }
+        }
+
+        .petal {
+            position: absolute;
+            top: -30px;
+            width: 14px;
+            height: 10px;
+            border-radius: 60% 0 60% 0;
+            background: linear-gradient(135deg, var(--ice), var(--k-accent));
+            opacity: 0.8;
+            pointer-events: none;
+            animation: petal linear infinite;
+        }
+
+        @keyframes petal {
+            to { transform: translate(80px, 110vh) rotate(540deg); }
+        }
+
+        .burst {
+            position: fixed;
+            width: 12px;
+            height: 9px;
+            border-radius: 60% 0 60% 0;
+            background: linear-gradient(135deg, var(--ice), var(--k-accent));
+            pointer-events: none;
+            z-index: 3000;
+            animation: burst 1s ease-out forwards;
+        }
+
+        @keyframes burst {
+            to { transform: translate(var(--x), var(--y)) rotate(400deg); opacity: 0; }
+        }
+
+        /* ===== Ado Box stage ===== */
+
+        .stage {
+            position: absolute;
+            left: 1.5vw;
+            top: 64px;
+            bottom: 86px;
+            width: 44vw;
+            overflow: hidden;
+            border-radius: 8px;
+            background: radial-gradient(ellipse at 50% 45%, var(--wall) 0%, var(--wall-edge) 80%);
+            --wall: #a3120c;
+            --wall-edge: #3a0303;
+            --box-light: #ff5a36;
+            --box-dark: #5a0606;
+            --box-glow: rgba(255, 60, 40, 0.55);
+            --sing: 1.6s;
+            -webkit-mask: radial-gradient(ellipse 75% 70% at 50% 55%, #000 60%, transparent 100%);
+            mask: radial-gradient(ellipse 75% 70% at 50% 55%, #000 60%, transparent 100%);
+            transition: filter 0.1s;
+        }
+
+        .stage.blue {
+            --wall: #0d2a8a;
+            --wall-edge: #030a26;
+            --box-light: #5e8dff;
+            --box-dark: #07164f;
+            --box-glow: rgba(47, 107, 255, 0.6);
+        }
+
+        .stage.pulse {
+            filter: brightness(1.25);
+        }
+
+        .marble {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transition: filter 0.6s;
+        }
+
+        .stage.blue .marble {
+            filter: hue-rotate(205deg) saturate(1.3);
+        }
+
+        .cage {
+            position: absolute;
+            left: 50%;
+            bottom: 2%;
+            height: 82%;
+            transform: translateX(-50%);
+            cursor: pointer;
+            filter: drop-shadow(0 0 34px var(--box-glow));
+        }
+
+        .cage rect[fill^="url"] {
+            animation: flicker 5s infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            47% { opacity: 1; }
+            48% { opacity: 0.82; }
+            49% { opacity: 1; }
+        }
+
+        .cage .leds circle {
+            fill: var(--box-light);
+            filter: drop-shadow(0 0 4px var(--box-light));
+        }
+
+        /* the singer: idle sway, bends backward with the mic raised while the music plays */
+        .singer .upper, .singer .head, .singer .arm {
+            transform-box: view-box;
+        }
+
+        .singer .upper {
+            transform-origin: 205px 370px;
+            animation: sway 4s ease-in-out infinite alternate;
+        }
+
+        .singer .head {
+            transform-origin: 206px 262px;
+        }
+
+        .singer .arm {
+            transform-origin: 220px 286px;
+        }
+
+        @keyframes sway {
+            from { transform: rotate(-2deg); }
+            to { transform: rotate(2deg); }
+        }
+
+        body.playing .singer .upper {
+            animation: lean var(--sing) ease-in-out infinite;
+        }
+
+        body.playing .singer .head {
+            animation: tilt var(--sing) ease-in-out infinite;
+        }
+
+        body.playing .singer .arm {
+            animation: raise var(--sing) ease-in-out infinite;
+        }
+
+        @keyframes lean {
+            0%, 100% { transform: rotate(0); }
+            45%, 60% { transform: rotate(-17deg); }
+        }
+
+        @keyframes tilt {
+            0%, 100% { transform: rotate(0); }
+            45%, 60% { transform: rotate(-14deg); }
+        }
+
+        @keyframes raise {
+            0%, 100% { transform: rotate(0); }
+            45%, 60% { transform: rotate(-22deg); }
+        }
+
+        .stage-ctl {
+            position: absolute;
+            left: 50%;
+            top: 4%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            border-radius: 999px;
+            background: rgba(5, 5, 5, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            z-index: 2;
+        }
+
+        .stage-ctl button {
+            padding: 3px 11px;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+
+        .stage-ctl button.is-on, .stage-ctl button:hover {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        .secret {
+            position: absolute;
+            left: 24vw;
+            top: 20vh;
+            padding: 6px 12px;
+            border-radius: 12px 12px 12px 2px;
+            font-size: 13px;
+            color: var(--ink);
+            background: #fff;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+            z-index: 6;
+        }
+
+        .secret.is-on {
+            opacity: 1;
+            transform: none;
+        }
+
+        .wish-rose {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            cursor: help;
+            filter: drop-shadow(0 0 8px var(--k-accent));
+            animation: bloom 0.9s var(--k-ease);
+        }
+
+        .sticker {
+            position: absolute;
+            font-size: 40px;
+            pointer-events: auto;
+            cursor: pointer;
+            user-select: none;
+            animation: pop 0.4s var(--k-ease);
+            z-index: 5;
+        }
+
+        body.sticker-mode .desk {
+            cursor: crosshair;
+        }
+
+        /* ===== Usseewa stamp ===== */
+
+        .stamp {
+            position: fixed;
+            left: 50%;
+            top: 42%;
+            z-index: 3500;
+            padding: 10px 30px;
+            font: 900 11vw/1 var(--k-font);
+            white-space: nowrap;
+            color: #fff;
+            border: 10px solid #fff;
+            text-shadow: -6px 0 0 #ff2a4a, 6px 0 0 var(--k-accent);
+            box-shadow: -6px 0 0 #ff2a4a, 6px 0 0 var(--k-accent);
+            transform: translate(-50%, -50%) scale(0);
+            pointer-events: none;
+        }
+
+        .stamp.go {
+            animation: stamp 1.5s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+        }
+
+        @keyframes stamp {
+            0% { transform: translate(-50%, -50%) scale(3) rotate(-14deg); opacity: 0; }
+            15% { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0.9) rotate(-8deg); opacity: 0; }
+        }
+
+        body.shouting .desk {
+            animation: shake 0.08s linear 10;
+        }
+
+        @keyframes shake {
+            25% { transform: translate(7px, -5px); }
+            75% { transform: translate(-7px, 5px); }
+        }
+
+        /* ===== Top bar + dock ===== */
+
+        .topbar {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            max-width: 92vw;
+            padding: 6px 18px;
+            border-radius: 999px;
+            background: rgba(8, 14, 34, 0.6);
+            border: 1px solid var(--k-line);
+            backdrop-filter: blur(14px);
+            z-index: 1000;
+        }
+
+        .brand {
+            font-weight: 800;
+            color: var(--ice);
+        }
+
+        .chip {
+            padding: 1px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 999px;
+            background: var(--k-accent);
+        }
+
+        .now {
+            max-width: 240px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: var(--k-muted);
+        }
+
+        .clock {
+            font-weight: 800;
+            font-size: 18px;
+            color: var(--ice);
+        }
+
+        .dock {
+            position: absolute;
+            left: 50%;
+            bottom: 14px;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(8, 14, 34, 0.62);
+            border: 1px solid var(--k-line);
+            backdrop-filter: blur(14px);
+            z-index: 1000;
+        }
+
+        .dock button {
+            position: relative;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            font-size: 22px;
+            background: var(--k-hover);
+            transition: transform 0.2s var(--k-ease);
+        }
+
+        .dock button:hover {
+            transform: translateY(-6px) scale(1.1);
+            background: color-mix(in srgb, var(--k-accent) 35%, transparent);
+        }
+
+        .dock button.is-open::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -4px;
+            width: 14px;
+            height: 3px;
+            margin-left: -7px;
+            border-radius: 2px;
+            background: var(--k-accent);
+        }
+
+        /* ===== Widgets ===== */
+
+        .big-btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 14px;
+            font: 900 30px var(--k-font);
+            color: #fff;
+            background: linear-gradient(100deg, #ff2a4a, var(--k-accent));
+            box-shadow: 0 5px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .big-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .count {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--k-muted);
+        }
+
+        .timeline {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .timeline li {
+            display: grid;
+            grid-template-columns: 46px 1fr auto;
+            gap: 10px;
+            align-items: baseline;
+            padding: 6px 8px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .timeline li:hover {
+            background: var(--k-hover);
+        }
+
+        .timeline b {
+            color: var(--ice);
+        }
+
+        .timeline small {
+            display: block;
+            color: var(--k-muted);
+        }
+
+        .timeline a {
+            font-size: 11px;
+            color: var(--k-muted);
+            text-decoration: none;
+        }
+
+        .timeline a:hover {
+            color: var(--ice);
+        }
+
+        .wish-form {
+            display: flex;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .wish-form input {
+            flex: 1;
+        }
+
+        .wish-list {
+            max-height: 120px;
+            margin: 0;
+            padding-left: 18px;
+            overflow: auto;
+            color: var(--k-muted);
+        }
+
+        .fact {
+            margin-top: 10px;
+            padding: 8px 10px;
+            font-size: 12px;
+            border-left: 3px solid var(--k-accent);
+            background: var(--k-hover);
+            border-radius: 0 10px 10px 0;
+        }
+
+        .stickers {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+        }
+
+        .stickers button {
+            padding: 6px 0;
+            font-size: 26px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+        }
+
+        .stickers button.is-on {
+            border-color: var(--k-accent);
+            background: var(--k-hover);
+        }
+
+        .kaomoji {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .kaomoji button {
+            padding: 4px 8px;
+            font-size: 13px;
+            border-radius: 8px;
+            background: var(--k-hover);
+        }
+
+        /* ===== Lock ===== */
+
+        .lock {
+            place-items: center start;
+            padding-left: 9vw;
+        }
+
+        .lock-inner {
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .lock-wish {
+            margin-top: 8px;
+            font: 600 22px var(--k-font);
+            color: var(--ice);
+        }
+
+        .lock-card {
+            align-items: flex-start;
+        }
+
+        .lock-avatar {
+            background: transparent;
+            border: 2px solid var(--ice);
+            font-size: 34px;
+        }
+
+        /* ===== Ado TV ===== */
+
+        #tv .win-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tv-screen {
+            flex: none;
+            position: relative;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            border-radius: 12px;
+            background: #000;
+        }
+
+        .tv-screen iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        .tv-poster {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 100%;
+            background: center / cover no-repeat #000;
+        }
+
+        .tv-go {
+            padding: 10px 20px;
+            border-radius: 999px;
+            font-weight: 700;
+            color: #fff;
+            text-decoration: none;
+            background: rgba(255, 0, 51, 0.88);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .tv-poster small {
+            padding: 2px 8px;
+            border-radius: 6px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        .tv-now {
+            font-size: 13px;
+        }
+
+        .tv-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tv-tabs button {
+            padding: 4px 12px;
+            font-size: 12px;
+            border-radius: 999px;
+            background: var(--k-hover);
+        }
+
+        .tv-tabs button.is-on {
+            background: var(--k-accent);
+        }
+
+        .tv-tabs button.live {
+            color: #ff6b81;
+        }
+
+        .tv-grid {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            align-content: start;
+            gap: 8px;
+            overflow: auto;
+        }
+
+        .tv-card {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 4px;
+            text-align: left;
+            font-size: 12px;
+            border-radius: 10px;
+        }
+
+        .tv-card:hover {
+            background: var(--k-hover);
+        }
+
+        .tv-card img {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        .tv-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            color: var(--k-text);
+            text-decoration: none;
+            background: var(--k-hover);
+        }
+
+        .tv-link span {
+            font-size: 20px;
+        }
+
+        /* ===== 3D roses (three.js) ===== */
+
+        #roses3d {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        body.has-3d .rose-img, body.has-3d .petal {
+            display: none;
+        }
+
+        /* the rose emoji is red: tint it blue where it stands for the blue rose */
+        .br, .sticker.is-rose, #sticker-grid [data-sticker="🌹"] {
+            display: inline-block;
+            filter: hue-rotate(215deg) saturate(1.6);
+        }
+
+        .credit {
+            position: absolute;
+            right: 12px;
+            bottom: 6px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            z-index: 1001;
+        }
+
+        .b-home .rose-hero {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font: 800 40px var(--k-font);
+            color: var(--ice);
+        }
+
+        .b-home .rose-hero span {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: url("assets/rose-black.jpg") center / cover;
+        }
+
+        .m-cover {
+            border-radius: 50%;
+            animation: spin-cover 8s linear infinite paused;
+        }
+
+        body.playing .m-cover {
+            animation-play-state: running;
+        }
+
+        @keyframes spin-cover {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="k-glow">
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+        <defs>
+            <linearGradient id="petal" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#cfe2ff"/>
+                <stop offset="1" stop-color="#1f4fd8"/>
+            </linearGradient>
+            <symbol id="rose" viewBox="-50 -50 100 100">
+                <g fill="url(#petal)" stroke="#0b1a4a" stroke-width="1.5">
+                    <ellipse rx="40" ry="22"/>
+                    <ellipse rx="40" ry="22" transform="rotate(60)"/>
+                    <ellipse rx="40" ry="22" transform="rotate(120)"/>
+                    <ellipse rx="28" ry="15" transform="rotate(30)"/>
+                    <ellipse rx="28" ry="15" transform="rotate(90)"/>
+                    <ellipse rx="28" ry="15" transform="rotate(150)"/>
+                </g>
+                <path d="M-12 0 a12 12 0 1 1 12 12 a7 7 0 1 1 -7 -7 a3 3 0 1 1 3 3" fill="none" stroke="#0b1a4a" stroke-width="2"/>
+            </symbol>
+        </defs>
+    </svg>
+
+    <div class="desk" id="desk">
+        <!-- Thorny vines growing from the corners -->
+        <svg class="thorns" style="left: 0; top: 0; width: 46vw; height: 40vh" viewBox="0 0 600 400" preserveAspectRatio="none">
+            <path class="vine" d="M0 300 C80 260 110 160 200 140 S340 160 380 80 S520 30 600 10"/>
+            <path class="spike" d="M95 238 l14 -16 l2 20 Z M210 140 l10 -18 l8 18 Z M330 128 l18 -8 l-6 18 Z M455 56 l14 -14 l2 20 Z"/>
+            <use href="#rose" x="168" y="112" width="56" height="56" style="animation-delay: 2.4s"/>
+            <use href="#rose" x="360" y="56" width="44" height="44" style="animation-delay: 3s"/>
+            <use href="#rose" x="560" y="-10" width="36" height="36" style="animation-delay: 3.6s"/>
+        </svg>
+        <svg class="thorns" style="right: 0; bottom: 0; width: 40vw; height: 34vh; transform: rotate(180deg)" viewBox="0 0 600 400" preserveAspectRatio="none">
+            <path class="vine" d="M0 300 C80 260 110 160 200 140 S340 160 380 80 S520 30 600 10"/>
+            <path class="spike" d="M95 238 l14 -16 l2 20 Z M210 140 l10 -18 l8 18 Z M330 128 l18 -8 l-6 18 Z"/>
+            <use href="#rose" x="168" y="112" width="50" height="50" style="animation-delay: 2.8s"/>
+            <use href="#rose" x="370" y="60" width="40" height="40" style="animation-delay: 3.3s"/>
+        </svg>
+
+        <!-- Clickable roses (photo, black removed with mix-blend) -->
+        <div id="roses"></div>
+
+        <!-- Ado Box: backlit cage on a marbled light wall, the silhouette sings inside (style of the live shows) -->
+        <div class="stage" id="stage">
+            <svg class="marble" viewBox="0 0 600 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                <filter id="marble" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.0035" numOctaves="2" seed="3" result="warp"/>
+                    <feTurbulence type="turbulence" baseFrequency="0.009 0.022" numOctaves="3" seed="9" result="lines">
+                        <animate attributeName="baseFrequency" dur="50s" values="0.009 0.022;0.012 0.016;0.009 0.022" repeatCount="indefinite"/>
+                    </feTurbulence>
+                    <feDisplacementMap in="lines" in2="warp" scale="140" xChannelSelector="R" yChannelSelector="G" result="swirl"/>
+                    <feColorMatrix in="swirl" type="matrix" values="0 0 0 0 1  0 0 0 0 0.42  0 0 0 0 0.12  -5.5 0 0 0 1.45"/>
+                </filter>
+                <rect width="600" height="700" filter="url(#marble)"/>
+            </svg>
+            <svg class="cage" id="cage" viewBox="0 0 400 560" aria-label="Ado Box, click it">
+                <defs>
+                    <radialGradient id="backlight" cx="52%" cy="48%" r="70%">
+                        <stop offset="0" stop-color="#fff4ea"/>
+                        <stop offset="0.3" style="stop-color: var(--box-light)"/>
+                        <stop offset="1" style="stop-color: var(--box-dark)"/>
+                    </radialGradient>
+                </defs>
+                <rect x="40" y="30" width="320" height="470" fill="url(#backlight)"/>
+                <g class="singer" fill="#050505">
+                    <path d="M195 380 L186 432 L180 490 M215 380 L228 432 L242 488" fill="none" stroke="#050505" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M166 494 C166 486 184 484 192 490 L192 497 L166 497 Z M232 492 C234 484 254 484 258 492 L258 496 L232 496 Z"/>
+                    <g class="upper">
+                        <path d="M184 280 C172 320 166 370 160 420 C176 428 200 426 212 418 C222 426 240 426 254 418 C246 372 238 322 228 278 Z"/>
+                        <path d="M186 288 C172 318 166 344 162 368" fill="none" stroke="#050505" stroke-width="14" stroke-linecap="round"/>
+                        <g class="head">
+                            <rect x="199" y="256" width="15" height="28" rx="4"/>
+                            <path d="M186 232 C176 262 172 300 170 350 C178 352 188 346 192 336 C194 310 198 284 204 262 Z"/>
+                            <ellipse cx="207" cy="241" rx="18" ry="21"/>
+                            <path d="M190 232 C190 214 206 206 220 214 C214 214 204 220 198 236 Z"/>
+                        </g>
+                        <g class="arm">
+                            <path d="M222 288 L247 258 L235 224" fill="none" stroke="#050505" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M235 224 L228 206" stroke="#050505" stroke-width="7" stroke-linecap="round"/>
+                            <circle cx="226" cy="200" r="7"/>
+                        </g>
+                    </g>
+                </g>
+                <g stroke="#050505" fill="none">
+                    <path d="M80 30 V500 M120 30 V500 M160 30 V500 M200 30 V500 M240 30 V500 M280 30 V500 M320 30 V500" stroke-width="6"/>
+                    <path d="M40 89 H360 M40 148 H360 M40 206 H360 M40 265 H360 M40 324 H360 M40 383 H360 M40 442 H360" stroke-width="6"/>
+                    <rect x="40" y="30" width="320" height="470" stroke-width="14"/>
+                </g>
+                <rect x="28" y="12" width="344" height="22" fill="#050505"/>
+                <rect x="20" y="500" width="360" height="44" fill="#050505"/>
+                <g class="leds"><circle cx="60" cy="522" r="3"/><circle cx="140" cy="522" r="3"/><circle cx="260" cy="522" r="3"/><circle cx="340" cy="522" r="3"/></g>
+            </svg>
+            <div class="stage-ctl" id="stage-ctl">
+                <button data-box="auto" title="Follows the song">auto</button>
+                <button data-box="red" title="Red light">🔴</button>
+                <button data-box="blue" title="Blue light">🔵</button>
+                <button data-tv title="Official videos and lives">📺 Ado TV</button>
+            </div>
+        </div>
+        <div class="secret" id="secret"></div>
+        <canvas id="roses3d"></canvas>
+
+        <header class="topbar">
+            <span class="brand"><span class="br">🌹</span> 青い薔薇</span>
+            <span class="chip" title="Ado's fans">Adomin</span>
+            <span class="now" id="now">♪ —</span>
+            <span class="clock" data-clock="hm"></span>
+            <span data-clock="date"></span>
+        </header>
+
+        <!-- Usseewa (debut single, 2020): the meme button -->
+        <section class="win" id="usseewa" data-title="うっせぇわ" data-icon="💢" style="left: calc(100% - 4vw - 340px); top: 70px; width: 340px">
+            <button class="big-btn" id="shout-btn">うっせぇわ!</button>
+            <div class="count">shouted <b id="shout-count">0</b> times · debut single, 2020, #1 on Billboard Japan</div>
+        </section>
+
+        <!-- Wish: the blue rose means "wishes come true" -->
+        <section class="win" id="wish" data-title="Wish · 願い" data-icon="&lt;span class=&quot;br&quot;&gt;🌹&lt;/span&gt;" style="left: calc(100% - 4vw - 340px); top: 236px; width: 340px">
+            <div class="k-muted">Write a wish, a blue rose blooms on the desktop.</div>
+            <form class="wish-form" id="wish-form"><input class="k-input" name="wish" placeholder="願いごと…" autocomplete="off"><button class="k-btn k-primary"><span class="br">🌹</span></button></form>
+            <ol class="wish-list" id="wish-list"></ol>
+            <div class="fact">Blue rose = 「夢かなう」(wishes come true). Ado was born in 2002, the year the first blue rose was created in Japan.</div>
+        </section>
+
+        <!-- Discography: real titles, dates, tie-ins -->
+        <!-- Ado TV: official videos and lives -->
+        <section class="win" id="tv" data-title="Ado TV" data-icon="📺" style="left: 47vw; top: 64px; width: 600px; height: 640px">
+            <div class="tv-screen" id="tv-screen"></div>
+            <div class="tv-now"><span class="k-muted">now:</span> <b id="tv-now"></b></div>
+            <div class="tv-tabs" id="tv-tabs"></div>
+            <input class="k-input" id="tv-search" placeholder="Search a title (all categories)…" autocomplete="off">
+            <div class="tv-grid" id="tv-grid"></div>
+        </section>
+        <section class="win" id="disco" data-title="Ado · timeline" data-icon="💿" style="left: 47vw; top: 90px; width: 420px; height: 560px">
+            <ul class="timeline" id="timeline"></ul>
+        </section>
+
+        <!-- Stickers: emojis / kaomoji to stamp on the desktop -->
+        <section class="win" id="stickers" data-title="Stickers" data-icon="💙" style="left: calc(100% - 4vw - 340px); top: 560px; width: 340px">
+            <div class="stickers" id="sticker-grid"></div>
+            <div class="kaomoji" id="kaomoji"></div>
+            <div class="count" id="sticker-hint">pick one, then click the desktop · double-click a sticker to remove it</div>
+        </section>
+
+        <nav class="dock">
+            <button data-app="usseewa" title="うっせぇわ">💢</button>
+            <button data-app="wish" title="Wish"><span class="br">🌹</span></button>
+            <button data-app="tv" title="Ado TV">📺</button>
+            <button data-app="disco" title="Timeline">💿</button>
+            <button data-app="stickers" title="Stickers">💙</button>
+            <button data-app="music" title="Music">🎧</button>
+            <button data-app="files" title="Files">📁</button>
+            <button data-app="browser" title="Browser">🌐</button>
+            <button data-app="terminal" title="Terminal">💬</button>
+            <button data-app="settings" title="Settings">⚙️</button>
+        </nav>
+        <div class="credit">Ado TV: official YouTube videos (embedded / linked) · 3D rose: Erbay ÇELIK (CC BY 3.0), three.js (MIT) · rose photos: GLady (CC0), Bff (CC BY-SA 3.0), D. Sharon Pruitt (CC BY 2.0) · fan-made · music: original synth</div>
+    </div>
+
+    <div class="stamp" id="stamp">うっせぇわ!</div>
+
+    <script src="vendor/three.min.js"></script>
+    <script src="vendor/GLTFLoader.js"></script>
+    <script src="assets/rose-model.js"></script>
+    <script src="kit/kit.js"></script>
+    <script>
+        // ===== Facts (public sources: titles, years, tie-ins) =====
+
+        const TIMELINE = [
+            ["2017", "歌い手 debut", "first cover uploaded on Niconico, January 10", ""],
+            ["2020", "うっせぇわ", "Usseewa · debut single, #1 Billboard Japan Hot 100", "Ado うっせぇわ"],
+            ["2020", "レディメイド", "Readymade · second single", "Ado レディメイド"],
+            ["2021", "踊 · ギラギラ", "Odo · Gira Gira", "Ado 踊"],
+            ["2022", "狂言", "Kyōgen · first studio album", "Ado 狂言"],
+            ["2022", "新時代", "New Genesis · sings Uta in One Piece Film Red", "Ado 新時代"],
+            ["2023", "唱 · クラクラ", "Show (USJ, #1) · Kura Kura (Spy × Family)", "Ado 唱"],
+            ["2024", "残夢 · 心臓", "Zanmu album · National Stadium, first solo woman to play there", "Ado 残夢"],
+            ["2025", "Hibana · Elf", "world tour · Ado's Best Adobum · Aishite Aishite Aishite", "Ado Elf"],
+            ["2026", "歌ってみたアルバム 2", "Ado's Utattemita Album 2, planned for December 23", "Ado 歌ってみたアルバム"],
+        ];
+        // official video for the timeline lines that have one (index -> YouTube id)
+        const TIMELINE_VIDEOS = {1: "Qp3b-RXtz4w", 2: "jg09lNupc1s", 3: "YnSW8ian29w", 5: "1FliVTcX8bQ", 6: "pgXpM4l_MwI", 7: "Vrr2gFTYMGQ", 8: "SbxR25brgoE"};
+        const STICKERS = ["🌹", "💙", "🥀", "🎤", "🖤", "✨", "💢", "🔥", "🫶", "👑", "🌊", "🎧"];
+        const KAOMOJI = ["(｀Д´)ノ", "(ﾉ≧∀≦)ﾉ", "( ˘ω˘ )", "٩(ˊᗜˋ*)و", "(｡•̀ᴗ-)✧"];
+        const MINOR = [57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83];
+
+        // ===== Kit =====
+
+        Kit.init({
+            name: "Ado / blue rose", user: "tsukini", host: "aoi-bara",
+            desktop: ["tv", "usseewa", "wish", "stickers"],
+            scenes: {music: ["music", "tv"]},
+            positions: {music: {left: "49vw", top: "70px"}},
+            accents: ["#2f6bff", "#9fc3ff", "#e0303f", "#7b5cff", "#ffffff"],
+            wallpapers: [{label: "Blue rose", cls: ""}, {label: "Single stem", cls: "wall-stem"}, {label: "Uta · 新時代", cls: "wall-uta"}],
+            toggles: [{label: "Falling petals", key: "petals", on: true, run: (value) => document.querySelectorAll(".petal").forEach((petal) => (petal.hidden = !value))}],
+            icons: {dir: "🗂️", audio: "🎶", image: '<span class="br">🌹</span>', lock: '<span class="br">🌹</span>', terminal: "💬"},
+            tracks: [
+                {title: "Blue Rose Wish", artist: "fan synth", box: "blue", bpm: 168, wave: "sawtooth", gain: 0.11, scale: MINOR, loops: 5,
+                    cover: "url('assets/rose-black.jpg') center / cover", lead: "7.7.9.a.9.7.5.4.5---4-2-0---....7.7.9.a.c.a.9.7.9---a-9-7-------",
+                    bass: "0.0.0.0.5.5.5.5.3.3.3.3.4.4.4.4.", drums: "k.h.s.hkk.h.s.hs"},
+                {title: "Thorn Waltz", artist: "fan synth", box: "red", bpm: 150, wave: "triangle", gain: 0.2, scale: MINOR, loops: 6, vibrato: 4,
+                    cover: "url('assets/rose-dew.jpg') center / cover", lead: "7---9---a---9---7---5---", bass: "0-----------5-----------", drums: "k...s...s..."},
+                {title: "Silhouette", artist: "fan synth", box: "red", bpm: 96, wave: "triangle", gain: 0.22, scale: MINOR, loops: 4, vibrato: 5,
+                    cover: "url('assets/rose-stem.jpg') center / cover", lead: "4---5-7-9---7---5---4-2-4-------7---9-a-c---a---9---7-5-7-------",
+                    bass: "0-------5-------3-------4-------", drums: "k.......s......."},
+            ],
+            lock: {
+                html: "<div class=\"lock-clock\" data-clock=\"hm\"></div><div class=\"lock-date\" data-clock=\"long\"></div><div class=\"lock-wish\"><span class=\"br\">🌹</span> 夢かなう · wishes come true</div>"
+                    + "<div class=\"lock-card\"><div class=\"lock-avatar\"><span class=\"br\">🌹</span></div><div class=\"lock-user\">tsukini</div>"
+                    + "<input class=\"lock-input\" type=\"password\" placeholder=\"Make a wish\" autocomplete=\"off\"><div class=\"lock-hint\">any wish unlocks · 顔は秘密</div></div>",
+                welcome: "おかえり, Adomin 🌹",
+            },
+            browser: {
+                engine: "Blue Rose search",
+                hero: "<div class=\"rose-hero\"><span></span>Blue Rose search</div>",
+                tiles: [
+                    {name: "Ado", url: "poc://wiki", icon: "🌹"},
+                    {name: "News", url: "poc://news", icon: "📰"},
+                    {name: "Shinzou", url: "poc://video", icon: "🏟️"},
+                    {name: "うっせぇわ", url: "poc://search?q=%E3%81%86%E3%81%A3%E3%81%9B%E3%81%87%E3%82%8F", icon: "💢"},
+                ],
+                news: {
+                    title: "Ado's Utattemita Album 2 planned for December 23",
+                    lead: "A second album of covers follows the 2023 Utattemita Album and the 2025 best-of Ado's Best Adobum.",
+                    body: ["Ado started as an utaite on Niconico in 2017, covering Vocaloid songs before her 2020 debut with Usseewa.",
+                        "She never shows her face: on stage only her silhouette is visible."],
+                },
+                video: {title: "Shinzou — National Stadium (2024)", channel: "fan archive", background: "linear-gradient(rgba(5, 8, 20, 0.3), rgba(5, 8, 20, 0.8)), url('assets/rose-dew.jpg') center / cover"},
+                wiki: {
+                    title: "Ado",
+                    body: [["Who", "Japanese singer born on October 24, 2002, in Tokyo. Started as an utaite on Niconico in 2017, debuted in 2020 with Usseewa."],
+                        ["Blue rose", "Her symbol. The blue rose means 'wishes come true'; the first one was created in Japan in 2002, the year she was born."],
+                        ["Silhouette", "She keeps her face private and appears as a backlit silhouette; fans (Adomin) treat her face as a secret."],
+                        ["Uta", "She is the singing voice of Uta in One Piece Film Red (2022), with New Genesis (新時代)."]],
+                },
+            },
+            terminal: {
+                prompt: (term, path) => `<span class="t-user">🌹 adomin</span> <span class="t-path">${Kit.esc(path)}</span> <span class="t-accent">❯</span> `,
+                motd: "<span class=\"t-accent\">aoi-bara</span> · try <span class=\"t-accent\">usseewa</span>, <span class=\"t-accent\">wish 次のライブ</span>, <span class=\"t-accent\">timeline</span>, <span class=\"t-accent\">bloom</span>",
+                logo: "    .-~~-.\n   ( (@@) )\n  .-`-..-'-.\n (  (    )  )\n  `-.'..'.-'\n     ||\n   \\_||_/",
+                palette: ["#2f6bff", "#9fc3ff", "#1f4fd8", "#0b1736", "#ff2a4a", "#eaf1ff"],
+                commands: {
+                    usseewa: () => (shout(), "<span class=\"t-err\">うっせぇうっせぇうっせぇわ!</span>"),
+                    wish: (args) => (args.length ? (add_wish(args.join(" ")), "🌹 a blue rose bloomed") : "usage: wish &lt;text&gt;"),
+                    timeline: () => TIMELINE.map(([year, title, text]) => `<span class="t-accent">${year}</span>  ${Kit.esc(title)}  <span class="t-muted">${Kit.esc(text)}</span>`).join("\n"),
+                    bloom: () => (bloom_all(), "🌹🌹🌹"),
+                    adomin: () => "Adomin = Ado's fans 💙 · rule n°1: the face stays a secret",
+                    tv: (args) => {
+                        const found = args.length ? tv_find(args.join(" ")) : null;
+
+                        Kit.open("tv");
+                        if (found)
+                            tv_play(...found);
+                        return found ? `📺 ${Kit.esc(found[1])}` : (args.length ? "<span class=\"t-err\">no video with that title</span>" : "📺 Ado TV");
+                    },
+                },
+            },
+            files: {
+                "~/Pictures/blue-roses/rose-dew.jpg": {kind: "image", src: "assets/rose-dew.jpg", fallback: "#1f4fd8", size: "0.4 MB"},
+                "~/Pictures/blue-roses/rose-black.jpg": {kind: "image", src: "assets/rose-black.jpg", fallback: "#1f4fd8", size: "0.1 MB"},
+                "~/Pictures/blue-roses/rose-stem.jpg": {kind: "image", src: "assets/rose-stem.jpg", fallback: "#1f4fd8", size: "0.3 MB"},
+                "~/Pictures/blue-roses/bouquet.jpg": {kind: "image", src: "assets/blue-rose.jpg", fallback: "#1f4fd8", size: "0.3 MB"},
+                "~/Documents/ado-timeline.txt": {kind: "text", content: TIMELINE.map(([year, title, text]) => `${year}  ${title}  ${text}`).join("\n") + "\n"},
+            },
+            context: [{label: "💢 うっせぇわ!", run: () => shout()}, {label: "🌹 Bloom every rose", run: () => bloom_all()}, {label: "💙 Sticker mode", run: () => set_sticker(STICKERS[1])}],
+        });
+
+        // ===== 3D roses: low poly rose (CC BY 3.0) recolored blue, falling and spinning, petals in the air =====
+
+        const roses3d = (() => {
+            const canvas = document.getElementById("roses3d");
+            const falling = [];
+            const petals = [];
+            const pointer = new THREE.Vector2();
+            const raycaster = new THREE.Raycaster();
+            let renderer = null;
+            let template = null;
+            let gust = 0;
+            let last = performance.now();
+
+            if (!window.THREE || !THREE.GLTFLoader || !window.ROSE_GLB)
+                return null;
+            try {
+                renderer = new THREE.WebGLRenderer({canvas, alpha: true, antialias: true, preserveDrawingBuffer: true});
+            } catch {
+                return null;
+            }
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+            const accent = () => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--k-accent").trim() || "#2f6bff");
+            const petal_material = new THREE.MeshStandardMaterial({color: accent(), roughness: 0.45, metalness: 0.15, emissive: 0x081846, flatShading: true});
+            const loose_material = petal_material.clone();
+            const stem_material = new THREE.MeshStandardMaterial({color: 0x173226, roughness: 0.8, flatShading: true});
+            const petal_shape = new THREE.Shape();
+
+            // rounded petal outline, bent below so it catches the light like a real petal
+            petal_shape.moveTo(0, -0.13);
+            petal_shape.bezierCurveTo(0.15, -0.09, 0.17, 0.09, 0, 0.15);
+            petal_shape.bezierCurveTo(-0.17, 0.09, -0.15, -0.09, 0, -0.13);
+            const petal_geometry = new THREE.ShapeGeometry(petal_shape, 6);
+            const view = () => {
+                const height = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.z;
+
+                return {height, width: height * camera.aspect};
+            };
+            const random = (min, max) => min + Math.random() * (max - min);
+
+            loose_material.side = THREE.DoubleSide;
+            petal_geometry.attributes.position.array.forEach((_, index, array) => {
+                if (index % 3 === 2)
+                    array[index] = Math.pow(array[index - 2] * 3, 2) * 0.12;
+            });
+            petal_geometry.computeVertexNormals();
+            camera.position.set(0, 0, 14);
+            scene.add(new THREE.AmbientLight(0x9fb8ff, 0.75));
+            const key = new THREE.DirectionalLight(0xffffff, 1.1);
+            const rim = new THREE.DirectionalLight(0x2f6bff, 1.6);
+
+            key.position.set(4, 6, 8);
+            rim.position.set(-6, -2, -4);
+            scene.add(key, rim);
+
+            function resize()
+            {
+                renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+                camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+                camera.updateProjectionMatrix();
+            }
+
+            function prepare(model)
+            {
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const holder = new THREE.Group();
+
+                model.traverse((node) => {
+                    if (node.isMesh)
+                        node.material = node.material.color && node.material.color.r > node.material.color.g ? petal_material : stem_material;
+                });
+                model.position.sub(center);
+                holder.add(model);
+                holder.scale.setScalar(2.4 / Math.max(size.x, size.y, size.z));
+                return holder;
+            }
+
+            function spawn(top = true, size = 1)
+            {
+                const rose = template.clone();
+                const {width, height} = view();
+                const scale = random(0.45, 1.05) * size;
+
+                rose.userData = {
+                    base: scale, vy: random(0.5, 1.1), sway: random(0.3, 0.9), phase: random(0, 6.3),
+                    spin: new THREE.Vector3(random(-0.8, 0.8), random(-1.4, 1.4), random(-0.8, 0.8)), pulse: 0,
+                };
+                rose.scale.multiplyScalar(scale);
+                rose.position.set(random(-width / 2, width / 2), top ? height / 2 + random(1, 4) : random(-height / 2, height / 2), random(-3, 1.5));
+                rose.rotation.set(random(0, 6.3), random(0, 6.3), random(0, 6.3));
+                scene.add(rose);
+                falling.push(rose);
+            }
+
+            function petal(position, burst)
+            {
+                const mesh = new THREE.Mesh(petal_geometry, loose_material);
+                const {width, height} = view();
+
+                mesh.position.copy(position ?? new THREE.Vector3(random(-width / 2, width / 2), random(-height / 2, height / 2 + 3), random(-4, 2)));
+                mesh.rotation.set(random(0, 6.3), random(0, 6.3), random(0, 6.3));
+                mesh.userData = {
+                    velocity: burst ? new THREE.Vector3(random(-3, 3), random(-1, 3), random(-2, 2)) : new THREE.Vector3(random(-0.2, 0.2), -random(0.4, 0.9), 0),
+                    spin: new THREE.Vector3(random(-3, 3), random(-3, 3), random(-3, 3)), burst, life: burst ? 2.2 : Infinity,
+                };
+                scene.add(mesh);
+                petals.push(mesh);
+            }
+
+            function animate(now)
+            {
+                const dt = Math.min(0.05, (now - last) / 1000);
+                const {width, height} = view();
+                const time = now / 1000;
+
+                last = now;
+                gust *= 0.94;
+                for (const rose of falling) {
+                    const data = rose.userData;
+
+                    rose.position.y -= data.vy * dt * (1 + gust * 0.6);
+                    rose.position.x += Math.sin(time * data.sway + data.phase) * dt * (0.4 + gust);
+                    rose.rotation.x += data.spin.x * dt * (1 + gust);
+                    rose.rotation.y += data.spin.y * dt * (1 + gust);
+                    rose.rotation.z += data.spin.z * dt;
+                    data.pulse *= 0.9;
+                    rose.scale.setScalar(template.scale.x * data.base * (1 + data.pulse));
+                    if (rose.position.y < -height / 2 - 2) {
+                        rose.position.set(random(-width / 2, width / 2), height / 2 + random(1, 3), random(-3, 1.5));
+                        data.base = Math.min(data.base, 1.05);
+                    }
+                }
+                for (let i = petals.length - 1; i >= 0; --i) {
+                    const mesh = petals[i];
+                    const data = mesh.userData;
+
+                    if (data.burst)
+                        data.velocity.y -= 2.5 * dt;
+                    mesh.position.addScaledVector(data.velocity, dt * (data.burst ? 1 : 1 + gust));
+                    mesh.position.x += Math.sin(time + i) * dt * gust * 1.5;
+                    mesh.rotation.x += data.spin.x * dt;
+                    mesh.rotation.y += data.spin.y * dt;
+                    data.life -= dt;
+                    if (data.life <= 0) {
+                        scene.remove(mesh);
+                        petals.splice(i, 1);
+                    } else if (!data.burst && mesh.position.y < -height / 2 - 1) {
+                        mesh.position.set(random(-width / 2, width / 2), height / 2 + 1, random(-4, 2));
+                    }
+                }
+                renderer.render(scene, camera);
+                requestAnimationFrame(animate);
+            }
+
+            const bytes = Uint8Array.from(atob(window.ROSE_GLB), (char) => char.charCodeAt(0));
+
+            new THREE.GLTFLoader().parse(bytes.buffer, "", (gltf) => {
+                template = prepare(gltf.scene);
+                for (let i = 0; i < 11; ++i)
+                    spawn(false);
+                for (let i = 0; i < 45; ++i)
+                    petal();
+                document.body.classList.add("has-3d");
+            }, () => document.body.classList.remove("has-3d"));
+            resize();
+            addEventListener("resize", resize);
+            Kit.on("accent", () => {
+                petal_material.color.copy(accent());
+                loose_material.color.copy(accent());
+            });
+            Kit.on("wallpaper", () => setTimeout(() => {
+                petal_material.color.copy(accent());
+                loose_material.color.copy(accent());
+            }, 50));
+            requestAnimationFrame(animate);
+
+            return {
+                spawn: (top, size) => template && spawn(top, size),
+                gust: (strength = 1) => {
+                    gust = Math.min(3, gust + strength);
+                    falling.forEach((rose) => (rose.userData.pulse = 0.08 * strength));
+                },
+                // click on a rose: it bursts into petals and another one falls
+                click: (event) => {
+                    const box = canvas.getBoundingClientRect();
+                    let hit;
+
+                    if (!template)
+                        return false;
+                    pointer.set(((event.clientX - box.left) / box.width) * 2 - 1, -((event.clientY - box.top) / box.height) * 2 + 1);
+                    raycaster.setFromCamera(pointer, camera);
+                    hit = raycaster.intersectObjects(falling, true)[0];
+                    if (!hit)
+                        return false;
+                    let rose = hit.object;
+
+                    while (!falling.includes(rose))
+                        rose = rose.parent;
+                    for (let i = 0; i < 18; ++i)
+                        petal(hit.point.clone(), true);
+                    scene.remove(rose);
+                    falling.splice(falling.indexOf(rose), 1);
+                    spawn(true);
+                    Kit.note(69 + [0, 3, 7, 12][Math.floor(Math.random() * 4)], 0.3, "triangle", 0.15);
+                    return true;
+                },
+            };
+        })();
+
+        // ===== Ado TV: official videos (MV, Uta, covers, live footage, streams), live now, other platforms =====
+
+        const ADO_CHANNEL = "UCln9P4Qm3-EAY4aiEPmRwEA";
+        const VIDEOS = {
+            "MV": [
+                ["Qp3b-RXtz4w", "うっせぇわ"], ["jg09lNupc1s", "レディメイド"], ["YnSW8ian29w", "踊"], ["sOiMD45QGLs", "ギラギラ"],
+                ["cyq5-StPISU", "阿修羅ちゃん"], ["pgXpM4l_MwI", "唱"], ["W_fHWaoQwkw", "クラクラ"], ["_wZfYtYwxro", "マザーランド"],
+                ["dLmaSaCVFx0", "夜のピエロ 360° MV"], ["SbxR25brgoE", "エルフ"], ["rzVKfAQp2No", "春に舞う"], ["FZRZXK-nnNU", "モンストロ (Monstruo)"],
+                ["MnOY32pQ9Jw", "綺羅 (Official Audio)"], ["JO66tA5Yngs", "Raven Sky"], ["B8KQ23MfkHc", "DND feat. KUROMI"],
+            ],
+            "Uta · Film Red": [
+                ["1FliVTcX8bQ", "新時代"], ["gt-v_YCkaMY", "逆光"], ["sk1Z-Hqwwog", "私は最強"], ["V9_ZpqfqHFI", "Tot Musica"],
+            ],
+            "歌いました": [
+                ["x1UsJ2Znjk0", "罪と罰 歌いました"], ["sGNkT6XyQRc", "Overdose 歌いました"], ["uVDCsvYaeGw", "Fairytale, 歌いました"],
+                ["nIWZfhpnq6M", "桜日和とタイムマシン with 初音ミク"],
+            ],
+            "LIVE映像": [
+                ["Igr6jQJEoNs", "唱 · 日本武道館 2023"], ["Vrr2gFTYMGQ", "桜日和とタイムマシン with 初音ミク · 国立競技場 2024"],
+                ["HmkbBdD8044", "愛して愛して愛して · Peacock Theater 2024"], ["WSuAVkaSC38", "綺羅 · Rose Bowl"], ["mYJshNOfv_w", "モンストロ · 日産スタジアム"],
+            ],
+            "Streams": [
+                ["WpyOwylZHwo", "20歳直前 LIVE STREAM"], ["UjxKVY31Ib8", "みんなの唱の歌ってみたを聴くよ"], ["IHnkmkQJIAY", "Minecraftであそぼう"],
+                ["xPBD0VdwNkg", "リズム天国をやります #2"],
+            ],
+        };
+        const ELSEWHERE = [
+            ["▶", "YouTube channel", "https://www.youtube.com/@Ado1024"], ["🔴", "Streams / upcoming lives", "https://www.youtube.com/@Ado1024/streams"],
+            ["🎵", "YouTube Music", "https://music.youtube.com/search?q=Ado"], ["🟢", "Spotify", "https://open.spotify.com/search/Ado"],
+            ["🍎", "Apple Music", "https://music.apple.com/search?term=Ado"], ["📺", "Niconico (歌ってみた)", "https://www.nicovideo.jp/search/Ado%20%E6%AD%8C%E3%81%A3%E3%81%A6%E3%81%BF%E3%81%9F"],
+            ["📖", "Wikipedia", "https://en.wikipedia.org/wiki/Ado_(singer)"],
+        ];
+        const can_embed = location.protocol.startsWith("http");
+        const tv_screen = document.getElementById("tv-screen");
+        let tv_tab = "MV";
+
+        // in-window player over http, a poster linking to YouTube on file:// (YouTube refuses embeds there)
+        function tv_play(id, title, autoplay = true)
+        {
+            const live = id === "live";
+            const watch = live ? "https://www.youtube.com/@Ado1024/live" : `https://www.youtube.com/watch?v=${id}`;
+            const poster = live ? "" : `background-image: url('https://i.ytimg.com/vi/${id}/hqdefault.jpg')`;
+
+            document.getElementById("tv-now").textContent = title;
+            if (can_embed && autoplay) {
+                const src = live ? `https://www.youtube.com/embed/live_stream?channel=${ADO_CHANNEL}&autoplay=1` : `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&playsinline=1`;
+
+                Kit.pause();
+                tv_screen.innerHTML = `<iframe src="${src}" title="${Kit.esc(title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+            } else {
+                tv_screen.innerHTML = `<div class="tv-poster" style="${poster}">`
+                    + (can_embed ? `<button class="tv-go" data-play="${id}" data-title="${Kit.esc(title)}">▶ Play</button>` : `<a class="tv-go" href="${watch}" target="_blank" rel="noopener">▶ Watch on YouTube</a><small>in-window playback: run poc/serve.sh</small>`)
+                    + "</div>";
+            }
+        }
+
+        function tv_render()
+        {
+            const filter = document.getElementById("tv-search").value.toLowerCase();
+            const grid = document.getElementById("tv-grid");
+
+            document.querySelectorAll("[data-tab]").forEach((button) => button.classList.toggle("is-on", button.dataset.tab === tv_tab));
+            if (tv_tab === "Elsewhere") {
+                grid.innerHTML = ELSEWHERE.map(([icon, name, url]) => `<a class="tv-link" href="${url}" target="_blank" rel="noopener"><span>${icon}</span>${name}</a>`).join("");
+                return;
+            }
+            const list = filter ? Object.values(VIDEOS).flat() : VIDEOS[tv_tab];
+
+            grid.innerHTML = list.filter(([, title]) => title.toLowerCase().includes(filter)).map(([id, title]) => {
+                return `<button class="tv-card" data-video="${id}" data-title="${Kit.esc(title)}"><img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt="" loading="lazy"><span>${Kit.esc(title)}</span></button>`;
+            }).join("") || "<div class=\"k-muted\">nothing found</div>";
+        }
+
+        function tv_find(query)
+        {
+            return Object.values(VIDEOS).flat().find(([, title]) => title.toLowerCase().includes(query.toLowerCase()));
+        }
+
+        document.getElementById("tv").addEventListener("click", (event) => {
+            const card = event.target.closest("[data-video]");
+            const tab = event.target.closest("[data-tab]");
+            const play = event.target.closest("[data-play]");
+
+            if (card) {
+                tv_play(card.dataset.video, card.dataset.title);
+            } else if (play) {
+                tv_play(play.dataset.play, play.dataset.title);
+            } else if (tab && tab.dataset.tab === "live") {
+                tv_play("live", "Ado · live now (if a stream is running)");
+            } else if (tab) {
+                tv_tab = tab.dataset.tab;
+                document.getElementById("tv-search").value = "";
+                tv_render();
+            }
+        });
+        document.getElementById("tv-search").addEventListener("input", tv_render);
+        document.getElementById("tv-tabs").innerHTML = Object.keys(VIDEOS).map((name) => `<button data-tab="${name}">${name}</button>`).join("")
+            + "<button data-tab=\"live\" class=\"live\">● Live now</button><button data-tab=\"Elsewhere\">Elsewhere ↗</button>";
+        tv_render();
+        tv_play("x1UsJ2Znjk0", "罪と罰 歌いました", false);
+        // ===== Petals, roses =====
+
+        const desk = document.getElementById("desk");
+        const roses = document.getElementById("roses");
+
+        for (let i = 0; i < 16; ++i)
+            desk.insertAdjacentHTML("afterbegin", `<span class="petal" style="left: ${Math.random() * 100}%; animation-duration: ${9 + Math.random() * 9}s; animation-delay: ${-Math.random() * 18}s"></span>`);
+        [[62, 70, 120], [74, 58, 80], [84, 74, 100], [56, 84, 70], [90, 52, 60], [48, 66, 54]].forEach(([left, top, size], index) => {
+            roses.insertAdjacentHTML("beforeend", `<div class="rose-img" style="left: ${left}%; top: ${top}%; --s: ${size}px; animation-delay: ${-index * 6}s"></div>`);
+        });
+
+        function petals_from(x, y, count)
+        {
+            for (let i = 0; i < count; ++i) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 50 + Math.random() * 140;
+                const petal = Kit.element(`<i class="burst" style="left: ${x}px; top: ${y}px; --x: ${Math.cos(angle) * distance}px; --y: ${Math.sin(angle) * distance + 60}px"></i>`);
+
+                document.body.append(petal);
+                setTimeout(() => petal.remove(), 1000);
+            }
+        }
+
+        function bloom(rose)
+        {
+            const box = rose.getBoundingClientRect();
+
+            rose.classList.remove("pop");
+            void rose.offsetWidth;
+            rose.classList.add("pop");
+            petals_from(box.left + box.width / 2, box.top + box.height / 2, 14);
+            Kit.note(69 + [0, 3, 7, 12][Math.floor(Math.random() * 4)], 0.3, "triangle", 0.15);
+        }
+
+        function bloom_all()
+        {
+            roses3d?.gust(3);
+            document.querySelectorAll(".rose-img").forEach((rose, index) => setTimeout(() => bloom(rose), index * 120));
+        }
+
+        roses.addEventListener("click", (event) => {
+            const rose = event.target.closest(".rose-img");
+
+            if (rose)
+                bloom(rose);
+        });
+
+        // ===== Ado Box: the singer bends backward with the music, the box light follows the song =====
+
+        const stage = document.getElementById("stage");
+        const cage = document.getElementById("cage");
+        const secret = document.getElementById("secret");
+        const SECRETS = ["顔は秘密 🤫", "🌹 夢かなう", "Adomin, ありがとう!", "うっせぇわ… 冗談 💙", "新時代 · Uta 🎤"];
+        let box_mode = "auto";
+        let secret_timer = 0;
+
+        function set_box(mode)
+        {
+            const color = mode === "auto" ? (Kit.audio.playing ? Kit.track().box ?? "red" : "red") : mode;
+
+            box_mode = mode;
+            stage.classList.toggle("blue", color === "blue");
+            document.querySelectorAll("[data-box]").forEach((button) => button.classList.toggle("is-on", button.dataset.box === mode));
+        }
+
+        cage.addEventListener("click", (event) => {
+            secret.textContent = SECRETS[Math.floor(Math.random() * SECRETS.length)];
+            secret.classList.add("is-on");
+            clearTimeout(secret_timer);
+            secret_timer = setTimeout(() => secret.classList.remove("is-on"), 1800);
+            petals_from(event.clientX, event.clientY, 10);
+        });
+        document.getElementById("stage-ctl").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-box]");
+
+            if (button)
+                set_box(button.dataset.box);
+            else if (event.target.closest("[data-tv]"))
+                Kit.open("tv");
+        });
+        Kit.on("beat", () => {
+            roses3d?.gust();
+            stage.classList.add("pulse");
+            setTimeout(() => stage.classList.remove("pulse"), 110);
+        });
+        Kit.on("music", ({track}) => {
+            setTimeout(() => box_mode === "auto" && set_box("auto"));
+            stage.style.setProperty("--sing", `${(60 / track.bpm) * 4}s`);
+            if (box_mode === "auto")
+                set_box("auto");
+        });
+        set_box("auto");
+        Kit.on("step", ({index, hit}) => {
+            if (hit === "k" && index % 8 === 0) {
+                const rose = roses.children[Math.floor(Math.random() * roses.children.length)];
+
+                rose.classList.remove("pop");
+                void rose.offsetWidth;
+                rose.classList.add("pop");
+            }
+        });
+        Kit.on("music", ({playing, track}) => {
+            document.body.classList.toggle("playing", playing);
+            document.getElementById("now").textContent = playing ? `♪ ${track.title}` : "♪ paused";
+        });
+
+        // ===== うっせぇわ =====
+
+        let shouts = 0;
+
+        function shout()
+        {
+            const stamp = document.getElementById("stamp");
+
+            stamp.classList.remove("go");
+            document.body.classList.remove("shouting");
+            void stamp.offsetWidth;
+            stamp.classList.add("go");
+            document.body.classList.add("shouting");
+            setTimeout(() => document.body.classList.remove("shouting"), 900);
+            document.getElementById("shout-count").textContent = ++shouts;
+            [45, 52, 57].forEach((midi) => Kit.note(midi, 0.5, "sawtooth", 0.12));
+            setTimeout(() => [47, 54, 59].forEach((midi) => Kit.note(midi, 0.6, "sawtooth", 0.12)), 180);
+        }
+
+        document.getElementById("shout-btn").addEventListener("click", shout);
+
+        // ===== Wishes: a rose per wish, kept in this browser =====
+
+        const read_wishes = () => {
+            try {
+                return JSON.parse(localStorage.getItem("poc-ado-wishes") ?? "[]");
+            } catch {
+                return [];
+            }
+        };
+        let wishes = read_wishes();
+
+        function plant(wish, animate)
+        {
+            const rose = Kit.element(`<svg class="wish-rose" viewBox="-50 -50 100 100" style="left: ${wish.x}%; top: ${wish.y}%"><title>${Kit.esc(wish.text)}</title><use href="#rose"/></svg>`);
+
+            if (!animate)
+                rose.style.animation = "none";
+            desk.append(rose);
+        }
+
+        function render_wishes()
+        {
+            document.getElementById("wish-list").innerHTML = wishes.map((wish) => `<li>${Kit.esc(wish.text)}</li>`).join("") || "<li>no wish yet</li>";
+        }
+
+        function add_wish(text)
+        {
+            const wish = {text, x: 30 + Math.random() * 60, y: 55 + Math.random() * 30};
+
+            wishes.push(wish);
+            try {
+                localStorage.setItem("poc-ado-wishes", JSON.stringify(wishes.slice(-40)));
+            } catch {
+                // storage may be blocked: the wish still blooms for this session
+            }
+            plant(wish, true);
+            roses3d?.spawn(true, 1.5);
+            render_wishes();
+            Kit.notify("願いごと 🌹", text, "🌹");
+        }
+
+        document.getElementById("wish-form").addEventListener("submit", (event) => {
+            const input = event.target.elements.wish;
+
+            event.preventDefault();
+            if (input.value.trim())
+                add_wish(input.value.trim());
+            input.value = "";
+        });
+        wishes.forEach((wish) => plant(wish, false));
+        render_wishes();
+
+        // ===== Timeline =====
+
+        document.getElementById("timeline").innerHTML = TIMELINE.map(([year, title, text, query], index) => `
+            <li data-line="${index}"><b>${year}</b><span>${title}<small>${text}</small></span>${query ? `<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(query)}" target="_blank" rel="noopener" title="Search on YouTube">▶ YT</a>` : ""}</li>`).join("");
+        document.getElementById("timeline").addEventListener("click", (event) => {
+            const line = event.target.closest("[data-line]");
+
+            const video = TIMELINE_VIDEOS[line?.dataset.line];
+
+            if (!line || event.target.closest("a"))
+                return;
+            if (video) {
+                Kit.open("tv");
+                return tv_play(video, TIMELINE[line.dataset.line][1]);
+            }
+            Kit.open("browser").kit_go(`poc://search?q=${encodeURIComponent(`Ado ${TIMELINE[line.dataset.line][1]}`)}`);
+        });
+
+        // ===== Stickers =====
+
+        let sticker = null;
+
+        function set_sticker(value)
+        {
+            sticker = sticker === value ? null : value;
+            document.body.classList.toggle("sticker-mode", Boolean(sticker));
+            document.querySelectorAll("#sticker-grid button, #kaomoji button").forEach((button) => button.classList.toggle("is-on", button.dataset.sticker === sticker));
+            document.getElementById("sticker-hint").textContent = sticker ? `sticker mode: ${sticker} · click the desktop · click it again to stop` : "pick one, then click the desktop · double-click a sticker to remove it";
+        }
+
+        document.getElementById("sticker-grid").innerHTML = STICKERS.map((value) => `<button data-sticker="${value}">${value}</button>`).join("");
+        document.getElementById("kaomoji").innerHTML = KAOMOJI.map((value) => `<button data-sticker="${value}">${value}</button>`).join("");
+        document.getElementById("stickers").addEventListener("click", (event) => {
+            const button = event.target.closest("[data-sticker]");
+
+            if (button)
+                set_sticker(button.dataset.sticker);
+        });
+        desk.addEventListener("click", (event) => {
+            const box = desk.getBoundingClientRect();
+
+            if (event.target.closest(".win, .dock, .topbar, .sticker, .rose-img, .cage, .stage-ctl"))
+                return;
+            if (!sticker) {
+                roses3d?.click(event);
+                return;
+            }
+            desk.append(Kit.element(`<span class="sticker${sticker === "🌹" ? " is-rose" : ""}" style="left: ${event.clientX - box.left - 20}px; top: ${event.clientY - box.top - 24}px; font-size: ${sticker.length > 2 ? 18 : 40}px">${Kit.esc(sticker)}</span>`));
+        });
+        desk.addEventListener("dblclick", (event) => event.target.closest(".sticker")?.remove());
+    </script>
+</body>
+</html>

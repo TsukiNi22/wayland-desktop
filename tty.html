@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Better tty</title>
+    <link rel="stylesheet" href="kit/kit.css">
+    <style>
+        /* ===== Tokens (rose-pine, same as ~/.tmux.conf) ===== */
+
+        :root {
+            --base: #191724;
+            --surface: #1f1d2e;
+            --overlay: #26233a;
+            --subtle: #908caa;
+            --love: #eb6f92;
+            --gold: #f6c177;
+            --rose: #ebbcba;
+            --pine: #31748f;
+            --foam: #9ccfd8;
+            --iris: #c4a7e7;
+            --border: #403d52;
+            --k-accent: var(--iris);
+            --k-font: "Adwaita Mono", "JetBrains Mono", "Fira Code", monospace;
+            --k-size: 13px;
+            --k-bg: var(--base);
+            --k-bar: var(--base);
+            --k-line: var(--border);
+            --k-text: #e0def4;
+            --k-muted: #6e6a86;
+            --k-accent-text: var(--base);
+            --k-hover: var(--overlay);
+            --k-input: var(--surface);
+            --k-page: var(--base);
+            --k-term: var(--base);
+            --k-radius: 0;
+            --k-radius-small: 0;
+            --k-shadow: none;
+            --k-gap-in: 0px;
+            --k-gap-out: 0px;
+            --k-open: k-fade;
+            --k-open-time: 0.15s;
+            --k-t-user: var(--iris);
+            --k-t-path: var(--foam);
+            --k-t-dir: var(--foam);
+            --k-t-code: var(--gold);
+            --k-t-err: var(--love);
+            --k-lock-bg: var(--base);
+            --k-lock-blur: none;
+            --k-viz: var(--iris);
+            --scenebar-bottom: 30px;
+        }
+
+        body {
+            background: var(--base);
+        }
+
+        body.wall-moon {
+            --base: #232136;
+            --surface: #2a273f;
+            --overlay: #393552;
+            --border: #44415a;
+        }
+
+        .desk {
+            --area-bottom: 24px;
+        }
+
+        .love { color: var(--love); }
+        .gold { color: var(--gold); }
+        .rose { color: var(--rose); }
+        .pine { color: var(--pine); }
+        .foam { color: var(--foam); }
+        .iris { color: var(--iris); }
+        .mut { color: var(--k-muted); }
+
+        /* ===== Panes: tmux look, label on the bottom border ===== */
+
+        .win {
+            border: 3px solid var(--border);
+        }
+
+        .win.is-active {
+            z-index: 2 !important;
+            border-color: var(--iris);
+        }
+
+        .win-bar {
+            order: 2;
+            height: 20px;
+            padding: 0 10px;
+            border: 0;
+            font-weight: 400;
+            color: var(--subtle);
+        }
+
+        .win.is-active .win-bar {
+            color: var(--iris);
+        }
+
+        .win-icon, .win-ctl {
+            display: none;
+        }
+
+        .win-body {
+            padding: 8px 12px;
+        }
+
+        /* ===== btop pane ===== */
+
+        .meters {
+            display: grid;
+            grid-template-columns: 44px 1fr 52px;
+            gap: 4px 10px;
+            align-items: center;
+        }
+
+        .meter {
+            display: flex;
+            height: 12px;
+            background: var(--overlay);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .meter i {
+            height: 100%;
+            width: var(--v);
+            background: var(--c);
+            transition: width 0.6s;
+        }
+
+        .spark {
+            display: block;
+            width: 100%;
+            height: 54px;
+            margin: 8px 0;
+        }
+
+        .procs div {
+            display: grid;
+            grid-template-columns: 60px 1fr 60px;
+        }
+
+        /* ===== Calendar pane ===== */
+
+        .split {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 24px;
+        }
+
+        .cal {
+            display: grid;
+            grid-template-columns: repeat(7, 2.6ch);
+            text-align: right;
+        }
+
+        .cal .head {
+            color: var(--k-muted);
+        }
+
+        .cal .today {
+            color: var(--base);
+            background: var(--love);
+        }
+
+        .big-clock {
+            font: 700 44px/1 var(--k-font);
+            color: var(--rose);
+        }
+
+        /* ===== Apps in text mode ===== */
+
+        .f-main {
+            grid-template-columns: 110px 1fr;
+        }
+
+        .f-preview {
+            display: none;
+        }
+
+        .f-items {
+            grid-template-columns: 1fr;
+            gap: 0;
+        }
+
+        .f-item {
+            flex-direction: row;
+            padding: 1px 6px;
+            border-radius: 0;
+        }
+
+        .f-ico {
+            width: 2ch;
+            height: auto;
+            font-size: 13px;
+            color: var(--foam);
+        }
+
+        .f-ico.is-thumb {
+            width: 2ch;
+            height: 1em;
+        }
+
+        .f-item.is-sel {
+            color: var(--base);
+            background: var(--iris);
+        }
+
+        .b-tabs {
+            padding: 0;
+            background: var(--surface);
+        }
+
+        .b-tab.is-on {
+            color: var(--base);
+            background: var(--iris);
+        }
+
+        .b-page a {
+            color: var(--foam);
+            text-decoration: underline;
+        }
+
+        .b-article, .b-results, .b-video {
+            font-size: 13px;
+        }
+
+        .b-tile {
+            border: 1px solid var(--border);
+        }
+
+        .m-cover, .m-play {
+            border-radius: 0;
+        }
+
+        /* ===== Status bar (tmux) ===== */
+
+        .status {
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            background: var(--surface);
+            color: var(--subtle);
+            z-index: 1000;
+        }
+
+        .mode {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            padding: 0 12px;
+            font-weight: 700;
+            color: var(--base);
+            background: var(--gold);
+        }
+
+        .mode.control {
+            background: var(--love);
+        }
+
+        .tasks {
+            display: flex;
+            height: 100%;
+        }
+
+        .task {
+            padding: 0 12px;
+        }
+
+        .task.is-active {
+            color: var(--k-text);
+            background: var(--overlay);
+        }
+
+        .task.is-min {
+            color: var(--k-muted);
+        }
+
+        .status .right {
+            display: flex;
+            height: 100%;
+            margin-left: auto;
+        }
+
+        .status .right span {
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+        }
+
+        .status .host {
+            font-weight: 700;
+            color: var(--base);
+            background: var(--rose);
+        }
+
+        /* ===== Lock: getty login ===== */
+
+        .lock {
+            place-items: start;
+            padding: 4vh 3vw;
+            font: 15px/1.6 var(--k-font);
+            color: #e0def4;
+        }
+
+        .lock-inner {
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .lock pre {
+            margin: 0;
+            font: inherit;
+        }
+
+        .lock .lock-input {
+            width: 300px;
+            padding: 0;
+            font: inherit;
+            text-align: left;
+            color: #e0def4;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            caret-color: var(--rose);
+        }
+
+        .lock .lock-hint {
+            opacity: 1;
+            color: var(--k-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="desk">
+        <section class="win" id="btop" data-title="btop">
+            <div class="meters">
+                <span class="mut">cpu</span><span class="meter"><i id="m-cpu" style="--v: 23%; --c: var(--foam)"></i><i style="--v: 9%; --c: var(--love)"></i></span><span id="v-cpu">32%</span>
+                <span class="mut">mem</span><span class="meter"><i id="m-mem" style="--v: 31%; --c: var(--iris)"></i></span><span>9.8G</span>
+                <span class="mut">swp</span><span class="meter"><i style="--v: 3%; --c: var(--gold)"></i></span><span>0.2G</span>
+                <span class="mut">disk</span><span class="meter"><i style="--v: 68%; --c: var(--rose)"></i></span><span>68%</span>
+            </div>
+            <svg class="spark" viewBox="0 0 300 60" preserveAspectRatio="none"><polyline id="spark" fill="rgba(156, 207, 216, 0.12)" stroke="#9ccfd8" stroke-width="1.5"/></svg>
+            <div class="procs" id="procs"></div>
+        </section>
+
+        <section class="win" id="cal" data-title="cal">
+            <div class="split">
+                <div>
+                    <div class="iris" id="cal-title"></div>
+                    <div class="cal" id="cal-grid"></div>
+                </div>
+                <div>
+                    <div class="big-clock" data-clock="hm"></div>
+                    <div class="mut" data-clock="long"></div>
+                    <div style="margin-top: 10px"><span class="mut">♪</span> <span id="np">nothing playing · <span class="foam">play</span> in the shell</span></div>
+                    <div data-kit="viz" style="height: 28px; margin-top: 6px"></div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="status">
+            <span class="mode" id="mode">EDIT</span>
+            <div class="tasks" data-kit="tasks"></div>
+            <div class="right">
+                <span id="st-music"></span>
+                <span data-clock="date"></span>
+                <span class="gold" data-clock="hm"></span>
+                <span class="host">fedora</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="kit/kit.js"></script>
+    <script>
+        // ===== Kit =====
+
+        const NAMES = {terminal: "zsh", btop: "btop", files: "lf", browser: "w3m", music: "cmus", settings: "config", viewer: "nvim", cal: "cal"};
+
+        function cmake_build(term)
+        {
+            const steps = ["src/arguments/ArgParser.cpp", "src/cli/Cli.cpp", "src/algorithms/c2dmp-hsm.cpp", "src/exception/Error.cpp", "Linking CXX static library libutils.a"];
+
+            steps.forEach((step, index) => setTimeout(() => {
+                const percent = Math.round(((index + 1) / steps.length) * 100);
+                const bar = "█".repeat(percent / 5) + "░".repeat(20 - percent / 5);
+
+                term.print(`<span class="mut">[${String(percent).padStart(3)}%]</span> ${index === steps.length - 1 ? step : `Building CXX object ${step}.o`}`);
+                if (index === steps.length - 1)
+                    term.print(`<span class="foam">${bar}</span> Built target <span class="pine">utils</span> <span class="mut">(4.2 s)</span>`);
+            }, 450 * (index + 1)));
+        }
+
+        Kit.init({
+            name: "Terminal / better-tty", user: "tsukini", host: "fedora", layout: "tile",
+            desktop: ["terminal", "btop", "files", "cal"],
+            scenes: {files: ["files", "terminal"], browser: ["browser", "terminal"], music: ["music", "cal"]},
+            icons: {dir: "▸", text: "≡", code: "λ", image: "▨", audio: "♪", doc: "▤", archive: "▦", files: "▸", browser: "◎", terminal: "$", music: "♪", settings: "⚙", viewer: "≡", lock: "⊘"},
+            task_label: (win, index) => `${index}:${NAMES[win.id.replace(/-\d+$/, "")] ?? win.id}${win.classList.contains("is-active") ? "*" : ""}`,
+            accents: ["#c4a7e7", "#9ccfd8", "#ebbcba", "#f6c177", "#eb6f92"],
+            wallpapers: [{label: "Rose pine", cls: ""}, {label: "Moon", cls: "wall-moon"}],
+            lock: {
+                html: "<pre>Fedora Linux 44 (Workstation Edition)\nKernel 7.2.11-200.fc44.x86_64 on an x86_64 (tty2)\n\nfedora login: tsukini</pre>"
+                    + "<pre>Password: <input class=\"lock-input\" type=\"password\" autocomplete=\"off\"></pre><pre class=\"lock-hint\">\n(any password, Enter)</pre>",
+                welcome: "Last login: today on tty2",
+            },
+            browser: {engine: "w3m", hero: "<pre class=\"iris\">┌──────────────────────┐\n│  w3m · text browser  │\n└──────────────────────┘</pre>"},
+            terminal: {
+                prompt: (term, path) => `<span class="t-user">tsukini</span> <span class="t-path">${Kit.esc(path)}</span> <span style="color: var(--gold)">main ✚2</span> <span class="t-accent">❯</span> `,
+                title: () => "zsh",
+                startup: ["cd ~/Projects/libutils", "git status"],
+                motd: "<span class=\"mut\"># tmux keys: Ctrl+b then ← → (pane) · c (new) · x (kill) · z (zoom) · d (detach = lock) · 0-9</span>",
+                commands: {
+                    git: (args) => ({
+                        log: "<span class=\"gold\">26e62d4</span> Setup c++20 project template\n<span class=\"gold\">ab79cc7</span> Setup c++20 project template\n<span class=\"gold\">a776897</span> Setup c++20 project template",
+                        branch: "* <span class=\"foam\">main</span>\n  dev",
+                    })[args[0]] ?? "<span class=\"foam\">## main...origin/main</span>\n <span class=\"gold\">M</span> include/utils/cli/Cli.hpp\n <span class=\"gold\">M</span> src/cli/Cli.cpp\n<span class=\"love\">??</span> tests/cli/test_cli.cpp",
+                    cmake: (args, term) => (cmake_build(term), "<span class=\"mut\">-- Build files have been written to: build</span>"),
+                    make: (args, term) => (cmake_build(term), ""),
+                    nvim: (args, term) => (args[0] ? (Kit.view(Kit.fs.resolve(term.cwd, args[0])), "") : "usage: nvim &lt;file&gt;"),
+                    htop: () => (Kit.open("btop"), ""),
+                    btop: () => (Kit.open("btop"), ""),
+                    tmux: () => "Ctrl+b ← → : focus pane\nCtrl+b c   : new shell\nCtrl+b x   : kill pane\nCtrl+b z   : zoom pane\nCtrl+b d   : detach (lock)\nCtrl+b 0-9 : pane n",
+                },
+            },
+            context: [{label: "New shell (Ctrl+b c)", run: () => Kit.spawn("terminal")}],
+        });
+
+        // ===== tmux prefix: Ctrl+b then a key =====
+
+        const mode = document.getElementById("mode");
+        let prefix = false;
+
+        function set_prefix(value)
+        {
+            prefix = value;
+            mode.textContent = value ? "CONTROL" : "EDIT";
+            mode.classList.toggle("control", value);
+        }
+
+        function open_panes()
+        {
+            return [...Kit.windows.values()].filter((win) => win.dataset.state === "open").sort((a, b) => a.dataset.order - b.dataset.order).map((win) => win.id);
+        }
+
+        document.addEventListener("keydown", (event) => {
+            const panes = open_panes();
+            const current = panes.indexOf(Kit.active());
+
+            if (event.ctrlKey && event.key === "b") {
+                event.preventDefault();
+                event.stopPropagation();
+                return set_prefix(!prefix);
+            }
+            if (!prefix || ["Control", "Shift"].includes(event.key))
+                return;
+            event.preventDefault();
+            event.stopPropagation();
+            set_prefix(false);
+            if (["ArrowRight", "ArrowDown", "l", "j", "o", "n"].includes(event.key))
+                Kit.open(panes[(current + 1) % panes.length]);
+            else if (["ArrowLeft", "ArrowUp", "h", "k", "p"].includes(event.key))
+                Kit.open(panes[(current - 1 + panes.length) % panes.length]);
+            else if (event.key === "c")
+                Kit.spawn("terminal");
+            else if (event.key === "x")
+                Kit.close(Kit.active());
+            else if (event.key === "z")
+                Kit.maximize(Kit.active());
+            else if (event.key === "d")
+                Kit.scene("lock");
+            else if (/^\d$/.test(event.key) && panes[Number(event.key)])
+                Kit.open(panes[Number(event.key)]);
+        }, true);
+
+        // ===== btop + calendar =====
+
+        const spark = Array.from({length: 30}, () => 20 + Math.random() * 30);
+        const now = new Date();
+        const first = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
+        const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const PROCS = [["4242", "clang++"], ["1880", "nvim"], ["2210", "firefox"], ["977", "tmux"], ["1203", "gnome-shell"]];
+
+        function tick()
+        {
+            const cpu = 15 + Math.random() * 50;
+
+            spark.push(60 - cpu * 0.8);
+            spark.shift();
+            document.getElementById("spark").setAttribute("points", `0,60 ${spark.map((value, index) => `${(index * 300) / (spark.length - 1)},${value}`).join(" ")} 300,60`);
+            document.getElementById("m-cpu").style.setProperty("--v", `${cpu}%`);
+            document.getElementById("v-cpu").textContent = `${cpu.toFixed(0)}%`;
+            document.getElementById("m-mem").style.setProperty("--v", `${28 + Math.random() * 6}%`);
+            document.getElementById("procs").innerHTML = "<div class=\"mut\"><span>PID</span><span>NAME</span><span>CPU%</span></div>"
+                + PROCS.map(([pid, name], index) => `<div><span class="mut">${pid}</span><span>${name}</span><span class="${index ? "" : "gold"}">${(index ? Math.random() * 6 : 40 + Math.random() * 50).toFixed(1)}</span></div>`).join("");
+        }
+
+        document.getElementById("cal-title").textContent = `  ${now.toLocaleDateString("en-GB", {month: "long", year: "numeric"})}`;
+        document.getElementById("cal-grid").innerHTML = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => `<span class="head">${day}</span>`).join("")
+            + "<span></span>".repeat(first)
+            + Array.from({length: days}, (_, index) => `<span class="${index + 1 === now.getDate() ? "today" : ""}">${index + 1}</span>`).join("");
+        document.querySelector("[data-kit=\"viz\"]").innerHTML = "<i></i>".repeat(24);
+        Kit.on("music", ({playing, track}) => {
+            document.getElementById("np").innerHTML = playing ? `<span class="rose">${Kit.esc(track.title)}</span> <span class="mut">· ${Kit.esc(track.artist)}</span>` : "paused";
+            document.getElementById("st-music").textContent = playing ? `♪ ${track.title}` : "";
+        });
+        tick();
+        setInterval(tick, 1300);
+    </script>
+</body>
+</html>

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Photographer desktop</title>
+    <link rel="stylesheet" href="kit/kit.css">
+    <style>
+        /* ===== Tokens ===== */
+
+        :root {
+            --k-accent: #d9a441;
+            --k-bg: rgba(27, 26, 24, 0.95);
+            --k-bar: #1f1e1b;
+            --k-line: #34312c;
+            --k-text: #ece8e1;
+            --k-muted: #8a857c;
+            --k-accent-text: #121110;
+            --k-page: #161513;
+            --k-term: #0f0e0d;
+            --k-radius: 6px;
+            --k-open: k-slide;
+            --serif: "Noto Serif", Georgia, serif;
+            --main: none;
+            --scenebar-left: calc(30vw + 120px);
+            --scenebar-top: 16px;
+            --scenebar-bottom: auto;
+        }
+
+        body {
+            background: #121110;
+        }
+
+        body.mono .photo, body.mono .lock {
+            filter: grayscale(1) contrast(1.1);
+        }
+
+        body.light-room {
+            --k-bg: rgba(245, 242, 236, 0.97);
+            --k-bar: #ebe6dc;
+            --k-line: #d6cfc2;
+            --k-text: #1f1c17;
+            --k-muted: #7a7266;
+            --k-page: #f7f4ee;
+            background: #e9e4da;
+            color: #1f1c17;
+        }
+
+        /* ===== Wall: photos left and right, the desktop in the middle ===== */
+
+        .wall {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns: 30vw 1fr 26vw;
+            gap: 14px;
+            padding: 14px;
+        }
+
+        .photo {
+            position: relative;
+            min-height: 0;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: zoom-in;
+            background: var(--img, none) center / cover no-repeat, var(--fallback, #333);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: filter 0.3s, opacity 0.45s, transform 0.3s var(--k-ease);
+        }
+
+        .photo:hover {
+            transform: scale(1.01);
+        }
+
+        .photo.fading {
+            opacity: 0;
+        }
+
+        .caption {
+            position: absolute;
+            inset: auto 0 0 0;
+            padding: 30px 16px 12px;
+            color: #ece8e1;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+        }
+
+        .caption b {
+            display: block;
+            font: italic 400 18px var(--serif);
+        }
+
+        .caption span {
+            font: 11px var(--k-mono);
+            color: #cfc8bb;
+        }
+
+        .stack {
+            display: grid;
+            grid-template-rows: 1.2fr 1fr 1fr;
+            gap: 14px;
+            min-height: 0;
+        }
+
+        .center {
+            display: grid;
+            grid-template-rows: auto 1fr auto auto;
+            gap: 14px;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 4px 0;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--k-muted);
+        }
+
+        .hero {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .time {
+            font: 200 clamp(64px, 9vw, 150px)/1 var(--k-font);
+            letter-spacing: -0.03em;
+        }
+
+        .date {
+            margin-top: 6px;
+            font: italic 400 20px var(--serif);
+            color: var(--k-muted);
+        }
+
+        .quote {
+            max-width: 34ch;
+            margin-top: 24px;
+            font: italic 400 15px/1.6 var(--serif);
+            color: var(--k-muted);
+        }
+
+        .tools {
+            display: flex;
+            gap: 8px;
+            margin-top: 18px;
+        }
+
+        .panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            align-items: end;
+            padding: 14px 16px;
+            border-radius: 6px;
+            background: var(--k-bg);
+            border: 1px solid var(--k-line);
+        }
+
+        .label {
+            margin-bottom: 6px;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--k-muted);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, auto);
+            gap: 4px 16px;
+            font: 15px var(--k-mono);
+        }
+
+        .stats small {
+            display: block;
+            font: 10px var(--k-font);
+            color: var(--k-muted);
+        }
+
+        .histo {
+            display: block;
+            width: 100%;
+            height: 64px;
+        }
+
+        .strip {
+            display: flex;
+            gap: 6px;
+            padding: 8px;
+            overflow-x: auto;
+            border-radius: 4px;
+            background: #0b0a09;
+            border-top: 6px dotted #2a2724;
+            border-bottom: 6px dotted #2a2724;
+        }
+
+        .strip .photo {
+            flex: 0 0 auto;
+            width: 74px;
+            height: 50px;
+            border-radius: 2px;
+            box-shadow: none;
+            cursor: pointer;
+        }
+
+        .strip .photo.is-on {
+            outline: 2px solid var(--k-accent);
+            outline-offset: 2px;
+        }
+
+        .dock {
+            display: flex;
+            justify-content: center;
+            gap: 22px;
+            margin-top: 12px;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            color: var(--k-muted);
+        }
+
+        .dock button:hover, .dock button.is-open {
+            color: var(--k-accent);
+        }
+
+        /* ===== Lightbox ===== */
+
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 4000;
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            background: rgba(8, 8, 7, 0.96);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .lightbox.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .lb-image {
+            margin: 4vh 2vw;
+            background: var(--img, none) center / contain no-repeat, transparent;
+            transition: opacity 0.3s;
+        }
+
+        .lb-side {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 30px 24px;
+            color: #ece8e1;
+            border-left: 1px solid #2a2724;
+        }
+
+        .lb-side h2 {
+            margin: 0;
+            font: italic 400 26px var(--serif);
+        }
+
+        .lb-nav {
+            position: absolute;
+            top: 50%;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            font-size: 26px;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .lb-nav:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ===== Lock: viewfinder ===== */
+
+        .lock {
+            --k-lock-blur: none;
+            background: var(--main) center / cover no-repeat, #111;
+            place-items: end start;
+            padding: 6vh 5vw;
+        }
+
+        .thirds {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(90deg, transparent calc(33.33% - 1px), rgba(255, 255, 255, 0.35) calc(33.33% - 1px) 33.33%, transparent 33.33% calc(66.66% - 1px), rgba(255, 255, 255, 0.35) calc(66.66% - 1px) 66.66%, transparent 66.66%),
+                linear-gradient(transparent calc(33.33% - 1px), rgba(255, 255, 255, 0.35) calc(33.33% - 1px) 33.33%, transparent 33.33% calc(66.66% - 1px), rgba(255, 255, 255, 0.35) calc(66.66% - 1px) 66.66%, transparent 66.66%);
+        }
+
+        .focus {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 120px;
+            height: 80px;
+            transform: translate(-50%, -50%);
+            border: 2px solid transparent;
+            border-image: linear-gradient(#7cff7c, #7cff7c) 1;
+            -webkit-mask: linear-gradient(#000 0 0) top left / 22px 22px no-repeat, linear-gradient(#000 0 0) top right / 22px 22px no-repeat,
+                linear-gradient(#000 0 0) bottom left / 22px 22px no-repeat, linear-gradient(#000 0 0) bottom right / 22px 22px no-repeat;
+            mask: linear-gradient(#000 0 0) top left / 22px 22px no-repeat, linear-gradient(#000 0 0) top right / 22px 22px no-repeat,
+                linear-gradient(#000 0 0) bottom left / 22px 22px no-repeat, linear-gradient(#000 0 0) bottom right / 22px 22px no-repeat;
+            animation: focus 2.4s ease-in-out infinite;
+        }
+
+        @keyframes focus {
+            50% { transform: translate(-50%, -50%) scale(0.85); }
+        }
+
+        .readout {
+            position: absolute;
+            inset: auto 0 0 0;
+            display: flex;
+            justify-content: center;
+            gap: 34px;
+            padding: 12px;
+            font: 15px var(--k-mono);
+            color: #fff;
+            background: rgba(0, 0, 0, 0.55);
+        }
+
+        .readout .rec {
+            color: #ff4040;
+            animation: rec 1s steps(1) infinite;
+        }
+
+        @keyframes rec {
+            50% { opacity: 0; }
+        }
+
+        .lock-inner {
+            align-items: flex-start;
+            text-align: left;
+            margin-bottom: 50px;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+        }
+
+        .lock-card {
+            align-items: flex-start;
+            margin-top: 20px;
+        }
+
+        .lock-avatar {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="desk">
+        <div class="wall">
+            <figure class="photo" id="main" style="margin: 0">
+                <figcaption class="caption"><b id="main-title"></b><span id="main-exif"></span></figcaption>
+            </figure>
+
+            <main class="center">
+                <div class="top">
+                    <span>Darkroom</span>
+                    <span>Wi-Fi · 87% · <span data-clock="hm"></span></span>
+                </div>
+                <div class="hero">
+                    <div class="time" data-clock="hm"></div>
+                    <div class="date" data-clock="long"></div>
+                    <div class="quote">“The light was there for only four minutes. I took eleven frames and kept one.”</div>
+                    <div class="tools">
+                        <button class="k-btn" id="slideshow">▶ Slideshow</button>
+                        <button class="k-btn" id="mono">◐ Black &amp; white</button>
+                        <button class="k-btn" id="zoom">⤢ View</button>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div>
+                        <div class="label">Now showing</div>
+                        <div class="stats" id="stats"></div>
+                    </div>
+                    <div>
+                        <div class="label">Histogram (computed from the photo)</div>
+                        <svg class="histo" viewBox="0 0 64 64" preserveAspectRatio="none" id="histo"></svg>
+                    </div>
+                </div>
+                <div>
+                    <div class="strip" id="strip"></div>
+                    <nav class="dock">
+                        <button data-app="files">Library</button><button data-app="browser">Browser</button><button data-app="terminal">Terminal</button>
+                        <button data-app="music">Music</button><button data-app="settings">Settings</button><button data-app="launcher">All…</button>
+                    </nav>
+                </div>
+            </main>
+
+            <aside class="stack" id="side"></aside>
+        </div>
+    </div>
+
+    <div class="lightbox" id="lightbox">
+        <div class="lb-image" id="lb-image"></div>
+        <aside class="lb-side">
+            <h2 id="lb-title"></h2>
+            <div class="stats" id="lb-stats" style="grid-template-columns: 1fr 1fr"></div>
+            <button class="k-btn" id="lb-main">Set as main photo</button>
+            <div class="k-muted">← → to browse · Esc to close</div>
+        </aside>
+        <button class="lb-nav" id="lb-prev" style="left: 2vw">‹</button>
+        <button class="lb-nav" id="lb-next" style="right: calc(280px + 2vw)">›</button>
+    </div>
+
+    <script src="kit/kit.js"></script>
+    <script>
+        // ===== Photos: placeholders from picsum.photos, gradients when offline =====
+
+        const PHOTOS = [
+            ["dune-light", "35 mm", "f/8", "1/500", "100"], ["harbor-blue", "85 mm", "f/2", "1/60", "800"],
+            ["forest-mist", "50 mm", "f/4", "1/125", "200"], ["city-neon", "24 mm", "f/1.4", "1/30", "3200"],
+            ["snow-peak", "70 mm", "f/11", "1/250", "100"], ["old-street", "28 mm", "f/5.6", "1/200", "400"],
+            ["sea-rocks", "16 mm", "f/16", "2 s", "50"], ["night-sky", "14 mm", "f/2.8", "20 s", "6400"],
+            ["red-leaves", "105 mm", "f/2.8", "1/320", "200"],
+        ].map(([seed, focal, aperture, shutter, iso], index) => ({
+            seed, focal, aperture, shutter, iso,
+            title: `Untitled #${String(index + 1).padStart(2, "0")}`,
+            fallback: `linear-gradient(${120 + index * 25}deg, hsl(${index * 40} 45% 55%), hsl(${index * 40 + 60} 35% 18%))`,
+            url: (width, height) => `https://picsum.photos/seed/${seed}/${width}/${height}`,
+        }));
+        let current = 0;
+        let viewing = 0;
+
+        const css_image = (photo, width, height) => `url("${photo.url(width, height)}")`;
+        const stats_html = (photo) => [["Focal", photo.focal], ["Aperture", photo.aperture], ["Shutter", photo.shutter], ["ISO", photo.iso]]
+            .map(([label, value]) => `<span><small>${label}</small>${value}</span>`).join("");
+
+        function paint(element, photo, width, height)
+        {
+            element.style.setProperty("--img", css_image(photo, width, height));
+            element.style.setProperty("--fallback", photo.fallback);
+        }
+
+        function set_main(index)
+        {
+            const main = document.getElementById("main");
+
+            current = (index + PHOTOS.length) % PHOTOS.length;
+            main.classList.add("fading");
+            setTimeout(() => {
+                const photo = PHOTOS[current];
+
+                paint(main, photo, 900, 1400);
+                document.getElementById("main-title").textContent = photo.title;
+                document.getElementById("main-exif").textContent = `${photo.focal} · ${photo.aperture} · ${photo.shutter} · ISO ${photo.iso}`;
+                document.getElementById("stats").innerHTML = stats_html(photo);
+                document.querySelectorAll("#strip .photo").forEach((frame, frame_index) => frame.classList.toggle("is-on", frame_index === current));
+                document.documentElement.style.setProperty("--main", css_image(photo, 1600, 1000));
+                main.classList.remove("fading");
+                histogram(photo);
+            }, 350);
+        }
+
+        // real RGB histogram of the photo (picsum allows CORS), random-looking curve when it cannot be read
+        function histogram(photo)
+        {
+            const image = new Image();
+            const draw = (channels) => {
+                const colors = ["rgba(235, 111, 92, 0.5)", "rgba(120, 200, 120, 0.45)", "rgba(110, 150, 240, 0.5)"];
+
+                document.getElementById("histo").innerHTML = channels.map((bins, channel) => {
+                    const max = Math.max(...bins, 1);
+
+                    return `<path d="M0 64 ${bins.map((value, index) => `L${index * 2} ${64 - (value / max) * 60}`).join(" ")} L64 64 Z" fill="${colors[channel]}"/>`;
+                }).join("");
+            };
+
+            image.crossOrigin = "anonymous";
+            image.onload = () => {
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                const channels = [new Array(33).fill(0), new Array(33).fill(0), new Array(33).fill(0)];
+
+                canvas.width = 64;
+                canvas.height = 64;
+                context.drawImage(image, 0, 0, 64, 64);
+                try {
+                    const data = context.getImageData(0, 0, 64, 64).data;
+
+                    for (let i = 0; i < data.length; i += 4)
+                        for (let channel = 0; channel < 3; ++channel)
+                            ++channels[channel][data[i + channel] >> 3];
+                    draw(channels);
+                } catch {
+                    draw([0, 1, 2].map(() => Array.from({length: 33}, () => Math.random())));
+                }
+            };
+            image.onerror = () => draw([0, 1, 2].map(() => Array.from({length: 33}, () => Math.random())));
+            image.src = photo.url(64, 64);
+        }
+
+        // ===== Wall =====
+
+        const side = document.getElementById("side");
+        const strip = document.getElementById("strip");
+
+        [1, 2, 3].forEach((index) => {
+            const figure = Kit.element(`<figure class="photo" data-photo="${index}" style="margin: 0"><figcaption class="caption"><b>${PHOTOS[index].title}</b><span>${PHOTOS[index].focal} · ${PHOTOS[index].aperture} · ${PHOTOS[index].shutter} · ISO ${PHOTOS[index].iso}</span></figcaption></figure>`);
+
+            paint(figure, PHOTOS[index], 800, 600);
+            side.append(figure);
+        });
+        PHOTOS.forEach((photo, index) => {
+            const frame = Kit.element(`<div class="photo" data-frame="${index}" title="${photo.title}"></div>`);
+
+            paint(frame, photo, 240, 160);
+            strip.append(frame);
+        });
+
+        document.querySelector(".wall").addEventListener("click", (event) => {
+            const frame = event.target.closest("[data-frame]");
+            const photo = event.target.closest("[data-photo]");
+
+            if (frame)
+                set_main(Number(frame.dataset.frame));
+            else if (photo)
+                open_lightbox(Number(photo.dataset.photo));
+            else if (event.target.closest("#main"))
+                open_lightbox(current);
+        });
+
+        // ===== Lightbox =====
+
+        const lightbox = document.getElementById("lightbox");
+
+        function open_lightbox(index)
+        {
+            const photo = PHOTOS[(index + PHOTOS.length) % PHOTOS.length];
+
+            viewing = (index + PHOTOS.length) % PHOTOS.length;
+            paint(document.getElementById("lb-image"), photo, 1600, 1100);
+            document.getElementById("lb-title").textContent = photo.title;
+            document.getElementById("lb-stats").innerHTML = stats_html(photo);
+            lightbox.classList.add("is-open");
+        }
+
+        document.getElementById("lb-prev").addEventListener("click", () => open_lightbox(viewing - 1));
+        document.getElementById("lb-next").addEventListener("click", () => open_lightbox(viewing + 1));
+        document.getElementById("lb-main").addEventListener("click", () => set_main(viewing));
+        document.getElementById("lb-image").addEventListener("click", () => lightbox.classList.remove("is-open"));
+        document.addEventListener("keydown", (event) => {
+            if (!lightbox.classList.contains("is-open"))
+                return;
+            if (event.key === "Escape")
+                lightbox.classList.remove("is-open");
+            else if (event.key === "ArrowLeft")
+                open_lightbox(viewing - 1);
+            else if (event.key === "ArrowRight")
+                open_lightbox(viewing + 1);
+        });
+
+        // ===== Tools =====
+
+        let slideshow = 0;
+
+        document.getElementById("slideshow").addEventListener("click", (event) => {
+            clearInterval(slideshow);
+            slideshow = event.target.classList.toggle("is-on") ? setInterval(() => set_main(current + 1), 4500) : 0;
+            event.target.textContent = slideshow ? "❚❚ Slideshow" : "▶ Slideshow";
+        });
+        document.getElementById("mono").addEventListener("click", (event) => document.body.classList.toggle("mono", event.target.classList.toggle("is-on")));
+        document.getElementById("zoom").addEventListener("click", () => open_lightbox(current));
+
+        // ===== Kit =====
+
+        const files = {};
+
+        PHOTOS.forEach((photo, index) => {
+            files[`~/Pictures/Portfolio/${String(index + 1).padStart(2, "0")}-${photo.seed}.jpg`] = {kind: "image", src: photo.url(800, 600), fallback: photo.fallback, size: `${(2 + index * 0.4).toFixed(1)} MB`};
+        });
+        Kit.init({
+            name: "Photographer", user: "tsukini", host: "darkroom",
+            desktop: [],
+            scenes: {files: ["files"]},
+            accents: ["#d9a441", "#e07a5f", "#81b29a", "#9fb4d9"],
+            wallpapers: [{label: "Dark room", cls: ""}, {label: "Light room", cls: "light-room"}],
+            toggles: [{label: "Black & white photos", key: "mono", on: false, cls: "mono"}],
+            icons: {image: "📷", dir: "🗂️"},
+            files,
+            lock: {
+                decor: "<div class=\"thirds\"></div><div class=\"focus\"></div><div class=\"readout\"><span>1/250</span><span>F2.8</span><span>ISO 200</span><span>-0.3 EV</span><span>35 mm</span><span>[ 999 ]</span><span class=\"rec\">● REC</span></div>",
+                placeholder: "Password", hint: "Any password · half-press to focus",
+            },
+            browser: {
+                engine: "Lens",
+                hero: "<div style=\"font: italic 400 46px var(--serif)\">Lens</div>",
+                tiles: [{name: "Gallery", url: "poc://wiki", icon: "🖼️"}, {name: "Workshop", url: "poc://video", icon: "🎞️"}, {name: "News", url: "poc://news", icon: "📰"}, {name: "Gear", url: "poc://search?q=35mm%20lens", icon: "📷"}],
+                news: {title: "Golden hour lasts longer this week", lead: "Low winter sun gives photographers a few extra minutes of warm light.", body: ["Plan your shots for the last 40 minutes before sunset.", "A tripod and a remote shutter help with the longer exposures of blue hour."]},
+                video: {title: "Editing a landscape in 10 minutes", channel: "Darkroom Sessions", background: "linear-gradient(170deg, #f3b26b, #c96a3d 40%, #4b2a3f)"},
+                wiki: {title: "Exposure triangle", body: [["Aperture", "Controls depth of field: f/1.4 blurs the background, f/16 keeps everything sharp."], ["Shutter", "Freezes or blurs motion: 1/1000 stops a bird, 2 s smooths the sea."], ["ISO", "Brightens the sensor signal at the cost of noise."]]},
+            },
+            terminal: {
+                motd: "darkroom · try <span class=\"t-accent\">ls ~/Pictures/Portfolio</span>, <span class=\"t-accent\">exif 3</span>, <span class=\"t-accent\">slideshow</span>",
+                commands: {
+                    exif: (args) => {
+                        const photo = PHOTOS[(Number(args[0]) || current + 1) - 1];
+
+                        return photo ? `${photo.title}\nFocal ${photo.focal} · Aperture ${photo.aperture} · Shutter ${photo.shutter} · ISO ${photo.iso}` : "usage: exif <1-9>";
+                    },
+                    slideshow: () => (document.getElementById("slideshow").click(), "slideshow toggled"),
+                    show: (args) => (set_main((Number(args[0]) || 1) - 1), ""),
+                },
+            },
+            context: [{label: "Next photo", run: () => set_main(current + 1)}, {label: "View full screen", run: () => open_lightbox(current)}],
+        });
+        set_main(0);
+    </script>
+</body>
+</html>
