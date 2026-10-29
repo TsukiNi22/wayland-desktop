@@ -146,7 +146,6 @@ menuitem:hover {
 
 #custom-overview:hover, #custom-style:hover {
     background: linear-gradient(90deg, #e12885, #39c5bb);
-    box-shadow: 0 0 12px rgba(57, 197, 187, 0.55);
 }
 
 #workspaces {
@@ -180,7 +179,6 @@ menuitem:hover {
 #workspaces button.active {
     min-width: 30px;
     background: linear-gradient(90deg, #39c5bb, #e12885);
-    box-shadow: 0 0 8px rgba(57, 197, 187, 0.6);
 }
 
 #workspaces button.urgent {

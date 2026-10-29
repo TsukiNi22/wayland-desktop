@@ -105,7 +105,6 @@ window#waybar > box {
     background: rgba(4, 7, 5, 0.9);
     border: 1px solid #1c4a2e;
     border-radius: 6px;
-    box-shadow: 0 0 14px rgba(57, 255, 136, 0.18);
 }
 
 #custom-overview, #custom-style, #workspaces button, #window, #clock, #mpris, #custom-cava, #cpu, #memory, #network,
@@ -121,12 +120,10 @@ window#waybar > box {
     color: #040705;
     background: #39ff88;
     font-weight: bold;
-    box-shadow: 0 0 10px rgba(57, 255, 136, 0.45);
 }
 
 #custom-overview:hover, #custom-style:hover {
     background: #ffb000;
-    box-shadow: 0 0 14px rgba(255, 176, 0, 0.6);
 }
 
 #workspaces button {
@@ -141,7 +138,6 @@ window#waybar > box {
 #workspaces button.active {
     color: #040705;
     background: #39ff88;
-    box-shadow: 0 0 10px rgba(57, 255, 136, 0.6);
 }
 
 #workspaces button:hover, #cpu:hover, #memory:hover, #network:hover, #pulseaudio:hover, #clock:hover, #mpris:hover,

@@ -27,18 +27,17 @@ window {
 
 #input:focus {
     border-color: #39c5bb;
-    box-shadow: 0 0 0 2px rgba(57, 197, 187, 0.25);
 }
 
 #inner-box, #scroll {
     background: transparent;
 }
 
+/* no transition, no bold, no glow on the selection: nothing replays when the focus moves */
 #entry {
     margin: 2px 0;
     padding: 8px 12px;
     border-radius: 8px;
-    transition: all 0.2s ease-out;
 }
 
 #entry image {
@@ -51,7 +50,6 @@ window {
 
 #entry:selected {
     background: linear-gradient(90deg, #39c5bb, #e12885);
-    box-shadow: 0 0 12px rgba(57, 197, 187, 0.35);
 }
 
 #text {
@@ -60,5 +58,4 @@ window {
 
 #text:selected {
     color: #0b2b2c;
-    font-weight: bold;
 }
