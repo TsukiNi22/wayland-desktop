@@ -3,19 +3,21 @@
 #   all       every style + the switcher (wd-style, module of the top bar, Super+Shift+W)
 #   <style>   one style alone: system, dev, ado, tty, miku, photographer
 #   remove    remove the configs and put back the files saved at the install
-# Install the wayland-desktop configs (Hyprland, waybar, wofi, kitty, hyprlock) for the current user, never as root
+# Install the wayland-desktop configs (Hyprland, waybar, wofi, kitty, hyprlock, mako, the quickshell overview and the
+# live wallpapers) for the current user, never as root
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 DATA_DIR="$CONFIG_DIR/wayland-desktop"
 BIN_DIR="$HOME/.local/bin"
+SHELL_DIR="$CONFIG_DIR/quickshell/wayland-desktop"
 BACKUP=".wd-backup"
 MARK="wayland-desktop"
 
 # Files managed by the install (relative to ~/.config): copies of config/common, links of the active style
 COPIES=(hypr/hyprland.lua kitty/kitty.conf wofi/config)
-LINKS=(hypr/style.lua hypr/hyprlock.conf waybar/config.jsonc waybar/style.css wofi/style.css kitty/theme.conf)
+LINKS=(hypr/style.lua hypr/hyprlock.conf waybar/config.jsonc waybar/style.css wofi/style.css kitty/theme.conf mako/config)
 
 # =========================
 # Helpers
@@ -85,7 +87,7 @@ install_configs() {
     else
         chosen=("$mode")
     fi
-    mkdir -p "$CONFIG_DIR"/{hypr,waybar,wofi,kitty} "$BIN_DIR"
+    mkdir -p "$CONFIG_DIR"/{hypr,waybar,wofi,kitty,mako} "$BIN_DIR"
     for file in "${COPIES[@]}" "${LINKS[@]}"; do
         save "$file"
     done
@@ -101,10 +103,18 @@ install_configs() {
         fi
     done
 
+    # overview (quickshell) and the kit of the live wallpapers (the pages load ../../common/wallpaper/wd.js)
+    rm -rf "$SHELL_DIR" "$DATA_DIR/common"
+    mkdir -p "$SHELL_DIR" "$DATA_DIR/common"
+    cp "$REPO_DIR"/config/common/quickshell/*.qml "$SHELL_DIR/"
+    echo "$MARK" > "$SHELL_DIR/.$MARK"
+    cp -r "$REPO_DIR/config/common/wallpaper" "$DATA_DIR/common/wallpaper"
+
     cp "$REPO_DIR/config/common/hypr/hyprland.lua" "$CONFIG_DIR/hypr/hyprland.lua"
     cp "$REPO_DIR/config/common/kitty/kitty.conf" "$CONFIG_DIR/kitty/kitty.conf"
     { echo "# $MARK"; cat "$REPO_DIR/config/common/wofi/config"; } > "$CONFIG_DIR/wofi/config"
     install -m 0755 "$REPO_DIR/config/common/bin/wd-style" "$DATA_DIR/bin/wd-style"
+    install -m 0755 "$REPO_DIR/config/common/bin/wd-wallpaper" "$DATA_DIR/bin/wd-wallpaper"
     ln -sfn "$DATA_DIR/bin/wd-style" "$BIN_DIR/wd-style"
     echo "$mode" > "$DATA_DIR/mode"
     write_user
@@ -112,7 +122,7 @@ install_configs() {
     # every style: start on System
     "$BIN_DIR/wd-style" set "$([[ "$mode" == "all" ]] && echo system || echo "$mode")"
     info "installed: $([[ "$mode" == "all" ]] && echo "every style + the switcher" || echo "$mode")"
-    info "log out and choose Hyprland at the login screen (Super+Shift+W: style menu)"
+    info "log out and choose Hyprland at the login screen (Super: overview, Super+Shift+W: style menu)"
 }
 
 remove_configs() {
@@ -127,6 +137,9 @@ remove_configs() {
             info "restored ~/.config/$file"
         fi
     done
+    if [[ -e "$SHELL_DIR/.$MARK" ]]; then
+        rm -rf "$SHELL_DIR"
+    fi
     rm -rf "$DATA_DIR"
     rm -f "$BIN_DIR/wd-style"
     info "removed (~/.config/hypr/user.lua is kept)"
