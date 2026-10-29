@@ -39,7 +39,8 @@ Wayland configuration. Every style has working windows, a lock screen, files, a 
 
 ## Wayland configs
 
-> Hyprland (Lua config, 0.55+), waybar, wofi, kitty and hyprlock configs inspired by the POCs, in `config/`
+> Hyprland (Lua config, 0.55+), waybar, wofi, kitty, hyprlock and mako configs inspired by the POCs, a GNOME-like overview
+> (quickshell) and live wallpapers that follow the music, in `config/`
 
 ```bash
 ./install.sh            # asks
@@ -55,18 +56,35 @@ Wayland configuration. Every style has working windows, a lock screen, files, a 
 
 | Keys | Effect |
 | ---- | ------ |
+| `Super` (alone) / `Super` again or `Super+A` | overview of the workspaces and their windows / applications grid (typing searches) |
 | `Super+Return` / `Super+Q` | terminal (kitty) |
 | `Super+R` | launcher (wofi) |
 | `Super+Shift+W` / `Super+Alt+W` | style menu / next style (`all` mode) |
-| `Super+1` - `Super+0` | workspaces (key codes: azerty and qwerty) |
-| `Super+L` | lock (hyprlock, the lock screen of the style) |
+| `Super+1` - `Super+0` | workspaces (key codes: azerty and qwerty), `+Shift`: move the window there |
+| `Ctrl+Alt+arrows`, `Super+Page_Up/Down`, `Super+Alt+left/right` | previous / next workspace, `+Shift`: with the window |
+| `Alt+Tab` / `Super+Tab` | next window / last workspace |
+| `Super+S` / `Super+Shift+S` | scratchpad / move the window to it |
+| `Super+L` / `Super+X` | lock (hyprlock, the lock screen of the style) / power menu |
 | `Super+C` / `Super+F` / `Super+V` | close / fullscreen / floating |
+| `Super+N` / `Super+Shift+N` | last notification again / dismiss them all |
+| `Super+Shift+B` | live / still wallpaper |
 | `Print` / `Shift+Print` | screenshot of a zone (clipboard) / of the screen (`~/Pictures`) |
 
+| Style | Live wallpaper (`config/styles/<style>/wallpaper.html`) |
+| ----- | ------------------------------------------------------ |
+| System | aurora, a 3D sphere of points pushed by the music, perspective grid, waveform, light clock |
+| Dev / low level | scrolling hex dump, 3D terrain of the last seconds of the spectrum, registers, phosphor CRT |
+| Ado / blue rose | the blue rose under stage light beams, 3D petals, sparkles, bass glow |
+| Terminal / better-tty | ASCII 3D torus in a tmux pane, rose-pine spectrum, block clock, neofetch pane, glyph rain, CRT |
+| Miku | ring of spectrum around the 39, rising notes, twin-tail ribbons |
+| Photographer | light leak, bokeh, film grain and dust, viewfinder |
+
 > [!NOTE]
-> The packages (`hyprland`, `hyprlock`, `waybar`, `wofi`, `kitty`, `swaybg`, `mako`, `grim`, `slurp`, `wl-clipboard`...) are
-> installed by the `Wayland` setup of [dump](https://github.com/TsukiNi22/dump), which also runs `install.sh` with the chosen
-> mode (Fedora: copr `sdegler/hyprland`; Debian / Ubuntu and Arch: their repositories).
+> The packages (`hyprland`, `hyprlock`, `waybar`, `wofi`, `kitty`, `swaybg`, `mako`, `grim`, `slurp`, `wl-clipboard`,
+> `quickshell`, `cava`, python GTK + WebKit 4.1 + `gtk-layer-shell`...) are installed by the `Wayland` setup of
+> [dump](https://github.com/TsukiNi22/dump), which also runs `install.sh` with the chosen mode (Fedora: copr
+> `sdegler/hyprland`; Debian / Ubuntu and Arch: their repositories). Without quickshell the overview falls back to the wofi
+> launcher; without WebKit / gtk-layer-shell the wallpaper stays the still image; without cava nothing moves with the music.
 
 > [!IMPORTANT]
 > The files already there are saved once (`<file>.wd-backup`) and put back by `./install.sh remove`;
