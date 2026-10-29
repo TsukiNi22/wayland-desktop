@@ -20,6 +20,16 @@ local function style(command)
     return hl.dsp.exec_cmd(wd_style .. " " .. command)
 end
 
+-- the overview (quickshell) answers a global shortcut at once; without quickshell: the wofi launcher (wd-style)
+local has_shell = os.execute("command -v quickshell > /dev/null 2>&1")
+
+local function overview(name)
+    if has_shell then
+        return hl.dsp.global("wayland-desktop:" .. name)
+    end
+    return style(name)
+end
+
 ------------------
 ---- MONITORS ----
 ------------------
@@ -53,7 +63,7 @@ hl.env("QS_ICON_THEME", "Adwaita")
 hl.config({
     input = {
         kb_layout    = "us",
-        follow_mouse = 1,
+        follow_mouse = 2, -- GNOME: a click focuses, hovering a window doesn't (no flashing borders)
         touchpad     = {
             natural_scroll = true,
         },
@@ -61,17 +71,15 @@ hl.config({
 
     general = {
         resize_on_border = true,
-        snap = {
-            enabled = true,
-        },
     },
 
     misc = {
         force_default_wallpaper  = 0,
         disable_hyprland_logo    = true,
-        animate_manual_resizes   = true,
-        animate_mouse_windowdragging = true,
+        animate_manual_resizes   = false, -- a dragged or resized window follows the mouse at once
+        animate_mouse_windowdragging = false,
         focus_on_activate        = true,
+        allow_session_lock_restore = true, -- a locker that crashes can be replaced (hyprlock), never a dead lock
     },
 
     binds = {
@@ -98,7 +106,7 @@ hl.gesture({
 hl.gesture({
     fingers   = 4,
     direction = "up",
-    action    = function() hl.exec_cmd(wd_style .. " overview") end,
+    action    = function() hl.dispatch(overview("overview")) end,
 })
 
 ---------------------
@@ -113,18 +121,19 @@ hl.bind(mainMod .. " + C", hl.dsp.window.close())
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen())
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))
+hl.bind(mainMod .. " + L", style("lock"))
 hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("hyprctl dispatch 'hl.dsp.exit()'"))
 
 -- GNOME: Super alone (released without another key) the overview, Super twice or Super+A the applications
-hl.bind(mainMod .. " + SUPER_L", style("overview"), { release = true })
-hl.bind(mainMod .. " + A", style("apps"))
+hl.bind(mainMod .. " + SUPER_L", overview("overview"), { release = true })
+hl.bind(mainMod .. " + A", overview("apps"))
 
--- styles: menu / next, power menu, live or still wallpaper (wd-style)
+-- styles: menu / next, power menu, live or still wallpaper, animated or normal cursor (wd-style)
 hl.bind(mainMod .. " + SHIFT + W", style("menu"))
 hl.bind(mainMod .. " + ALT + W", style("next"))
 hl.bind(mainMod .. " + X", style("power"))
 hl.bind(mainMod .. " + SHIFT + B", style("wallpaper toggle"))
+hl.bind(mainMod .. " + SHIFT + C", style("cursor toggle"))
 
 -- notifications: show the last one again / dismiss them all
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("makoctl restore"))
@@ -216,8 +225,8 @@ hl.window_rule({
     keep_aspect_ratio = true,
 })
 
--- the bar, the menus, the notifications and the overview blur what is behind them
-for _, namespace in ipairs({ "waybar", "wofi", "notifications", "wd-overview" }) do
+-- the bar, the menus and the notifications blur what is behind them (the overview draws its own blurred wallpaper)
+for _, namespace in ipairs({ "waybar", "wofi", "notifications" }) do
     hl.layer_rule({
         name         = "wd-blur-" .. namespace,
         match        = { namespace = namespace },

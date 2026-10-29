@@ -7,13 +7,16 @@
 #   menu                 choose a style in a wofi menu (run again: closes it)
 #   overview | apps      GNOME-like overview / applications grid (quickshell, else the wofi launcher)
 #   wallpaper [mode]     live (animated, follows the music) | still | toggle
+#   cursor [mode]        on (animated cursors of the style) | off (normal, the default) | toggle
 #   power                lock, log out, suspend, reboot or shut down in a wofi menu
+#   lock                 lock screen: a shell (better-tty), a getty (Dev), else hyprlock
 #   monitor              system monitor (btop, htop or top) in a floating terminal
 #   settings <panel>     network, sound or power settings (GNOME settings when installed)
-#   cava                 music bars for the waybar module (empty when silent)
+#   cava                 music bars for the waybar module (flat when silent, empty without a player)
+#   calendar             GNOME calendar, else three months in a floating terminal
 #   start                links of the active style and the session programs (run when Hyprland starts)
-# Switch the wayland-desktop style live: links the files of the style, reloads Hyprland, restarts waybar, the
-# wallpaper and the notifications, reloads kitty; the overview follows by itself (theme.json)
+# Switch the wayland-desktop style live: links the files of the style, reloads Hyprland, waybar, the notifications and
+# kitty, fades the wallpaper to the new one; the overview follows by itself (theme.json)
 set -euo pipefail
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -22,6 +25,8 @@ STYLES_DIR="$DATA_DIR/styles"
 CURRENT_FILE="$DATA_DIR/current"
 WALLPAPER_FILE="$DATA_DIR/wallpaper-mode"
 WALLPAPER_BIN="$DATA_DIR/bin/wd-wallpaper"
+CURSOR_FILE="$DATA_DIR/cursor-mode"
+ICONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
 SHELL_CONFIG="wayland-desktop"
 
 # =========================
@@ -139,8 +144,8 @@ wallpaper() {
     if [[ "$(wallpaper_mode)" == "live" ]] && live_ready "$style"; then
         pids=$(session_pids wd-wallpaper)
         if [[ -n "$pids" ]]; then
-            # already running: it fades to the page of the new style
-            kill -USR1 $pids 2> /dev/null || true
+            # already running: it crossfades to the page of the new style
+            kill -HUP $pids 2> /dev/null || true
         else
             # the still image at once, the live page fades in over it and stops it (wd-wallpaper)
             restart swaybg -m fill -i "$STYLES_DIR/$style/wallpaper.jpg"
@@ -153,6 +158,36 @@ wallpaper() {
     fi
 }
 
+# Animated cursors of the style (wd-<style>, made by install.sh) when on, else the normal one (the default)
+cursor_mode() {
+    cat "$CURSOR_FILE" 2> /dev/null || echo off
+}
+
+cursor() {
+    if [[ "$(cursor_mode)" == "on" && -d "$ICONS_DIR/wd-$1" ]]; then
+        hyprctl setcursor "wd-$1" 32 > /dev/null
+    else
+        hyprctl setcursor Adwaita 24 > /dev/null
+    fi
+}
+
+set_cursor() {
+    local mode="${1:-toggle}"
+
+    if [[ "$mode" == "toggle" ]]; then
+        mode=$([[ "$(cursor_mode)" == "on" ]] && echo off || echo on)
+    fi
+    if [[ "$mode" != "on" && "$mode" != "off" ]]; then
+        echo "wd-style: cursor on | off | toggle" >&2
+        return 1
+    fi
+    echo "$mode" > "$CURSOR_FILE"
+    if in_hyprland; then
+        cursor "$(current)"
+        notify "Cursor: $([[ "$mode" == "on" ]] && echo "animated ($(meta "$(current)" NAME))" || echo normal)"
+    fi
+}
+
 # The overview (quickshell) reads theme.json by itself: started once, never restarted
 start_shell() {
     if has quickshell && [[ -z "$(session_pids quickshell)" ]]; then
@@ -160,11 +195,24 @@ start_shell() {
     fi
 }
 
+# The bar reloads its config and style in place (no blink, the windows don't move): SIGUSR2, else it starts
+bar() {
+    local pids
+
+    pids=$(session_pids waybar)
+    if [[ -n "$pids" ]]; then
+        kill -USR2 $pids 2> /dev/null || true
+    else
+        setsid -f waybar > /dev/null 2>&1
+    fi
+}
+
 session() {
     local style="$1"
 
     wallpaper "$style"
-    restart waybar
+    bar
+    cursor "$style"
     # mako may have been started by D-Bus (outside of this session): reload whichever one runs
     if has makoctl && makoctl reload > /dev/null 2>&1; then
         :
@@ -261,12 +309,27 @@ menu() {
     done
 }
 
+# better-tty and Dev: the lock of the overview shell (quickshell); the other styles, or without it: hyprlock
+lock_screen() {
+    local pid
+    local style
+
+    style=$(current)
+    if [[ "$style" == "tty" || "$style" == "dev" ]] && has quickshell; then
+        pid=$(session_pids quickshell | head -n 1)
+        if [[ -n "$pid" ]] && quickshell ipc --pid "$pid" call lock lock > /dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    exec hyprlock
+}
+
 power() {
     local choice
 
     choice=$(pick "Power" 300 "  Lock" "  Log out" "  Suspend" "  Reboot" "  Shut down") || return 0
     case "$choice" in
-        *Lock) hyprlock ;;
+        *Lock) lock_screen ;;
         *"Log out") hyprctl dispatch 'hl.dsp.exit()' > /dev/null ;;
         *Suspend) systemctl suspend ;;
         *Reboot) systemctl reboot ;;
@@ -327,18 +390,24 @@ settings() {
     esac
 }
 
-# cava bars as one line of blocks per frame, an empty line when silent (the waybar module hides itself)
+# cava bars for the waybar module, 20 frames a second: flat bars (same width) while a player is open and silent,
+# nothing without a player (the module hides); a line is printed only when it changes
 cava_bar() {
     local config="${XDG_RUNTIME_DIR:-/tmp}/wd-cava-bar.conf"
+    local flat="▁▁▁▁▁▁▁▁▁▁▁▁"
+    local line
+    local shown=""
+    local player=0
+    local checked=-10
 
     if ! has cava; then
         exec sleep infinity
     fi
     cat > "$config" << EOF
 [general]
-framerate = 30
+framerate = 20
 bars = 12
-sleep_timer = 3
+sleep_timer = 1
 
 [input]
 method = pulse
@@ -357,7 +426,40 @@ monstercat = 1
 noise_reduction = 77
 EOF
     trap 'kill 0' EXIT
-    cava -p "$config" | LC_ALL=C.UTF-8 sed -u 's/;//g; /^0*$/s/.*//; y/01234567/▁▂▃▄▅▆▇█/'
+    while true; do
+        if ! IFS= read -r -t 2 line; then
+            line=""
+        fi
+        if ((SECONDS - checked >= 2)); then
+            playerctl status > /dev/null 2>&1 && player=1 || player=0
+            checked=$SECONDS
+        fi
+        line="${line//;/}"
+        if [[ -z "${line//0/}" ]]; then
+            line=$( ((player)) && echo "$flat" || echo "")
+        else
+            line="${line//0/▁}"
+            line="${line//1/▂}"
+            line="${line//2/▃}"
+            line="${line//3/▄}"
+            line="${line//4/▅}"
+            line="${line//5/▆}"
+            line="${line//6/▇}"
+            line="${line//7/█}"
+        fi
+        if [[ "$line" != "$shown" ]]; then
+            echo "$line"
+            shown="$line"
+        fi
+    done < <(cava -p "$config")
+}
+
+# The calendar of the clock: GNOME calendar when installed, else three months in a floating terminal
+calendar() {
+    if has gnome-calendar; then
+        exec gnome-calendar
+    fi
+    exec kitty --class wd-float -e bash -c 'cal -3; read -rsn 1'
 }
 
 # =========================
@@ -379,16 +481,19 @@ case "${1:-}" in
     overview) overview toggle ;;
     apps) overview apps ;;
     wallpaper) set_wallpaper "${2:-toggle}" ;;
+    cursor) set_cursor "${2:-toggle}" ;;
     power) power ;;
+    lock) lock_screen ;;
     monitor) monitor ;;
     settings) settings "${2:-network}" ;;
     cava) cava_bar ;;
+    calendar) calendar ;;
     start)
         link "$(current)"
         session "$(current)"
         ;;
     *)
-        sed -n '2,16s/^# \?//p' "$0"
+        sed -n '2,19s/^# \?//p' "$0"
         exit 1
         ;;
 esac
