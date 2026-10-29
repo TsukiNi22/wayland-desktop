@@ -104,6 +104,7 @@ os_family() {
 # Name of a package (fedora name) for the family: pkg_name <family> <package>
 pkg_name() {
     case "$1:$2" in
+        rpm:ffmpeg) echo "ffmpeg-free" ;;
         rpm:*) echo "$2" ;;
         deb:libnotify) echo "libnotify-bin" ;;
         deb:mako) echo "mako-notifier" ;;
@@ -136,7 +137,8 @@ pkg_name() {
 
 pkg_installed() {
     case "$1" in
-        rpm) rpm -q "$2" > /dev/null 2>&1 ;;
+        # ffmpeg of RPM Fusion counts too (the free build would conflict with it)
+        rpm) rpm -q "$2" > /dev/null 2>&1 || { [[ "$2" == ffmpeg-free ]] && command -v ffmpeg > /dev/null; } ;;
         deb) dpkg-query -W -f='${Status}' "$2" 2> /dev/null | grep -q "install ok installed" ;;
         arch) pacman -Q "$2" > /dev/null 2>&1 ;;
     esac
@@ -264,8 +266,14 @@ install_configs() {
     echo "$mode" > "$DATA_DIR/mode"
     write_user
 
-    # every style: start on System
-    "$BIN_DIR/wd-style" set "$([[ "$mode" == "all" ]] && echo system || echo "$mode")"
+    # every style: start on System, a reinstall keeps the style in use
+    local style="$mode"
+
+    if [[ "$mode" == "all" ]]; then
+        style=$(cat "$DATA_DIR/current" 2> /dev/null || true)
+        [[ -n "$style" && -d "$DATA_DIR/styles/$style" ]] || style=system
+    fi
+    "$BIN_DIR/wd-style" set "$style"
     # the offline tracks of the radios (a personal copy in ~/.local/share/wd-radio), downloaded in the background
     if command -v yt-dlp > /dev/null; then
         setsid -f "$DATA_DIR/bin/wd-wallpaper" --cache > /dev/null 2>&1 || true
