@@ -16,8 +16,8 @@ hl.config({
         rounding         = 18,
         rounding_power   = 2.5,
         active_opacity   = 1.0,
-        inactive_opacity = 0.9,
-        dim_inactive     = true,
+        inactive_opacity = 1.0,
+        dim_inactive     = false,
         dim_strength     = 0.18,
         dim_special      = 0.35,
 
@@ -58,13 +58,13 @@ hl.config({
 hl.curve("wd_overshoot", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
 hl.curve("wd_smooth",    { type = "bezier", points = { {0.23, 1}, {0.32, 1} } })
 hl.curve("wd_snap",      { type = "bezier", points = { {0.16, 1}, {0.3, 1} } })
-hl.curve("wd_back",      { type = "bezier", points = { {0.34, 1.4}, {0.64, 1} } })
+hl.curve("wd_back",      { type = "bezier", points = { {0.34, 1.22}, {0.64, 1} } })
 hl.curve("wd_soft",      { type = "bezier", points = { {0.45, 0}, {0.25, 1} } })
 hl.curve("wd_linear",    { type = "bezier", points = { {0, 0}, {1, 1} } })
 
 hl.animation({ leaf = "windowsIn",        enabled = true, speed = 5, bezier = "wd_back", style = "popin 70%" })
 hl.animation({ leaf = "windowsOut",       enabled = true, speed = 3, bezier = "wd_smooth", style = "popin 80%" })
-hl.animation({ leaf = "windowsMove",      enabled = true, speed = 5, bezier = "wd_back" })
+hl.animation({ leaf = "windowsMove",      enabled = true, speed = 4.5, bezier = "wd_smooth" })
 hl.animation({ leaf = "fade",             enabled = true, speed = 4, bezier = "wd_smooth" })
 hl.animation({ leaf = "workspaces",       enabled = true, speed = 6, bezier = "wd_smooth", style = "slidefade 30%" })
 hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 5, bezier = "wd_smooth", style = "slidefadevert 30%" })

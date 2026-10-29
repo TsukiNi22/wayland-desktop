@@ -17,7 +17,7 @@ hl.config({
         rounding_power   = 2.0,
         active_opacity   = 1.0,
         inactive_opacity = 1.0,
-        dim_inactive     = true,
+        dim_inactive     = false,
         dim_strength     = 0.08,
         dim_special      = 0.35,
 
@@ -49,7 +49,7 @@ hl.config({
 hl.curve("wd_overshoot", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
 hl.curve("wd_smooth",    { type = "bezier", points = { {0.23, 1}, {0.32, 1} } })
 hl.curve("wd_snap",      { type = "bezier", points = { {0.16, 1}, {0.3, 1} } })
-hl.curve("wd_back",      { type = "bezier", points = { {0.34, 1.4}, {0.64, 1} } })
+hl.curve("wd_back",      { type = "bezier", points = { {0.34, 1.22}, {0.64, 1} } })
 hl.curve("wd_soft",      { type = "bezier", points = { {0.45, 0}, {0.25, 1} } })
 hl.curve("wd_linear",    { type = "bezier", points = { {0, 0}, {1, 1} } })
 

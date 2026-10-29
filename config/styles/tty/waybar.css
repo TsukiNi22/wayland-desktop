@@ -3,9 +3,31 @@
 * {
     font-family: "JetBrains Mono", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 13px;
+    font-feature-settings: "tnum";
     min-height: 0;
     border: none;
     border-radius: 0;
+}
+
+/* no GTK button look: its border, inset shadow and gradient drew rectangles on hover and odd sizes */
+button, button:hover, button:active, button:focus {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    text-shadow: none;
+    background-image: none;
+    outline: none;
+}
+
+/* values with a fixed width: the bar doesn't move when they change; the music has its own width in the middle */
+#cpu, #memory, #pulseaudio, #battery {
+    min-width: 56px;
+}
+
+#mpris {
+    min-width: 230px;
 }
 
 tooltip {
@@ -44,6 +66,38 @@ window#waybar {
 
 #idle_inhibitor.activated {
     color: #f6c177;
+}
+
+/* nothing to show: no empty pill (window title on an empty workspace, tray without icons) */
+window#waybar.empty #window, #window.empty, #tray.empty {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* menus of the tray icons */
+menu {
+    padding: 6px;
+    color: #e0def4;
+    background: rgba(31, 29, 46, 0.97);
+    border: 1px solid #403d52;
+    border-radius: 10px;
+}
+
+menuitem {
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+menuitem:hover {
+    color: #191724;
+    background: #c4a7e7;
+}
+
+#tray > .needs-attention {
+    color: #eb6f92;
 }
 
 window#waybar > box {

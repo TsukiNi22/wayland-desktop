@@ -32,20 +32,17 @@
     "hyprland/workspaces": {
         "format": "{id}",
         "on-click": "activate",
-        "persistent-workspaces": {
-            "*": 5
-        },
         "sort-by-number": true
     },
     "hyprland/window": {
         "format": "{title}",
-        "max-length": 40,
+        "max-length": 32,
         "separate-outputs": true
     },
     "clock": {
         "format": "{:%a %d %b  %H:%M}",
-        "format-alt": "{:%A %d %B %Y}",
         "tooltip-format": "<tt><small>{calendar}</small></tt>",
+        "on-click": "~/.local/bin/wd-style calendar",
         "calendar": {
             "mode": "month",
             "weeks-pos": "",
@@ -69,7 +66,8 @@
         "format-paused": "  {dynamic}",
         "format-stopped": "",
         "dynamic-order": ["title", "artist"],
-        "dynamic-len": 34,
+        "dynamic-len": 24,
+        "max-length": 30,
         "dynamic-separator": " · ",
         "on-click": "playerctl play-pause",
         "on-click-right": "playerctl next",
@@ -80,15 +78,16 @@
         "exec": "~/.local/bin/wd-style cava",
         "format": "{}",
         "tooltip": false,
-        "restart-interval": 30
+        "restart-interval": 30,
+        "escape": true
     },
     "cpu": {
-        "format": "cpu {usage}%",
+        "format": "cpu {usage:>2}%",
         "interval": 2,
         "on-click": "~/.local/bin/wd-style monitor"
     },
     "memory": {
-        "format": "mem {percentage}%",
+        "format": "mem {percentage:>2}%",
         "interval": 5,
         "on-click": "~/.local/bin/wd-style monitor"
     },
@@ -100,7 +99,7 @@
         "on-click": "~/.local/bin/wd-style settings network"
     },
     "pulseaudio": {
-        "format": "vol {volume}",
+        "format": "vol {volume:>3}",
         "format-muted": "vol muted",
         "format-icons": {
             "default": ["", "", ""]
@@ -111,8 +110,8 @@
         "tooltip-format": "{desc}  {volume}%\nclick: mute - right: settings - scroll: volume"
     },
     "battery": {
-        "format": "bat {capacity}%",
-        "format-charging": "chg {capacity}%",
+        "format": "bat {capacity:>3}%",
+        "format-charging": "chg {capacity:>3}%",
         "format-icons": ["", "", "", "", ""],
         "states": {
             "warning": 25,
@@ -149,7 +148,7 @@
     },
     "custom/lock": {
         "format": "",
-        "on-click": "hyprlock",
+        "on-click": "~/.local/bin/wd-style lock",
         "tooltip-format": "Lock (Super+L)"
     },
     "custom/suspend": {

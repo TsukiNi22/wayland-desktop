@@ -11,8 +11,8 @@
         "hyprland/workspaces",
         "hyprland/window"
     ],
-    "modules-center": ["clock", "group/music"],
-    "modules-right": ["tray", "idle_inhibitor", "network", "pulseaudio", "cpu", "memory", "battery", "group/session"],
+    "modules-center": ["group/music"],
+    "modules-right": ["tray", "idle_inhibitor", "network", "pulseaudio", "cpu", "memory", "battery", "clock", "group/session"],
     "custom/style": { // wd-switcher-begin
         "exec": "~/.local/bin/wd-style current --label",
         "interval": "once",
@@ -31,20 +31,17 @@
     "hyprland/workspaces": {
         "format": "0x{id}",
         "on-click": "activate",
-        "persistent-workspaces": {
-            "*": 5
-        },
         "sort-by-number": true
     },
     "hyprland/window": {
         "format": "{title}",
-        "max-length": 40,
+        "max-length": 32,
         "separate-outputs": true
     },
     "clock": {
         "format": "[ {:%H:%M} ]",
-        "format-alt": "[ {:%A %d %B %Y} ]",
         "tooltip-format": "<tt><small>{calendar}</small></tt>",
+        "on-click": "~/.local/bin/wd-style calendar",
         "calendar": {
             "mode": "month",
             "weeks-pos": "",
@@ -68,7 +65,8 @@
         "format-paused": "[   {dynamic} ]",
         "format-stopped": "",
         "dynamic-order": ["title", "artist"],
-        "dynamic-len": 34,
+        "dynamic-len": 24,
+        "max-length": 30,
         "dynamic-separator": " · ",
         "on-click": "playerctl play-pause",
         "on-click-right": "playerctl next",
@@ -79,15 +77,16 @@
         "exec": "~/.local/bin/wd-style cava",
         "format": "{}",
         "tooltip": false,
-        "restart-interval": 30
+        "restart-interval": 30,
+        "escape": true
     },
     "cpu": {
-        "format": "[   {usage}% ]",
+        "format": "[   {usage:>2}% ]",
         "interval": 2,
         "on-click": "~/.local/bin/wd-style monitor"
     },
     "memory": {
-        "format": "[   {percentage}% ]",
+        "format": "[   {percentage:>2}% ]",
         "interval": 5,
         "on-click": "~/.local/bin/wd-style monitor"
     },
@@ -99,7 +98,7 @@
         "on-click": "~/.local/bin/wd-style settings network"
     },
     "pulseaudio": {
-        "format": "[ {icon}  {volume}% ]",
+        "format": "[ {icon}  {volume:>3}% ]",
         "format-muted": "[   muted ]",
         "format-icons": {
             "default": ["", "", ""]
@@ -110,8 +109,8 @@
         "tooltip-format": "{desc}  {volume}%\nclick: mute - right: settings - scroll: volume"
     },
     "battery": {
-        "format": "[ {icon}  {capacity}% ]",
-        "format-charging": "[   {capacity}% ]",
+        "format": "[ {icon}  {capacity:>3}% ]",
+        "format-charging": "[   {capacity:>3}% ]",
         "format-icons": ["", "", "", "", ""],
         "states": {
             "warning": 25,
@@ -148,7 +147,7 @@
     },
     "custom/lock": {
         "format": "[  ]",
-        "on-click": "hyprlock",
+        "on-click": "~/.local/bin/wd-style lock",
         "tooltip-format": "Lock (Super+L)"
     },
     "custom/suspend": {

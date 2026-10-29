@@ -3,9 +3,31 @@
 * {
     font-family: "Adwaita Sans", "Font Awesome 6 Free", "Noto Sans CJK JP", "Noto Sans Symbols 2", sans-serif;
     font-size: 13px;
+    font-feature-settings: "tnum";
     min-height: 0;
     border: none;
     border-radius: 0;
+}
+
+/* no GTK button look: its border, inset shadow and gradient drew rectangles on hover and odd sizes */
+button, button:hover, button:active, button:focus {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    text-shadow: none;
+    background-image: none;
+    outline: none;
+}
+
+/* values with a fixed width: the bar doesn't move when they change; the music has its own width in the middle */
+#cpu, #memory, #pulseaudio, #battery {
+    min-width: 56px;
+}
+
+#mpris {
+    min-width: 230px;
 }
 
 tooltip {
@@ -46,13 +68,45 @@ window#waybar {
     color: #ffd166;
 }
 
+/* nothing to show: no empty pill (window title on an empty workspace, tray without icons) */
+window#waybar.empty #window, #window.empty, #tray.empty {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* menus of the tray icons */
+menu {
+    padding: 6px;
+    color: #eaf1ff;
+    background: rgba(11, 20, 48, 0.97);
+    border: 1px solid #223a7a;
+    border-radius: 18px;
+}
+
+menuitem {
+    padding: 5px 10px;
+    border-radius: 12px;
+}
+
+menuitem:hover {
+    color: #050814;
+    background: #2f6bff;
+}
+
+#tray > .needs-attention {
+    color: #ff2a4a;
+}
+
 .modules-left > widget > *, .modules-center > widget > *, .modules-right > widget > * {
     margin: 0 3px;
     padding: 0 14px;
     border-radius: 18px;
     background: rgba(11, 20, 48, 0.78);
     border: 1px solid rgba(34, 58, 122, 0.9);
-    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+    transition: all 0.25s ease-out;
 }
 
 /* the groups are not pills themselves: their modules are, so an empty group (no music) leaves nothing behind */
@@ -69,7 +123,7 @@ window#waybar {
     border-radius: 18px;
     background: rgba(11, 20, 48, 0.78);
     border: 1px solid rgba(34, 58, 122, 0.9);
-    transition: all 0.3s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+    transition: all 0.25s ease-out;
 }
 
 .modules-left > widget > *:hover, .modules-center > widget > *:hover, .modules-right > widget > *:hover,
@@ -109,7 +163,7 @@ window#waybar {
     border-radius: 99px;
     background: rgba(142, 163, 204, 0.45);
     font-size: 1px;
-    transition: all 0.35s cubic-bezier(0.05, 0.9, 0.1, 1.05);
+    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 #workspaces button label {
@@ -134,7 +188,6 @@ window#waybar {
 }
 
 #workspaces button:hover {
-    min-width: 16px;
     background: rgba(47, 107, 255, 0.7);
 }
 
