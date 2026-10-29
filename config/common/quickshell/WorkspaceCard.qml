@@ -14,8 +14,18 @@ Item {
     required property int workspaceId
     required property int order
 
-    readonly property var windows: overview.windowsOf(workspaceId)
+    // its windows: the same list (and the same live copies) as long as they are the same windows
+    readonly property var windowList: overview.windowsOf(workspaceId)
+    property var windows: []
+    onWindowListChanged: {
+        if (windowList.length !== windows.length || windowList.some((w, i) => w !== windows[i]))
+            windows = windowList;
+    }
+    Component.onCompleted: windows = windowList
     readonly property bool active: overview.activeWorkspace === workspaceId
+    // picked with the arrows: Enter goes there (the mouse has its own thinner border: a card appearing under a still
+    // pointer is not picked)
+    readonly property bool picked: overview.picked === order
     readonly property bool fresh: windows.length === 0 && !active
     readonly property real ratio: width / overview.screenWidth
     readonly property real originX: overview.monitor ? overview.monitor.x : 0
@@ -24,15 +34,9 @@ Item {
     readonly property real entrance: Math.max(0, Math.min(1, overview.progress * 1.5 - order * 0.1))
 
     height: width * overview.screenHeight / overview.screenWidth + 30
+    // no zoom on hover (it made the live copies flicker): the border shows it
     opacity: entrance
-    scale: (0.82 + 0.18 * entrance) * (cardMouse.containsMouse || drop.containsDrag ? 1.04 : 1)
-
-    Behavior on scale {
-        NumberAnimation {
-            duration: 200
-            easing.type: Easing.OutCubic
-        }
-    }
+    scale: 0.82 + 0.18 * entrance
 
     transform: Translate {
         y: (1 - card.entrance) * 50
@@ -56,8 +60,9 @@ Item {
         height: parent.height - 30
         radius: card.theme.radius
         color: card.theme.bg
-        border.width: card.active || drop.containsDrag ? 2 : 1
-        border.color: drop.containsDrag ? card.theme.accent2 : (card.active ? card.theme.accent : Qt.alpha(card.theme.fg, 0.15))
+        border.width: card.picked || drop.containsDrag ? 3 : (card.active || cardMouse.containsMouse ? 2 : 1)
+        border.color: drop.containsDrag ? card.theme.accent2 : (card.picked || card.active || cardMouse.containsMouse
+            ? card.theme.accent : Qt.alpha(card.theme.fg, 0.15))
 
         Image {
             anchors.fill: parent
@@ -124,8 +129,13 @@ Item {
                         id: copy
 
                         anchors.fill: parent
+                        // one copy per opening (live copies cost and flickered)
                         captureSource: card.host.shown ? thumb.modelData.wayland : null
-                        live: true
+                        live: false
+                        onCaptureSourceChanged: {
+                            if (captureSource)
+                                captureFrame();
+                        }
                         opacity: hasContent ? 1 : 0
 
                         Behavior on opacity {
@@ -208,9 +218,9 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         text: card.fresh ? "New workspace" : "Workspace " + card.workspaceId
-        color: card.active ? card.theme.accent : card.theme.muted
+        color: card.active || card.picked ? card.theme.accent : card.theme.muted
         font.family: card.theme.font
         font.pixelSize: 13
-        font.bold: card.active
+        font.bold: card.active || card.picked
     }
 }

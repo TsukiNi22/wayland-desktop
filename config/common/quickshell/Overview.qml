@@ -13,6 +13,7 @@ Item {
     required property var theme
     required property string mode
     required property bool shown
+    property bool deciding: false
     property var monitor: null
 
     signal closeRequested
@@ -25,20 +26,34 @@ Item {
     // 0 closed -> 1 open, and 0 workspaces -> 1 applications (animated)
     property real progress: 0
     property real appsProgress: appsMode ? 1 : 0
+    // the workspaces or the applications show once Super twice is ruled out (0 -> 1)
+    property real reveal: deciding ? 0 : 1
     property int selected: 0
+    // the workspace card picked with the arrows (an index of workspaces): Enter goes there, nothing is created before
+    property int picked: 0
     // window dragged to another workspace (HyprlandToplevel)
     property var dragged: null
     property string hoveredTitle: ""
     readonly property Item ghost: ghostItem
 
     // motion of the style: overshoot / back (bounce), snap (fast), soft (slow)
-    readonly property int speed: theme.motion === "soft" ? 520 : (theme.motion === "snap" ? 240 : 380)
+    readonly property int speed: theme.motion === "soft" ? 420 : (theme.motion === "snap" ? 200 : 300)
     readonly property int curve: theme.motion === "soft" ? Easing.InOutSine
         : (theme.motion === "snap" ? Easing.OutExpo : Easing.OutBack)
 
+    // a choice made while deciding (Super twice) jumps, a change later slides
     Behavior on appsProgress {
+        enabled: !overview.deciding && overview.reveal >= 1
+
         NumberAnimation {
             duration: overview.speed
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Behavior on reveal {
+        NumberAnimation {
+            duration: 140
             easing.type: Easing.OutCubic
         }
     }
@@ -47,8 +62,8 @@ Item {
     // Data
     // =========================
     // every numbered workspace: the ones quickshell tracks, the ones of the windows (it may miss a creation) and the
-    // active one, then one empty workspace after the last (GNOME)
-    readonly property var workspaces: {
+    // active one, then the "new workspace" card after the last
+    readonly property var workspaceIds: {
         const name = overview.monitor ? overview.monitor.name : "";
         const ids = new Set(Hyprland.workspaces.values.filter(w => w.id > 0 && (!name || !w.monitor || w.monitor.name === name))
             .map(w => w.id));
@@ -66,6 +81,14 @@ Item {
         sorted.push(sorted.length ? sorted[sorted.length - 1] + 1 : 1);
         return sorted;
     }
+    // the cards only change when the list really changes: a new array at each refresh of Hyprland rebuilt every card and
+    // its live copies at each opening (the lag of Super)
+    property var workspaces: []
+    onWorkspaceIdsChanged: {
+        if (JSON.stringify(workspaceIds) !== JSON.stringify(workspaces))
+            workspaces = workspaceIds;
+    }
+    Component.onCompleted: workspaces = workspaceIds
     readonly property int activeWorkspace: overview.monitor && overview.monitor.activeWorkspace
         ? overview.monitor.activeWorkspace.id : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1)
     readonly property real screenWidth: overview.monitor ? overview.monitor.width / overview.monitor.scale : overview.width
@@ -125,6 +148,7 @@ Item {
     }
 
     onResultsChanged: selected = 0
+    onWorkspacesChanged: picked = Math.max(0, Math.min(workspaces.length - 1, picked))
 
     function workspaceOf(toplevel) {
         if (toplevel.workspace)
@@ -159,10 +183,6 @@ Item {
     function goTo(id) {
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${id} })`);
         overview.closeRequested();
-    }
-
-    function switchTo(offset) {
-        Hyprland.dispatch(`hl.dsp.focus({ workspace = "r${offset > 0 ? "+" : "-"}1" })`);
     }
 
     function focusWindow(toplevel) {
@@ -221,7 +241,7 @@ Item {
             if (overview.appsMode)
                 launch(overview.results[overview.selected]);
             else
-                goTo(overview.activeWorkspace);
+                goTo(overview.workspaces[overview.picked]);
             break;
         case Qt.Key_Down:
             if (overview.appsMode)
@@ -248,7 +268,8 @@ Item {
             } else if (overview.appsMode) {
                 overview.selected = Math.max(0, Math.min(count - 1, overview.selected + (event.key === Qt.Key_Left ? -1 : 1)));
             } else {
-                switchTo(event.key === Qt.Key_Left ? -1 : 1);
+                overview.picked = Math.max(0, Math.min(overview.workspaces.length - 1,
+                    overview.picked + (event.key === Qt.Key_Left ? -1 : 1)));
             }
             break;
         default:
@@ -261,6 +282,7 @@ Item {
         if (open) {
             search.text = "";
             overview.selected = 0;
+            overview.picked = Math.max(0, overview.workspaces.indexOf(overview.activeWorkspace));
             closing.stop();
             opening.start();
             search.forceActiveFocus();
@@ -439,7 +461,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         y: overview.height * 0.43 - height / 2 - overview.appsProgress * 90
         spacing: 28
-        opacity: 1 - overview.appsProgress
+        opacity: (1 - overview.appsProgress) * overview.reveal
         visible: opacity > 0.01
 
         Repeater {
@@ -461,8 +483,8 @@ Item {
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         y: strip.y + strip.height + 34
-        opacity: (1 - overview.appsProgress) * overview.progress
-        text: overview.hoveredTitle || "click: go  ·  drag a window: move it  ·  middle click: close  ·  ← →: workspaces  ·  Super: applications"
+        opacity: (1 - overview.appsProgress) * overview.progress * overview.reveal
+        text: overview.hoveredTitle || "click: go  ·  drag a window: move it  ·  middle click: close  ·  ← → Enter: workspaces  ·  Super: applications"
         color: overview.hoveredTitle ? overview.theme.fg : overview.theme.muted
         font.family: overview.theme.font
         font.pixelSize: overview.hoveredTitle ? 15 : 13
@@ -482,7 +504,7 @@ Item {
         y: 130 + (1 - overview.appsProgress) * 90
         width: columns * cellWidth
         height: dock.y - y - 26
-        opacity: overview.appsProgress * overview.progress
+        opacity: overview.appsProgress * overview.progress * overview.reveal
         visible: opacity > 0.01
         cellWidth: 150
         cellHeight: 138

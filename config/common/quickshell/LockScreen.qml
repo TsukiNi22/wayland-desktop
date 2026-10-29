@@ -602,41 +602,46 @@ Item {
         }
     }
 
-    // the transcript and the prompt, at the bottom of the text column
-    Column {
+    // the transcript and the prompt: the prompt stays at the bottom (never cut), the old lines go out at the top, long
+    // lines wrap
+    Item {
         id: board
 
         x: lock.column
         y: lock.shell ? fetch.y + fetch.height + lock.fontSize * 2 : lock.height * 0.36
         width: lock.width - 2 * lock.column
-        height: lock.height * 0.86 - y
+        height: lock.height - y - lock.fontSize * 3.6
         clip: true
-
-        Item {
-            width: 1
-            height: Math.max(0, board.height - transcript.height - promptLine.height)
-        }
 
         Column {
             id: transcript
 
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: promptLine.top
+
             Repeater {
-                model: lock.lines.slice(-Math.floor(board.height / (lock.fontSize * 1.35)))
+                model: lock.lines.slice(-80)
 
                 Text {
                     required property var modelData
 
+                    width: transcript.width
                     text: modelData.text
                     color: modelData.color
                     font.family: "JetBrains Mono"
                     font.pixelSize: lock.fontSize
                     textFormat: Text.PlainText
+                    wrapMode: Text.WrapAnywhere
                 }
             }
         }
 
         Row {
             id: promptLine
+
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
 
             Text {
                 text: lock.prompt()
@@ -652,6 +657,8 @@ Item {
                 font.family: "JetBrains Mono"
                 font.pixelSize: lock.fontSize
                 textFormat: Text.PlainText
+                elide: Text.ElideLeft
+                width: Math.min(implicitWidth, board.width - x - lock.fontSize * 2)
             }
 
             Rectangle {

@@ -3,7 +3,7 @@
 // third time / Escape / a click on the background: back to the desktop; typing searches the applications at once
 // The colors, font, radius and motion follow the active style (~/.config/wayland-desktop/theme.json, copied by wd-style)
 // GNOME workspaces: an emptied workspace goes away and the ones after it move down (no hole); a window dropped on the
-// "new workspace" card of the overview creates one
+// "new workspace" card of the overview creates one, and so does Enter or a click on it (the arrows only select a card)
 // The lock of better-tty (a shell) and Dev (a getty) is a session lock drawn here (LockScreen.qml, wd-style lock)
 
 import QtQuick
@@ -19,6 +19,8 @@ ShellRoot {
     property string mode: "closed"
     // true from the opening until the end of the closing animation
     property bool shown: false
+    // the first moments after Super: a second Super goes straight to the applications (workspaces never shown)
+    property bool deciding: false
 
     // Workspaces first, the windows after: a window of a workspace quickshell doesn't know yet crashes it (0.2)
     function refresh() {
@@ -38,14 +40,26 @@ ShellRoot {
         root.mode = "closed";
     }
 
-    // GNOME: overview, then applications, then the desktop again
+    // GNOME: overview, then applications, then the desktop again; Super twice quickly: the applications at once
     function toggle() {
-        if (root.mode === "closed")
+        if (root.mode === "closed") {
+            root.deciding = true;
+            decide.restart();
             root.open("overview");
-        else if (root.mode === "overview")
+        } else if (root.mode === "overview") {
             root.mode = "apps";
-        else
+            root.deciding = false;
+        } else {
             root.close();
+        }
+    }
+
+    // a double tap of Super (release to release): long enough for a quick double tap, short enough for a single Super
+    Timer {
+        id: decide
+
+        interval: 260
+        onTriggered: root.deciding = false
     }
 
     function apps() {
@@ -66,11 +80,13 @@ ShellRoot {
         onTriggered: Hyprland.refreshToplevels()
     }
 
-    // Super (released alone) and Super+A, straight from Hyprland: no process started at each press
+    // Super (released alone) and Super+A, straight from Hyprland: no process started at each press. Super is a release
+    // bind: Hyprland sends it as "released"; hyprctl dispatch and the touchpad gesture send "pressed" (never both)
     GlobalShortcut {
         appid: "wayland-desktop"
         name: "overview"
         onPressed: root.toggle()
+        onReleased: root.toggle()
     }
 
     GlobalShortcut {
@@ -250,6 +266,7 @@ ShellRoot {
                 anchors.fill: parent
                 theme: styleTheme
                 mode: root.mode
+                deciding: root.deciding
                 shown: root.shown && window.visible
                 monitor: Hyprland.monitorFor(window.modelData)
                 onCloseRequested: root.close()
