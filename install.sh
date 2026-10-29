@@ -1,10 +1,13 @@
 #!/bin/bash
-# Usage: ./install.sh [all | <style> | remove]   (no argument: asks)
-#   all       every style + the switcher (wd-style, module of the top bar, Super+Shift+W)
-#   <style>   one style alone: system, dev, ado, tty, miku, photographer
-#   remove    remove the configs and put back the files saved at the install
-# Install the wayland-desktop configs (Hyprland, waybar, wofi, kitty, hyprlock, mako, the quickshell overview and the
-# live wallpapers) for the current user, never as root
+# Usage: ./install.sh [--no-packages] [all | <style> | remove]   (no argument: asks)
+#   all            every style + the switcher (wd-style, module of the top bar, Super+Shift+W)
+#   <style>        one style alone: system, dev, ado, tty, miku, photographer
+#   remove         remove the configs and put back the files saved at the install (the packages stay)
+#   --no-packages  the configs only
+# Install the packages of the chosen config for the distribution (fedora-like: dnf + copr sdegler/hyprland, debian-like:
+# apt, arch-like: pacman; a package missing in the repositories is skipped), then the wayland-desktop configs (Hyprland,
+# waybar, wofi, kitty, hyprlock, mako, the quickshell overview and the live wallpapers) for the user
+# As a user: sudo for the packages only; as root through sudo (ex: the Wayland setup of dump): the configs go to $SUDO_USER
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,8 +15,17 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 DATA_DIR="$CONFIG_DIR/wayland-desktop"
 BIN_DIR="$HOME/.local/bin"
 SHELL_DIR="$CONFIG_DIR/quickshell/wayland-desktop"
+ICONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons"
 BACKUP=".wd-backup"
 MARK="wayland-desktop"
+
+HYPRLAND_COPR="sdegler/hyprland" # fedora-like: hyprland, hyprlock (not in the Fedora repositories)
+# Packages of every config (fedora names, translated for the family by pkg_name); a style adds the PACKAGES of its
+# style.env (its fonts, the radio of ado and miku)
+PACKAGES=(hyprland hyprlock waybar wofi kitty swaybg mako grim slurp wl-clipboard brightnessctl playerctl wireplumber
+    libnotify nautilus btop adwaita-cursor-theme jetbrains-mono-fonts-all fontawesome-6-free-fonts
+    google-noto-sans-cjk-vf-fonts google-noto-sans-symbols-2-fonts google-noto-color-emoji-fonts
+    quickshell cava python3-gobject python3-cairo webkit2gtk4.1 gtk-layer-shell python3-pillow)
 
 # Files managed by the install (relative to ~/.config): copies of config/common, links of the active style
 COPIES=(hypr/hyprland.lua kitty/kitty.conf wofi/config)
@@ -75,6 +87,135 @@ EOF
 }
 
 # =========================
+# Packages
+# =========================
+os_family() {
+    local ids
+
+    ids=$(source /etc/os-release 2> /dev/null && echo "${ID:-} ${ID_LIKE:-}")
+    case " $ids " in
+        *" fedora "* | *" rhel "* | *" centos "*) echo rpm ;;
+        *" debian "* | *" ubuntu "*) echo deb ;;
+        *" arch "*) echo arch ;;
+        *) echo unknown ;;
+    esac
+}
+
+# Name of a package (fedora name) for the family: pkg_name <family> <package>
+pkg_name() {
+    case "$1:$2" in
+        rpm:*) echo "$2" ;;
+        deb:libnotify) echo "libnotify-bin" ;;
+        deb:mako) echo "mako-notifier" ;;
+        deb:adwaita-cursor-theme) echo "adwaita-icon-theme" ;;
+        deb:adwaita-sans-fonts) echo "fonts-adwaita" ;;
+        deb:jetbrains-mono-fonts-all) echo "fonts-jetbrains-mono" ;;
+        deb:fontawesome-6-free-fonts) echo "fonts-font-awesome" ;;
+        deb:google-noto-sans-cjk-vf-fonts) echo "fonts-noto-cjk" ;;
+        deb:google-noto-sans-symbols-2-fonts | deb:google-noto-serif-vf-fonts) echo "fonts-noto-core" ;;
+        deb:google-noto-color-emoji-fonts) echo "fonts-noto-color-emoji" ;;
+        deb:python3-gobject) echo "python3-gi" ;;
+        deb:python3-cairo) echo "python3-gi-cairo" ;;
+        deb:webkit2gtk4.1) echo "gir1.2-webkit2-4.1" ;;
+        deb:gtk-layer-shell) echo "gir1.2-gtklayershell-0.1" ;;
+        deb:python3-pillow) echo "python3-pil" ;;
+        arch:adwaita-cursor-theme) echo "adwaita-cursors" ;;
+        arch:adwaita-sans-fonts) echo "adwaita-fonts" ;;
+        arch:jetbrains-mono-fonts-all) echo "ttf-jetbrains-mono" ;;
+        arch:fontawesome-6-free-fonts) echo "ttf-font-awesome" ;;
+        arch:google-noto-sans-cjk-vf-fonts) echo "noto-fonts-cjk" ;;
+        arch:google-noto-sans-symbols-2-fonts | arch:google-noto-serif-vf-fonts) echo "noto-fonts" ;;
+        arch:google-noto-color-emoji-fonts) echo "noto-fonts-emoji" ;;
+        arch:python3-gobject) echo "python-gobject" ;;
+        arch:python3-cairo) echo "python-cairo" ;;
+        arch:webkit2gtk4.1) echo "webkit2gtk-4.1" ;;
+        arch:python3-pillow) echo "python-pillow" ;;
+        *) echo "$2" ;;
+    esac
+}
+
+pkg_installed() {
+    case "$1" in
+        rpm) rpm -q "$2" > /dev/null 2>&1 ;;
+        deb) dpkg-query -W -f='${Status}' "$2" 2> /dev/null | grep -q "install ok installed" ;;
+        arch) pacman -Q "$2" > /dev/null 2>&1 ;;
+    esac
+}
+
+pkg_available() {
+    case "$1" in
+        rpm) dnf -q list --available "$2" > /dev/null 2>&1 ;;
+        deb) apt-cache policy "$2" 2> /dev/null | grep -q "Candidate: [^(]" ;;
+        arch) pacman -Si "$2" > /dev/null 2>&1 ;;
+    esac
+}
+
+# A command as root: directly, else through sudo (the graphical prompt when SUDO_ASKPASS is set)
+as_root() {
+    if [[ $EUID -eq 0 ]]; then
+        "$@"
+    elif [[ -n "${SUDO_ASKPASS:-}" ]]; then
+        sudo -A "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+# Packages of a mode (fedora names): the common ones and those of its styles
+packages_of() {
+    local style
+
+    printf '%s\n' "${PACKAGES[@]}"
+    for style in $([[ "$1" == "all" ]] && styles || echo "$1"); do
+        sed -n 's/^PACKAGES="\(.*\)"$/\1/p' "$REPO_DIR/config/styles/$style/style.env" | tr ' ' '\n'
+    done
+}
+
+install_packages() {
+    local family
+    local name
+    local -a missing=()
+    local -a wanted=()
+    local -a skipped=()
+
+    family=$(os_family)
+    if [[ "$family" == "unknown" ]]; then
+        info "unknown distribution: install the packages yourself (README), configs only"
+        return 0
+    fi
+    mapfile -t missing < <(packages_of "$1" | grep . | while read -r name; do pkg_name "$family" "$name"; done \
+        | awk '!seen[$0]++' | while read -r name; do pkg_installed "$family" "$name" || echo "$name"; done)
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        info "packages: everything is installed"
+        return 0
+    fi
+    info "packages to install ($family): ${missing[*]}"
+    if [[ "$family" == "rpm" && " ${missing[*]} " == *" hyprland "* ]] && ! pkg_available rpm hyprland; then
+        as_root dnf install -y dnf-plugins-core && as_root dnf copr enable -y "$HYPRLAND_COPR"
+    elif [[ "$family" == "deb" ]]; then
+        as_root apt-get update -qq
+    fi
+    # a package missing in the repositories of the family is skipped
+    for name in "${missing[@]}"; do
+        if pkg_available "$family" "$name"; then
+            wanted+=("$name")
+        else
+            skipped+=("$name")
+        fi
+    done
+    if [[ ${#wanted[@]} -gt 0 ]]; then
+        case "$family" in
+            rpm) as_root dnf install -y "${wanted[@]}" ;;
+            deb) as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${wanted[@]}" ;;
+            arch) as_root pacman -S --needed --noconfirm "${wanted[@]}" ;;
+        esac
+    fi
+    if [[ ${#skipped[@]} -gt 0 ]]; then
+        info "not in the $family repositories, skipped: ${skipped[*]}"
+    fi
+}
+
+# =========================
 # Install / remove
 # =========================
 install_configs() {
@@ -109,6 +250,10 @@ install_configs() {
     cp "$REPO_DIR"/config/common/quickshell/*.qml "$SHELL_DIR/"
     echo "$MARK" > "$SHELL_DIR/.$MARK"
     cp -r "$REPO_DIR/config/common/wallpaper" "$DATA_DIR/common/wallpaper"
+    # the animated cursors of the styles (wd-<style>, off until wd-style cursor on)
+    rm -rf "$ICONS_DIR"/wd-*
+    python3 "$REPO_DIR/config/common/cursors/make-cursors.py" "$DATA_DIR/styles" "$ICONS_DIR" 2> /dev/null \
+        || info "animated cursors skipped (python3 and Pillow needed)"
 
     cp "$REPO_DIR/config/common/hypr/hyprland.lua" "$CONFIG_DIR/hypr/hyprland.lua"
     cp "$REPO_DIR/config/common/kitty/kitty.conf" "$CONFIG_DIR/kitty/kitty.conf"
@@ -121,6 +266,10 @@ install_configs() {
 
     # every style: start on System
     "$BIN_DIR/wd-style" set "$([[ "$mode" == "all" ]] && echo system || echo "$mode")"
+    # the offline tracks of the radios (a personal copy in ~/.local/share/wd-radio), downloaded in the background
+    if command -v yt-dlp > /dev/null; then
+        setsid -f "$DATA_DIR/bin/wd-wallpaper" --cache > /dev/null 2>&1 || true
+    fi
     info "installed: $([[ "$mode" == "all" ]] && echo "every style + the switcher" || echo "$mode")"
     info "log out and choose Hyprland at the login screen (Super: overview, Super+Shift+W: style menu)"
 }
@@ -140,7 +289,7 @@ remove_configs() {
     if [[ -e "$SHELL_DIR/.$MARK" ]]; then
         rm -rf "$SHELL_DIR"
     fi
-    rm -rf "$DATA_DIR"
+    rm -rf "$DATA_DIR" "$ICONS_DIR"/wd-*
     rm -f "$BIN_DIR/wd-style"
     info "removed (~/.config/hypr/user.lua is kept)"
 }
@@ -148,9 +297,10 @@ remove_configs() {
 # =========================
 # Program
 # =========================
-if [[ $EUID -eq 0 ]]; then
-    echo "install.sh: run it as your user, not as root" >&2
-    exit 1
+WITH_PACKAGES=1
+if [[ "${1:-}" == "--no-packages" ]]; then
+    WITH_PACKAGES=0
+    shift
 fi
 
 CHOICE="${1:-}"
@@ -160,15 +310,26 @@ if [[ -z "$CHOICE" ]]; then
         [[ -n "$CHOICE" ]] && break
     done
 fi
+if [[ "$CHOICE" != "all" && "$CHOICE" != "remove" && ! -d "$REPO_DIR/config/styles/$CHOICE" ]]; then
+    echo "install.sh: unknown choice '$CHOICE' (all, remove, $(styles | tr '\n' ' '))" >&2
+    exit 1
+fi
+
+if [[ "$CHOICE" != "remove" && "$WITH_PACKAGES" -eq 1 ]]; then
+    install_packages "$CHOICE"
+fi
+
+# the configs belong to a user: as root (through sudo), they go to $SUDO_USER
+if [[ $EUID -eq 0 ]]; then
+    if [[ -z "${SUDO_USER:-}" || "$SUDO_USER" == "root" ]]; then
+        echo "install.sh: the configs go to a user: run it as your user, or through sudo" >&2
+        exit 1
+    fi
+    exec sudo -u "$SUDO_USER" -H bash "$REPO_DIR/install.sh" --no-packages "$CHOICE"
+fi
 
 case "$CHOICE" in
     all) install_configs all ;;
     remove) remove_configs ;;
-    *)
-        if [[ ! -d "$REPO_DIR/config/styles/$CHOICE" ]]; then
-            echo "install.sh: unknown choice '$CHOICE' (all, remove, $(styles | tr '\n' ' '))" >&2
-            exit 1
-        fi
-        install_configs "$CHOICE"
-        ;;
+    *) install_configs "$CHOICE" ;;
 esac
