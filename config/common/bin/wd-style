@@ -363,7 +363,8 @@ overview() {
 }
 
 # Nautilus opens its windows in the instance that owns its name on the user bus: a GNOME session running next to this
-# one shares that bus, the window would open over there; a Nautilus of its own (its own bus) then
+# one shares that bus, the window would open over there; a Nautilus of its own (its own bus) then. The screen of a
+# running Nautilus tells where it is (its other variables come from systemd, where Hyprland put its own)
 files() {
     local folder="${1:-$HOME}"
     local pid
@@ -372,8 +373,7 @@ files() {
         exec xdg-open "$folder"
     fi
     for pid in $(pgrep -u "$(id -u)" -x nautilus); do
-        if ! tr '\0' '\n' < "/proc/$pid/environ" 2> /dev/null \
-            | grep -qx "HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-none}"; then
+        if ! tr '\0' '\n' < "/proc/$pid/environ" 2> /dev/null | grep -qx "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-none}"; then
             exec dbus-run-session -- nautilus --new-window "$folder"
         fi
     done
