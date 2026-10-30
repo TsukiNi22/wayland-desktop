@@ -79,7 +79,7 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 > [!NOTE]
 > Every config: Hyprland, hyprlock, waybar, wofi, kitty, swaybg, mako, grim, slurp, wl-clipboard, brightnessctl, playerctl,
 > wireplumber, libnotify, nautilus, btop, quickshell (overview, lock of better-tty and Dev), cava (music), python GTK +
-> WebKit 4.1 + gtk-layer-shell (live wallpapers), gtk-session-lock + python3-pam (the live lock), Pillow (animated
+> WebKit 4.1 + gtk-layer-shell (live wallpapers), gtk-session-lock (the live lock), Pillow (animated
 > cursors), the Adwaita cursor and the fonts (JetBrains
 > Mono, Font Awesome, Noto CJK, Noto Sans Symbols 2, Noto Color Emoji); each style adds the `PACKAGES` of its `style.env`
 > (its font, `mpv` + `yt-dlp` + `mpv-mpris` for the radio of Ado and Miku, `ffmpeg` for the clips of their pages). A package missing in the repositories of the family is skipped: the overview falls back to the wofi
