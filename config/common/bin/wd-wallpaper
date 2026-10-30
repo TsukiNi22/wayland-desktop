@@ -3,7 +3,7 @@
 #   (no page: the wallpaper.html of the active style; --demo: fake music, to try a page)
 #   --cache: download the offline tracks of the radios (radio.json of the styles), then quit
 #   --lock: the live wallpaper of this session locks it (wd-style lock), back once unlocked: 0 unlocked, 1 can't lock
-#           (no live wallpaper, no gtk-session-lock or PAM), 2 died or failed while locked (hyprlock takes it back)
+#           (no live wallpaper, no gtk-session-lock or libpam), 2 died or failed while locked (hyprlock takes it back)
 #   --radio: the tracks of a radio (wd-style radio): list [style] | add <style> <url|mp3|search> [title [subtitle]]
 #            | remove <style> <index> | offline <style> <index|all> [on|off] | folder <style> | show | hide | toggle
 #   SIGHUP: crossfade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
@@ -20,8 +20,9 @@
 # where the user says; the media of the pages (the video of the Miku beam, the concert clips of the Ado stage) are parts
 # of official videos cut and joined once with ffmpeg in ~/.local/share/wd-radio/media, a personal copy
 # The lock of the session is the wallpaper itself: the lock surfaces (gtk-session-lock) get a live page of the style
-# (fed like the wallpaper: music, radio), which draws its lock over itself; PAM checks the password (hyprlock service)
+# (fed like the wallpaper: music, radio), which draws its lock over itself; PAM checks the password like hyprlock does
 import ctypes
+import ctypes.util
 import fcntl
 import functools
 import glob
@@ -793,6 +794,53 @@ def lock_cli():
     # the wallpaper died, or gave the lock up while locked: the session stays locked until hyprlock takes it
     return 2 if b"locked" in answer else 1
 
+# The password through PAM the way hyprlock asks it: its service, the auth stack only (pam_authenticate); never the
+# account or the credentials stacks (the hyprlock service has none: a right password would fail there)
+class PamMessage(ctypes.Structure):
+    _fields_ = [("msg_style", ctypes.c_int), ("msg", ctypes.c_char_p)]
+
+class PamResponse(ctypes.Structure):
+    _fields_ = [("resp", ctypes.c_void_p), ("resp_retcode", ctypes.c_int)]
+
+PAM_CONVERSATION = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.POINTER(PamMessage)),
+                                    ctypes.POINTER(ctypes.POINTER(PamResponse)), ctypes.c_void_p)
+
+class PamConv(ctypes.Structure):
+    _fields_ = [("conv", PAM_CONVERSATION), ("appdata_ptr", ctypes.c_void_p)]
+
+def pam_library():
+    name = ctypes.util.find_library("pam")
+    return ctypes.CDLL(name) if name else None
+
+def pam_check(password, service="hyprlock"):
+    libpam = pam_library()
+    libc = ctypes.CDLL(ctypes.util.find_library("c"))
+    libc.calloc.restype = ctypes.c_void_p
+    libc.calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+    libc.strdup.restype = ctypes.c_void_p
+    libc.strdup.argtypes = [ctypes.c_char_p]
+    secret = password.encode()
+
+    # the answers PAM frees itself: the password to the prompts that hide what is typed, nothing to the others
+    def conversation(count, messages, responses, _):
+        answers = libc.calloc(count, ctypes.sizeof(PamResponse))
+        if not answers:
+            return 5
+        responses[0] = ctypes.cast(answers, ctypes.POINTER(PamResponse))
+        for i in range(count):
+            if messages[i].contents.msg_style == 1:
+                responses[0][i].resp = libc.strdup(secret)
+        return 0
+
+    conv = PamConv(PAM_CONVERSATION(conversation), None)
+    handle = ctypes.c_void_p()
+    if libpam.pam_start(service.encode(), pwd.getpwuid(os.getuid()).pw_name.encode(), ctypes.byref(conv),
+                        ctypes.byref(handle)) != 0:
+        return False
+    result = libpam.pam_authenticate(handle, 0)
+    libpam.pam_end(handle, result)
+    return result == 0
+
 # The facts the locks show (the shell of Terminal: fastfetch, the profiles, its image; System: the face of the user)
 def lock_facts():
     user = pwd.getpwuid(os.getuid()).pw_name
@@ -841,6 +889,7 @@ class Wallpaper:
         self.covers = []
         self.lock_clients = []
         self.checking = False
+        self.failures = 0
         self.facts = {}
         self.later = set()
         display = Gdk.Display.get_default()
@@ -1137,16 +1186,13 @@ class Wallpaper:
             self.lock_clients.append(client)
             self.tell([client], b"locked")
             return False
-        try:
-            import pam
-        except ImportError:
-            pam = None
-        if not (GtkSessionLock and GtkSessionLock.is_supported() and pam and self.windows
+        if not (GtkSessionLock and GtkSessionLock.is_supported() and pam_library() and self.windows
                 and all(window.views for window in self.windows)):
             self.tell([client], b"failed")
             client.close()
             return False
         self.lock_clients = [client]
+        self.failures = 0
         self.locker = GtkSessionLock.prepare_lock()
         self.locker.lock_lock()
         self.covers = []
@@ -1197,9 +1243,7 @@ class Wallpaper:
         self.checking = True
 
         def run():
-            import pam
-            ok = pam.pam().authenticate(pwd.getpwuid(os.getuid()).pw_name, password, service="hyprlock")
-            GLib.idle_add(self.checked, view, ok)
+            GLib.idle_add(self.checked, view, pam_check(password))
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -1212,6 +1256,12 @@ class Wallpaper:
         if ok:
             # the page says welcome back first
             GLib.timeout_add(450, lambda: self.release(unlock=True) and False)
+            return False
+        # three failures in a row: hyprlock takes the lock (the session stays locked), never a lock that can't open
+        self.failures += 1
+        if self.failures >= 3:
+            print("wd-wallpaper: three failed passwords, hyprlock takes the lock", file=sys.stderr)
+            GLib.timeout_add(1500, lambda: self.locker and self.release(unlock=False) and False)
         return False
 
     # The commands of the shell of the Terminal lock that act outside of the page
