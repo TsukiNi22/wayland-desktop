@@ -11,7 +11,7 @@
 //   wd.radio, wd.radioCommand(action, extra)       state and control of the radio played by wd-wallpaper (mpv)
 //   wd.player(), wd.marquee(...), wd.cursor(on)    the radio of the style drawn by the page, scrolling text, hand pointer
 //                     (a page without its own player gets a small one when its radio is shown: wd-style radio show,
-//                     shaped by wd.radioLook = { layout: box | terminal | pane | inline | osd, place: () => ({ x, y, w }),
+//                     shaped by wd.radioLook = { layout: box | card | terminal | pane | camera, place: () => ({ x, y, w }),
 //                     title, panel, border, fg, muted, accent, onAccent, font, mono, corner })
 //   wd.video(key, { audio, loop })   a media of the page (radio.json "media": a clip made by wd-wallpaper), paused
 //                     with the wallpaper; null until it is made
@@ -473,8 +473,8 @@ const wd = (() => {
     }
 
     // The small radio of a page without its own, when the radio of the style is shown, shaped as the page asks
-    // (wd.radioLook.layout): "box" a panel in a corner, "terminal" a [ radio ] block, "pane" a pane with its title in
-    // its border, "inline" lines without a panel, "osd" the centered readout of a camera
+    // (wd.radioLook.layout): "box" a panel in a corner, "card" a glass card, "terminal" a [ radio ] block with a bar of
+    // characters, "pane" a pane with its title in its border, "camera" a framed readout with the corners of a viewfinder
     let builtIn = null;
     let radioLayer = null;
 
@@ -511,8 +511,19 @@ const wd = (() => {
 
         g.clearRect(0, 0, state.width, state.height);
         g.textAlign = "start";
+        // the bar of the playing track
+        const bar = (bx, by, bw, color, track) => {
+            g.fillStyle = track;
+            g.fillRect(bx, by, bw, 2);
+            g.fillStyle = color;
+            g.fillRect(bx, by, bw * builtIn.progress(), 2);
+        };
+
         if (look.layout === "terminal") {
-            rect = { x: x, y: y, w: w, h: 124 };
+            const cells = 14;
+            const done = Math.round(builtIn.progress() * cells);
+
+            rect = { x: x, y: y, w: w, h: 146 };
             g.fillStyle = look.panel;
             g.fillRect(x, y, w, rect.h);
             g.strokeStyle = look.border;
@@ -524,10 +535,34 @@ const wd = (() => {
             g.fillStyle = look.muted;
             g.fillText("TRK", x + 18, y + 48);
             g.fillText("ST", x + 18, y + 68);
+            g.fillText("POS", x + 18, y + 88);
             g.fillStyle = look.fg;
             marquee(g, title, x + 62, y + 48, w - 80, t);
-            g.fillText(status, x + 62, y + 68);
-            builtIn.buttons(g, x + 18, y + 82, 12, Object.assign(colors, { square: 0 }));
+            g.fillText(status.replace(builtIn.time(), "").trim(), x + 62, y + 68);
+            g.fillText(`[${"#".repeat(done)}${"-".repeat(cells - done)}] ${builtIn.time() || "--:--"}`, x + 62, y + 88);
+            builtIn.buttons(g, x + 18, y + 104, 12, Object.assign(colors, { square: 0 }));
+        } else if (look.layout === "card") {
+            rect = { x: x, y: y, w: w, h: 138 };
+            g.fillStyle = look.panel;
+            g.strokeStyle = look.border;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.roundRect(x + 0.5, y + 0.5, w, rect.h, look.corner);
+            g.fill();
+            g.stroke();
+            g.font = `600 11px ${look.mono}`;
+            g.fillStyle = look.accent;
+            g.fillText(`\u266a ${name.toUpperCase()}`, x + 20, y + 26);
+            g.textAlign = "end";
+            g.fillStyle = look.muted;
+            g.fillText(status, x + w - 20, y + 26);
+            g.textAlign = "start";
+            g.font = `500 19px ${look.font}`;
+            g.fillStyle = look.fg;
+            marquee(g, title, x + 20, y + 58, w - 40, t);
+            bar(x + 20, y + 72, w - 40, look.accent, "rgba(255, 255, 255, 0.1)");
+            builtIn.buttons(g, x + 20, y + 88, 14, Object.assign(colors, { button: "rgba(255, 255, 255, 0.07)",
+                ring: "rgba(255, 255, 255, 0.14)" }));
         } else if (look.layout === "pane") {
             rect = { x: x, y: y, w: w, h: 128 };
             g.fillStyle = look.panel;
@@ -549,30 +584,39 @@ const wd = (() => {
             g.fillStyle = look.muted;
             g.fillText(status, x + 18, y + 68);
             builtIn.buttons(g, x + 18, y + 82, 12, Object.assign(colors, { square: 4, button: "rgba(224, 222, 244, 0.06)" }));
-        } else if (look.layout === "inline") {
-            rect = { x: x, y: y, w: w, h: 96 };
-            g.font = `400 13px ${look.mono}`;
-            g.fillStyle = look.muted;
-            g.fillText(`♪  ${name.toLowerCase()}  ·  ${status}`, x, y + 14);
-            g.font = `500 20px ${look.font}`;
-            g.fillStyle = look.fg;
-            marquee(g, title, x, y + 44, w, t);
-            builtIn.buttons(g, x, y + 58, 14, Object.assign(colors, { button: "rgba(255, 255, 255, 0.06)",
-                ring: "rgba(255, 255, 255, 0.12)" }));
-        } else if (look.layout === "osd") {
+        } else if (look.layout === "camera") {
             const size = 11;
             const row = (builtIn.actions.length - 1) * size * 2.6 + size * 2;
+            const left = x - w / 2;
+            const mark = 14;
 
-            rect = { x: x - w / 2, y: y, w: w, h: 76 };
-            g.save();
-            g.shadowColor = "rgba(0, 0, 0, 0.8)";
-            g.shadowBlur = 6;
-            builtIn.buttons(g, x - row / 2, y, size, Object.assign(colors, { button: "rgba(0, 0, 0, 0.25)", ring: look.fg }));
-            g.font = `13px ${look.mono}`;
+            rect = { x: left, y: y, w: w, h: 118 };
+            g.fillStyle = look.panel;
+            g.beginPath();
+            g.roundRect(left, y, w, rect.h, look.corner);
+            g.fill();
+            // the corners of a viewfinder
+            g.strokeStyle = look.border;
+            g.lineWidth = 1.5;
+            g.beginPath();
+            for (const [cx, cy, dx, dy] of [[left, y, 1, 1], [left + w, y, -1, 1], [left, y + rect.h, 1, -1],
+                [left + w, y + rect.h, -1, -1]]) {
+                g.moveTo(cx, cy + dy * mark);
+                g.lineTo(cx, cy);
+                g.lineTo(cx + dx * mark, cy);
+            }
+            g.stroke();
+            g.font = `12px ${look.mono}`;
             g.textAlign = "center";
+            g.fillStyle = look.accent;
+            g.fillText(`\u25cf ${name.toUpperCase()}   ${status}`, x, y + 24);
+            g.font = `500 16px ${look.font}`;
             g.fillStyle = look.fg;
-            g.fillText(`♪ ${title}   ${status}`, x, y + 48);
-            g.restore();
+            g.fillText(title.length > 48 ? `${title.slice(0, 47)}\u2026` : title, x, y + 50);
+            g.textAlign = "start";
+            bar(left + 24, y + 62, w - 48, look.accent, "rgba(236, 232, 225, 0.15)");
+            builtIn.buttons(g, x - row / 2, y + 76, size, Object.assign(colors, { button: "rgba(0, 0, 0, 0.3)",
+                ring: look.border }));
         } else {
             rect = { x: x, y: y, w: w, h: 116 };
             g.fillStyle = look.panel;

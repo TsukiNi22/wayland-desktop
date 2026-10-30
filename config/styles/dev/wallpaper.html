@@ -20,7 +20,7 @@
 // the small radio of wd.js, fitted into this page (Super+Shift+M or wd-style radio hide: hidden)
 wd.radioLook = { layout: "terminal", panel: "rgba(10, 29, 18, 0.85)", border: "#1c4a2e", fg: "#b8f5cf", muted: "#2f7a4f",
     accent: "#39ff88", onAccent: "#040705", font: '"JetBrains Mono", monospace', title: "radio",
-    place: () => ({ x: wd.width - 378, y: 476, w: 330 }) };
+    place: () => ({ x: wd.width - 378, y: 384, w: 330 }) };
 
 const GREEN = "#39ff88";
 const DIM = "#1c4a2e";
@@ -215,7 +215,8 @@ function drawRegisters(t) {
         ctx.fillText(`0x0000_${hex(values[i], 8).replace(/(.{4})/, "$1_")}`, x + 50, y + 6 + i * 20);
     });
     const prompt = `${wd.user}@${wd.host}:~$ uname -r`;
-    const bottom = y + registers.length * 20 + 40;
+    // under the radio when it shows (wd.radioLook)
+    const bottom = y + registers.length * 20 + 40 + (wd.station && wd.station.shown ? 158 : 0);
 
     ctx.fillStyle = GREEN;
     ctx.fillText(prompt, x - 18, bottom);
