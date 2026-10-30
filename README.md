@@ -89,14 +89,15 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 | `Super+C` / `Super+F` / `Super+V` | close / fullscreen / floating |
 | `Super+N` / `Super+Shift+N` | last notification again / dismiss them all |
 | `Super+Shift+B` / `Super+Shift+C` | live / still wallpaper, animated / normal cursor (animated by default) |
-| `Super+Shift+M` | shows / hides the radio of System, Dev, Terminal and Photographer (hidden by default) |
+| `Super+Shift+M` | shows / hides the small radio of System, Dev, Terminal and Photographer |
+| `Super+F1` | every key and control in a card (type to filter) |
 | `Print` / `Shift+Print` | screenshot of a zone (clipboard) / of the screen (`~/Pictures`) |
 
 | Style | Live wallpaper (`config/styles/<style>/wallpaper.html`) |
 | ----- | ------------------------------------------------------ |
 | System | aurora, a 3D sphere of points pushed by the music, perspective grid, waveform, light clock |
 | Dev / low level | scrolling hex dump, 3D terrain of the last seconds of the spectrum, registers, phosphor CRT |
-| Ado / blue rose | her stage from the official live video (the Ado Box at K-Arena, a clip melted into the rose; a drawn stage until it is made), WORLD DOMINATION and its globe of conquered cities, a live chat with the rose-chan emotes, giant song titles, the blue rose, a vinyl radio to click |
+| Ado / blue rose | her stage from official live videos, one clip after the other for their colors (the blue Ado Box of K-Arena, the red theater of the Tokyo Dome, the fire of Hibana, the lasers of Odo, the golden sun of the Budokan, the cage of Usseewa), melted into the rose (a drawn stage until they are made), WORLD DOMINATION and its globe of conquered cities, a live chat with the rose-chan emotes, giant song titles, the blue rose, a vinyl radio to click |
 | Terminal / better-tty | ASCII 3D torus in a tmux pane, rose-pine spectrum, block clock, neofetch pane, glyph rain, CRT |
 | Miku | ring of spectrum around the 39, rising notes, twin-tail ribbons, the 39.39 FM radio to click, the sticky note of the POC (click it: the count, then the MIKU MIKU BEAM of its official video) |
 | Photographer | light leak, bokeh, film grain and dust, viewfinder |
@@ -112,25 +113,27 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 > 新時代: downloaded once by `install.sh` with yt-dlp in `~/.local/share/wd-radio`, a personal copy, never in this
 > repository) and start at once, the others play from YouTube (mpv + yt-dlp). The pages show parts of official videos
 > cut once with ffmpeg in `~/.local/share/wd-radio/media` (personal copies too): the beam of M@GICAL☆CURE! LOVE ♥ SHOT!
-> for the Miku beam, the Ado Box on stage from the live video of 心という名の不可解 (K-Arena 2024) for the Ado stage. The title, the media keys and the bar follow (mpv-mpris); they keep playing across a change of
+> for the Miku beam, wide shots of the stage of six official live videos for the Ado stage. The title, the media keys and the bar follow (mpv-mpris); they keep playing across a change of
 > style and stop with the live wallpaper. Your own emotes (png, gif, webp...) in `~/.local/share/wd-emotes` join the
 > rose-chan ones in the Ado chat.
 
-Your own tracks join a radio, and any track can be kept offline:
+The radio of a style is its folder, `~/Music/wd-radio/<style>/` (the music folder of your language): its `.mp3` files,
+and `online.md` for the tracks played from YouTube, one per line (`- Title — Subtitle | YouTube link or search`; made
+from the tracks of the style, made again when deleted). Anything else put there (other files, other `.md`, folders) goes
+to its `ignored/` folder, never deleted (`name (1).ext`, `name (2).ext`... when the name is taken). A change of the folder
+reaches the pages and the playing list in a few seconds, the music goes on.
 
 | How | Effect |
 | --- | ------ |
-| the `⤓` button of the player | saves the track where you choose (a save dialog, the folder of the radio by default) and plays it offline; pressed again: back online |
-| the `+` button of the player | adds audio files (an open dialog): copied into the folder of the radio |
-| the loop button of the player | plays the current track again and again |
-| audio files in `~/Music/wd-radio/<style>/` (`wd-style radio folder <style>`) | tracks of the radio, always offline (`Title — Subtitle.mp3` names them) |
-| `wd-style radio add <style> <url\|file\|search> [title [subtitle]]` | adds a YouTube URL, a file or a YouTube search to `~/.config/wayland-desktop/radio/<style>.json` (yours, edit it by hand too) |
-| `wd-style radio list [style]` / `remove <style> <index>` | the tracks with their index, source and state / removes one of yours |
-| `wd-style radio offline <style> <index\|all> [on\|off]` | keeps tracks offline (downloads them now) or not |
+| the folder button of the player | opens the folder of the radio |
+| the `⤓` button of the player | saves the track as an mp3 where you choose (a save dialog, the folder of the radio by default), then plays it offline; pressed again: back online |
+| the loop button of the player | loops the current track (a setting: it can be changed while nothing plays) |
+| `wd-style radio add <style> <url\|mp3\|search> [title [subtitle]]` | adds a link or a search to `online.md`, or copies an mp3 into the folder |
+| `wd-style radio list [style]` / `remove <style> <index>` | the tracks with their index, source and state / removes one (an mp3 goes to `ignored/`) |
+| `wd-style radio offline <style> <index\|all> [on\|off]` | keeps online tracks offline (downloads them now) or not |
 
-The pages see the changes by themselves (a few seconds). System, Dev, Terminal and Photographer have a radio too, hidden by
-default (only Ado's Value comes with it): `Super+Shift+M` or `wd-style radio show | hide | toggle [style]` shows a small
-player in a corner, with the same buttons.
+System, Dev, Terminal and Photographer have a small radio in a corner, with the same buttons (it comes with Ado's Value):
+`Super+Shift+M` or `wd-style radio show | hide | toggle [style]` hides or shows it.
 
 > [!IMPORTANT]
 > The files already there are saved once (`<file>.wd-backup`) and put back by `./install.sh remove`;
