@@ -79,6 +79,7 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 | in the overview: `←` `→` then `Enter`, a click | pick a workspace card, go there; on the last empty card it creates the workspace (the arrows never create one) |
 | drag a window in the overview | to another workspace, or to the last empty one to create a workspace (GNOME: an emptied workspace goes away, the next ones move down) |
 | `Super+Return` / `Super+Q` | terminal (kitty) |
+| `Super+E` | files (Nautilus, on this screen even with a GNOME session open next to Hyprland) |
 | `Super+R` | launcher (wofi) |
 | `Super+Shift+W` / `Super+Alt+W` | style menu / next style (`all` mode) |
 | `Super+1` - `Super+0` | workspaces (key codes: azerty and qwerty), `+Shift`: move the window there |
@@ -126,13 +127,14 @@ reaches the pages and the playing list in a few seconds, the music goes on.
 | How | Effect |
 | --- | ------ |
 | the folder button of the player | opens the folder of the radio |
-| the `⤓` button of the player | saves the track as an mp3 where you choose (a save dialog, the folder of the radio by default), then plays it offline; pressed again: back online |
+| the `⤓` button of the player | saves the track as an mp3 where you choose (a save dialog, the folder of the radio by default), then plays it offline |
 | the loop button of the player | loops the current track (a setting: it can be changed while nothing plays) |
 | `wd-style radio add <style> <url\|mp3\|search> [title [subtitle]]` | adds a link or a search to `online.md`, or copies an mp3 into the folder |
 | `wd-style radio list [style]` / `remove <style> <index>` | the tracks with their index, source and state / removes one (an mp3 goes to `ignored/`) |
 | `wd-style radio offline <style> <index\|all> [on\|off]` | keeps online tracks offline (downloads them now) or not |
 
-System, Dev, Terminal and Photographer have a small radio in a corner, with the same buttons (it comes with Ado's Value):
+System, Dev, Terminal and Photographer have a small radio fitted into their page, with the same buttons (it comes with
+Ado's Value): under the clock, a `[ radio ]` block under the registers, a tmux pane, a line of the viewfinder.
 `Super+Shift+M` or `wd-style radio show | hide | toggle [style]` hides or shows it.
 
 > [!IMPORTANT]
