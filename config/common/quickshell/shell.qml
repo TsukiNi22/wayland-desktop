@@ -205,12 +205,19 @@ ShellRoot {
         locked: root.locked
 
         WlSessionLockSurface {
+            id: surface
+
             color: "black"
 
             LockScreen {
                 anchors.fill: parent
                 mode: styleTheme.style === "dev" ? "getty" : "shell"
-                onUnlocked: root.locked = false
+                screenName: surface.screen ? surface.screen.name : ""
+                onUnlocked: {
+                    root.locked = false;
+                    // the captures of the session shown behind the lock (wd-style lock)
+                    Quickshell.execDetached(["sh", "-c", "rm -f \"${XDG_RUNTIME_DIR:-/tmp}\"/wd-lock-*.png"]);
+                }
             }
         }
     }

@@ -13,6 +13,8 @@ Item {
     id: lock
 
     required property string mode
+    // the screen of this surface: the capture of the session taken by wd-style lock (Terminal)
+    property string screenName: ""
     property string pamConfig: "hyprlock"
     property string pamDirectory: "/etc/pam.d"
 
@@ -433,7 +435,20 @@ Item {
         fillMode: Image.PreserveAspectCrop
         sourceSize.width: 1280
         asynchronous: true
+        visible: session.status !== Image.Ready
         opacity: lock.shell ? 0.18 : 0.35
+    }
+
+    // Terminal: the session itself behind the lock (its windows, darker under the text)
+    Image {
+        id: session
+
+        anchors.fill: parent
+        source: lock.shell && lock.screenName ? "file://" + Quickshell.env("XDG_RUNTIME_DIR") + "/wd-lock-" + lock.screenName + ".png" : ""
+        fillMode: Image.PreserveAspectCrop
+        cache: false
+        asynchronous: true
+        opacity: 0.3
     }
 
     // CRT scanlines

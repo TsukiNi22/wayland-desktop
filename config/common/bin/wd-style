@@ -335,12 +335,22 @@ menu() {
     done
 }
 
-# better-tty and Dev: the lock of the overview shell (quickshell); the other styles, or without it: hyprlock
+# better-tty and Dev: the lock of the overview shell (quickshell); the other styles, or without it: hyprlock (its
+# background: the session itself). Terminal shows the session behind its lock too: a capture of each screen taken just
+# before ($XDG_RUNTIME_DIR/wd-lock-<screen>.png, deleted at the unlock); Dev keeps its own
 lock_screen() {
+    local output
     local pid
+    local runtime="${XDG_RUNTIME_DIR:-/tmp}"
     local style
 
     style=$(current)
+    rm -f "$runtime"/wd-lock-*.png
+    if [[ "$style" == "tty" ]] && has grim; then
+        for output in $(hyprctl monitors | awk '/^Monitor/ { print $2 }'); do
+            grim -o "$output" "$runtime/wd-lock-$output.png" 2> /dev/null || true
+        done
+    fi
     if [[ "$style" == "tty" || "$style" == "dev" ]] && has quickshell; then
         pid=$(session_pids quickshell | head -n 1)
         if [[ -n "$pid" ]] && quickshell ipc --pid "$pid" call lock lock > /dev/null 2>&1; then
