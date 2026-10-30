@@ -103,14 +103,14 @@ noise_reduction = 60
 # =========================
 # Page
 # =========================
-def page_uri(page, demo):
+def page_uri(page, demo, lock=False):
     if page is None:
         style = (DATA_DIR / "current").read_text().strip()
         page = DATA_DIR / "styles" / style / "wallpaper.html"
     query = urlencode({"user": os.environ.get("USER", "user"), "host": socket.gethostname().split(".")[0],
                        "os": os_name(), "kernel": platform.release(), "shell": Path(os.environ.get("SHELL", "sh")).name,
                        "radio": int(Radio.available())})
-    return Path(page).resolve().as_uri() + "?" + query + ("&demo" if demo else "")
+    return Path(page).resolve().as_uri() + "?" + query + ("&demo" if demo else "") + ("&lock" if lock else "")
 
 def os_name():
     try:
@@ -896,6 +896,8 @@ class Wallpaper:
         self.checking = False
         self.failures = 0
         self.facts = {}
+        # asked, its snapshots and the state of the pages being taken
+        self.locking = False
         self.later = set()
         display = Gdk.Display.get_default()
         display.connect("monitor-added", lambda *_: self.build())
@@ -958,7 +960,7 @@ class Wallpaper:
         window.views.append(view)
         view.show()
 
-    def make_view(self, window):
+    def make_view(self, window, lock=False):
         # the pages play their own media (the Miku beam, the Ado stage): no autoplay block, no gesture needed
         view = WebKit2.WebView(website_policies=WebKit2.WebsitePolicies(autoplay=WebKit2.AutoplayPolicy.ALLOW))
         manager = view.get_user_content_manager()
@@ -975,7 +977,7 @@ class Wallpaper:
         view.rects = []
         view.station = Path(self.page).resolve().parent.name if self.page else (DATA_DIR / "current").read_text().strip()
         view.connect("load-changed", lambda v, event: event == WebKit2.LoadEvent.FINISHED and self.loaded(v))
-        view.load_uri(page_uri(self.page, self.demo))
+        view.load_uri(page_uri(self.page, self.demo, lock))
         return view
 
     # Only the rects of the page take the clicks: clickable <window> <[[x, y, w, h], ...]>
@@ -1007,6 +1009,7 @@ class Wallpaper:
             print(f"wd-wallpaper: {data.get('text')}", file=sys.stderr)
         elif data.get("type") == "lock-ready" and self.locker:
             view.lock_ready = True
+            self.unveil(view.shot)
         elif data.get("type") == "unlock" and self.locker:
             self.check(view, data.get("password", ""))
         elif data.get("type") == "lock-run" and self.locker:
@@ -1042,6 +1045,7 @@ class Wallpaper:
         if getattr(view, "locking", False):
             self.give_station(view)
             view.evaluate_javascript(f"window.wdPower && wdPower(24); window.wdRadio && wdRadio({json.dumps(self.radio.state)});"
+                                     f" window.wdResume && wdResume({view.kept});"
                                      f" window.wdLock && wdLock(true, {json.dumps(self.facts)})", -1, None, None, None,
                                      None, None)
             return
@@ -1187,32 +1191,69 @@ class Wallpaper:
     # paints nothing there), which draws its lock; the pages of the wallpaper rest meanwhile; no PAM, no session lock or
     # no page: hyprlock locks instead
     def lock(self, client):
-        if self.locker:
+        if self.locker or self.locking:
             self.lock_clients.append(client)
-            self.tell([client], b"locked")
+            if self.locker:
+                self.tell([client], b"locked")
             return False
         if not (GtkSessionLock and GtkSessionLock.is_supported() and pam_library() and self.windows
                 and all(window.views for window in self.windows)):
             self.tell([client], b"failed")
             client.close()
             return False
+        # first what each page shows: a snapshot (the lock starts on it, then the live page fades in over it) and its
+        # state (its time, what it plays: the page of the lock goes on from there)
         self.lock_clients = [client]
+        self.locking = True
+        for window in self.windows:
+            view = window.views[-1]
+            window.shot = None
+            window.kept = "{}"
+            view.get_snapshot(WebKit2.SnapshotRegion.VISIBLE, WebKit2.SnapshotOptions.NONE, None, self.shot, window)
+            view.evaluate_javascript("JSON.stringify(window.wdKeep ? wdKeep() : {})", -1, None, None, None, self.kept,
+                                     window)
+        GLib.timeout_add(250, self.lock_now)
+        return False
+
+    def shot(self, view, result, window):
+        try:
+            window.shot = view.get_snapshot_finish(result)
+        except GLib.Error:
+            window.shot = None
+
+    def kept(self, view, result, window):
+        try:
+            window.kept = view.evaluate_javascript_finish(result).to_string()
+        except GLib.Error:
+            window.kept = "{}"
+
+    def lock_now(self):
+        self.locking = False
         self.failures = 0
         self.locker = GtkSessionLock.prepare_lock()
         self.locker.lock_lock()
         self.covers = []
         self.facts = {}
         for window in self.windows:
+            # black under it, never the light background of GTK
             cover = Gtk.Window()
+            cover.override_background_color(Gtk.StateFlags.NORMAL, Gdk.RGBA(0, 0, 0, 1))
             self.locker.new_surface(cover, window.monitor)
-            view = self.make_view(window)
+            # the live page under the snapshot of the wallpaper, which fades out once the page draws its lock
+            stack = Gtk.Overlay()
+            view = self.make_view(window, lock=True)
+            stack.add(view)
+            view.shot = Gtk.Image.new_from_surface(window.shot) if window.shot else None
+            if view.shot:
+                stack.add_overlay(view.shot)
             # no pointer on the lock (WebKit hides it only once the mouse moves)
             for widget in (cover, view):
                 widget.connect("realize", lambda w: w.get_window().set_cursor(
                     Gdk.Cursor.new_for_display(w.get_display(), Gdk.CursorType.BLANK_CURSOR)))
             view.locking = True
             view.lock_ready = False
-            cover.add(view)
+            view.kept = window.kept
+            cover.add(stack)
             cover.show_all()
             view.grab_focus()
             self.covers.append((cover, window, view))
@@ -1224,6 +1265,18 @@ class Wallpaper:
         self.tell(self.lock_clients, b"locked")
         threading.Thread(target=lambda: GLib.idle_add(self.lock_info, lock_facts()), daemon=True).start()
         GLib.timeout_add(8000, self.lock_check)
+        return False
+
+    # the snapshot over the page of the lock fades out (a crossfade from the wallpaper to its live copy)
+    def unveil(self, shot, opacity=1.0):
+        if not shot:
+            return False
+        opacity -= 0.08
+        if opacity <= 0:
+            shot.hide()
+            return False
+        shot.set_opacity(opacity)
+        GLib.timeout_add(16, self.unveil, shot, opacity)
         return False
 
     def lock_info(self, info):

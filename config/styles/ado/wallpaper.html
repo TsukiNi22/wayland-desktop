@@ -989,6 +989,19 @@ let stageShown = 0;
 let stageTry = -1;
 const stageLayer = document.createElement("canvas");
 
+// the clip playing and where, for the page of the lock (wd.keep / wd.restore)
+let resumed = null;
+
+wd.keep = () => {
+    const media = wd.station && wd.station.media || {};
+    const clip = stageVideo ? STAGES.find(key => media[key] === stageVideo.src) : null;
+
+    return clip ? { clip: clip, time: stageVideo.currentTime } : null;
+};
+wd.restore = kept => {
+    resumed = kept;
+};
+
 // the next clip that is made, when one ends (a single one loops)
 function nextStage() {
     const media = wd.station.media || {};
@@ -1048,9 +1061,13 @@ function drawCage(t) {
     const show = SHOWS[Math.floor(t / SHOW_TIME) % SHOWS.length];
 
     if (!stageVideo && wd.station && wd.station.media) {
-        const first = STAGES.find(key => wd.station.media[key]);
+        // the page of the lock goes on with the clip of the wallpaper, where it was
+        const first = resumed && wd.station.media[resumed.clip] ? resumed.clip : STAGES.find(key => wd.station.media[key]);
 
         stageVideo = first ? wd.video(first, { loop: false }) : null;
+        if (stageVideo && resumed && resumed.clip === first) {
+            stageVideo.currentTime = resumed.time;
+        }
         if (stageVideo) {
             stageVideo.addEventListener("ended", nextStage);
             wd.play(stageVideo);

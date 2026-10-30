@@ -22,7 +22,8 @@
 //                     simple one), or its own elements with wd.lockStart(lock) / wd.lockStop(lock) and its keys with
 //                     wd.lockKeys(event, lock) (true: handled); lock = { on, typed, busy, info, since, failedAt,
 //                     shake() }; wd.lockSubmit(password) gives the password to PAM, wd.lockRun(command, value) the
-//                     commands of the Terminal shell (switch, suspend, reboot, poweroff); the mouse is hidden
+//                     commands of the Terminal shell (switch, suspend, reboot, poweroff); the mouse is hidden; the page
+//                     of the lock goes on from the wallpaper: its time, and what wd.keep() gave (wd.restore(kept))
 // The body fades in over the still wallpaper (or the previous page), then tells wd-wallpaper it is ready
 "use strict";
 
@@ -30,6 +31,8 @@ const wd = (() => {
     const params = new URLSearchParams(location.search);
     const BARS = 48;
     const state = {
+        // seconds of the animation (wd.run)
+        time: 0,
         bars: BARS,
         raw: new Float32Array(BARS),
         levels: new Float32Array(BARS),
@@ -187,7 +190,7 @@ const wd = (() => {
 
     function run(draw, fps = 30) {
         const step = 1 / fps;
-        let t = 0;
+        let t = state.time;
         let last = performance.now();
 
         if (state.still !== null) {
@@ -212,7 +215,9 @@ const wd = (() => {
             }
             if (dt >= 0.9 / Math.min(fps, state.fps)) {
                 last = now;
-                t += Math.min(dt, 0.1);
+                // wdResume moves the time (the page of the lock goes on from the one of the wallpaper)
+                t = Math.max(t, state.time) + Math.min(dt, 0.1);
+                state.time = t;
                 update(t, Math.min(dt, 0.1));
                 draw(t, Math.min(dt, 0.1));
                 drawRadio(t);
@@ -774,6 +779,15 @@ const wd = (() => {
             state.lockStop(lock);
         }
     };
+    // the state of the page for its copy on the lock, then given back to it
+    window.wdKeep = () => ({ time: state.time, page: state.keep ? state.keep() : null });
+    window.wdResume = kept => {
+        state.time = Math.max(state.time, kept.time || 0);
+        if (state.restore && kept.page) {
+            state.restore(kept.page);
+        }
+    };
+
     window.wdLockInfo = info => {
         Object.assign(lock.info, info);
         if (state.lockInfo) {
@@ -863,8 +877,11 @@ const wd = (() => {
     addEventListener("error", event => post({ type: "log", text: `${event.message} (${event.filename}:${event.lineno})` }));
     addEventListener("mousemove", event => Object.assign(state.mouse, { x: event.clientX, y: event.clientY }));
     document.addEventListener("mouseleave", () => Object.assign(state.mouse, { x: -1, y: -1 }));
-    document.body.style.opacity = "0";
-    document.body.style.transition = "opacity 0.9s ease-out";
+    // the copy of the lock shows at once (wd-wallpaper fades the snapshot of the wallpaper over it)
+    if (!params.has("lock")) {
+        document.body.style.opacity = "0";
+        document.body.style.transition = "opacity 0.9s ease-out";
+    }
     return Object.assign(state, { canvas, run, image, video, play, cover, rand, clickable, hit, radioCommand, marquee, player,
         cursor, glowText, lock, lockSubmit, lockRun });
 })();
