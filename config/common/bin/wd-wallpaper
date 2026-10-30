@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Usage: wd-wallpaper [page.html] [--demo] | --cache | --lock | --radio <command>
+# Usage: wd-wallpaper [page.html] [--demo] | --cache | --lock | --pam | --radio <command>
 #   (no page: the wallpaper.html of the active style; --demo: fake music, to try a page)
 #   --cache: download the offline tracks of the radios (radio.json of the styles), then quit
 #   --lock: the live wallpaper of this session locks it (wd-style lock), back once unlocked: 0 unlocked, 1 can't lock
 #           (no live wallpaper, no gtk-session-lock or libpam), 2 died or failed while locked (hyprlock takes it back)
+#   --pam: checks the password given on stdin with PAM (0: right), a process of its own for each try of the lock
 #   --radio: the tracks of a radio (wd-style radio): list [style] | add <style> <url|mp3|search> [title [subtitle]]
 #            | remove <style> <index> | offline <style> <index|all> [on|off] | folder <style> | show | hide | toggle
 #   SIGHUP: crossfade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
@@ -795,7 +796,9 @@ def lock_cli():
     return 2 if b"locked" in answer else 1
 
 # The password through PAM the way hyprlock asks it: its service, the auth stack only (pam_authenticate); never the
-# account or the credentials stacks (the hyprlock service has none: a right password would fail there)
+# account or the credentials stacks (the hyprlock service has none: a right password would fail there). Run in a process
+# of its own for each try (wd-wallpaper --pam): a module like pam_usb loads libudisks2, whose types can't be registered
+# twice in one process (a second try would never end)
 class PamMessage(ctypes.Structure):
     _fields_ = [("msg_style", ctypes.c_int), ("msg", ctypes.c_char_p)]
 
@@ -808,9 +811,11 @@ PAM_CONVERSATION = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(c
 class PamConv(ctypes.Structure):
     _fields_ = [("conv", PAM_CONVERSATION), ("appdata_ptr", ctypes.c_void_p)]
 
+# libpam with its symbols global: modules like pam_usb are not linked to it and look for pam_get_item... in the
+# program (loaded local, PAM can't load them and refuses even the right password)
 def pam_library():
     name = ctypes.util.find_library("pam")
-    return ctypes.CDLL(name) if name else None
+    return ctypes.CDLL(name, mode=ctypes.RTLD_GLOBAL) if name else None
 
 def pam_check(password, service="hyprlock"):
     libpam = pam_library()
@@ -1243,7 +1248,12 @@ class Wallpaper:
         self.checking = True
 
         def run():
-            GLib.idle_add(self.checked, view, pam_check(password))
+            try:
+                ok = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--pam"], input=password.encode(),
+                                    capture_output=True, timeout=90).returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                ok = False
+            GLib.idle_add(self.checked, view, ok)
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -1318,6 +1328,8 @@ def main():
         sys.exit(radio_cli(sys.argv[2:]))
     if "--lock" in sys.argv:
         sys.exit(lock_cli())
+    if "--pam" in sys.argv:
+        sys.exit(0 if pam_check(sys.stdin.buffer.read().decode(errors="surrogateescape")) else 1)
     args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
     load_gui()
     # the app id of the dialogs of the radio (a floating window rule of Hyprland)
