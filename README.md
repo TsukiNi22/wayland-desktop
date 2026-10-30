@@ -89,7 +89,7 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 | `Super+L` / `Super+X` | lock / power menu |
 | `Super+C` / `Super+F` / `Super+V` | close / fullscreen / floating |
 | `Super+N` / `Super+Shift+N` | last notification again / dismiss them all |
-| `Super+Shift+B` / `Super+Shift+C` | live / still wallpaper, cursor: art (the default: Miku and Ado as pixel chibis with a pose for each cursor - peeking under the pointer, tapping with a leek / a microphone, asleep / puffing while it waits, shaken while a window moves, pulling the resize arrows, arms crossed when it is forbidden; the look of their style for the others) / the arrow and the mascot of the style / normal |
+| `Super+Shift+B` / `Super+Shift+C` | live / still wallpaper, cursor: art (the default: Miku and Ado as pixel chibis with a pose for each cursor - peeking under the pointer, tapping with a leek / a microphone, asleep / puffing while it waits, shaken while a window moves, pulling the resize arrows, arms crossed when it is forbidden; for the others every shape in the look of the style and animated itself - a finger tapping, fingers flexing, arrows stretching, the arrow filling up while it waits, a spinner of the style) / the arrow and the mascot of the style / normal |
 | `Super+Shift+M` | shows / hides the small radio of System, Dev, Terminal and Photographer |
 | `Super+F1` | every key and control in a card (type to filter) |
 | `Print` / `Shift+Print` | screenshot of a zone (clipboard) / of the screen (`~/Pictures`) |
