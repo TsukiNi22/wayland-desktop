@@ -44,7 +44,6 @@ function layout() {
 // =========================
 let note = { x: 0, y: 0, w: 0, h: 0 };
 let beam = null;
-let audio = null;
 let lift = 0;
 
 // the note of the POC; it is also the hidden button of the beam
@@ -83,48 +82,36 @@ function drawNote(dt) {
 }
 
 // The beam of "M@GICAL☆CURE! LOVE ♥ SHOT!" (SAWTOWNE feat. Hatsune Miku): its part of the official video (radio.json
-// "media", cut once by wd-wallpaper from 1:25.28 of the video, a personal copy); its sound plays in an audio element and
-// gives the clock, the video follows it muted (WebKit lets a muted video play; a video with sound was refused); on that
-// clock, before the video shows: the "Now Loading..." card, the three lights of the count with their flashes (on the
-// voice: its accents measured in the sound, the cuts of the video come 0.2 s before "Two" and "Three"); from "Ready?"
-// (its next cut) on, the video itself: MIKU MIKU BEAAAAM!!
+// "media", cut once by wd-wallpaper from 1:25.28 of the video, a personal copy); wd-wallpaper plays its sound with mpv
+// (the radio paused meanwhile: WebKit refused to play it at times) and tells where it is once it plays, the clock of
+// the page follows it and the video follows the clock, muted; on that clock, before the video shows: the
+// "Now Loading..." card, the three lights of the count with their flashes (on the voice: its accents measured in the
+// sound, the cuts of the video come 0.2 s before "Two" and "Three"); from "Ready?" (its next cut) on, the video itself
 const COUNT = [4.89, 6.23, 7.48];
 const READY = 8.36;
 const END = 19.3;
 let beamVideo = null;
-let beamSound = null;
-let analyser = null;
+
+window.wdSoundStarted = (key, position) => {
+    if (beam && key === "beam" && beam.waiting) {
+        beam.waiting = false;
+        beam.start = performance.now() - Math.max(0, position) * 1000;
+    }
+};
 
 function fire() {
-    const media = wd.station && wd.station.media ? wd.station.media.beam : null;
-
-    if (beam) {
+    if (beam || !wd.station) {
         return;
     }
-    beam = { start: performance.now(), data: null };
-    if (!media) {
-        return;
-    }
-    beamSound = beamSound || new Audio(media);
+    beam = { start: performance.now(), waiting: true };
     beamVideo = beamVideo || wd.video("beam", { audio: false });
-    try {
-        if (!analyser) {
-            audio = new AudioContext();
-            analyser = audio.createAnalyser();
-            analyser.fftSize = 512;
-            audio.createMediaElementSource(beamSound).connect(analyser).connect(audio.destination);
-        }
-        audio.resume();
-        beam.data = new Uint8Array(analyser.fftSize);
-    } catch (error) {
-        beam.data = null;
-    }
-    beamSound.currentTime = 0;
-    beamSound.play().catch(() => {});
     if (beamVideo) {
         beamVideo.currentTime = 0;
         beamVideo.play().catch(() => {});
     }
+    wd.radioCommand("sound", { station: wd.station.station, key: "beam" });
+    // no answer (no mpv, nothing made yet): the clock starts anyway
+    setTimeout(() => window.wdSoundStarted("beam", 0), 3000);
 }
 
 addEventListener("click", event => {
@@ -133,22 +120,13 @@ addEventListener("click", event => {
     }
 });
 
-// time of the sound (or of the clock without it) and its loudness 0-1
+// time of the sound (0 until it plays) and its loudness 0-1 (cava hears it)
 function beamTime() {
-    return beamSound && !beamSound.paused ? beamSound.currentTime : (performance.now() - beam.start) / 1000;
+    return beam.waiting ? 0 : (performance.now() - beam.start) / 1000;
 }
 
 function loudness() {
-    if (!beam.data) {
-        return 0.6 + 0.4 * Math.abs(Math.sin(performance.now() / 90));
-    }
-    analyser.getByteTimeDomainData(beam.data);
-    let sum = 0;
-
-    for (const v of beam.data) {
-        sum += ((v - 128) / 128) ** 2;
-    }
-    return Math.min(1, Math.sqrt(sum / beam.data.length) * 3.5);
+    return Math.min(1, wd.energy * 2.2 + wd.beat * 0.3);
 }
 
 function bigText(text, x, y, size, pop, angle = -0.06) {
@@ -309,7 +287,7 @@ function drawBeam(dt) {
     }
     const t = beamTime();
 
-    if (t >= END || (beamSound && beamSound.ended)) {
+    if (t >= END) {
         beam = null;
         if (beamVideo) {
             beamVideo.pause();

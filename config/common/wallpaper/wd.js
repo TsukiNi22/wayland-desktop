@@ -75,7 +75,7 @@ const wd = (() => {
     };
 
     // radio state and station of the style (radio.json + the tracks kept offline) from wd-wallpaper
-    window.wdRadio = values => Object.assign(state.radio, values);
+    window.wdRadio = values => Object.assign(state.radio, values, { at: performance.now() });
     window.wdStation = station => {
         state.station = station;
     };
@@ -309,6 +309,22 @@ const wd = (() => {
                 return self.playing() && state.radio.title ? state.radio.title
                     : track.title + (track.subtitle ? `  \u2014  ${track.subtitle}` : "");
             },
+            // where the playing track is (from wd-wallpaper every second, counted on in between): 0-1, "01:23 / 03:45"
+            progress: () => {
+                if (!self.playing() || !state.radio.duration) {
+                    return 0;
+                }
+                const run = state.radio.paused ? 0 : (performance.now() - (state.radio.at || 0)) / 1000;
+
+                return Math.min(1, ((state.radio.time || 0) + run) / state.radio.duration);
+            },
+            time: () => {
+                const clock = seconds => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${
+                    String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
+                return self.playing() && state.radio.duration
+                    ? `${clock(self.progress() * state.radio.duration)} / ${clock(state.radio.duration)}` : "";
+            },
             status: () => {
                 if (!state.radio.available && !self.current().cached) {
                     return "needs mpv + yt-dlp";
@@ -319,7 +335,7 @@ const wd = (() => {
                 if (!self.playing()) {
                     return self.current().cached ? "\u25b6  click play  \u00b7  offline" : "\u25b6  click play";
                 }
-                return state.radio.paused ? "\u275a\u275a  paused" : "\u25cf  on air";
+                return `${state.radio.paused ? "\u275a\u275a  paused" : "\u25cf  on air"}  ${self.time()}`.trim();
             },
             act: action => {
                 const count = Math.max(1, self.tracks().length);

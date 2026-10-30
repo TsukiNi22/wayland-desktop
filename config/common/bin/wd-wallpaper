@@ -419,9 +419,13 @@ class Radio:
     """mpv playing the tracks of a station (radio.json: offline copies first, else YouTube searches through yt-dlp),
     driven over its IPC socket; the requests run outside of the GTK loop so the wallpaper never freezes"""
 
-    def __init__(self, publish, refresh):
+    def __init__(self, publish, refresh, tell):
         self.publish = publish
         self.refresh = refresh
+        # a line of JavaScript for the pages (the start of a sound)
+        self.tell = tell
+        # the sound of a page playing (the Miku beam)
+        self.effect = None
         self.process = None
         self.station = ""
         # one socket per wallpaper: another session keeps the control of its own radio
@@ -453,12 +457,12 @@ class Radio:
     def running(self):
         return self.process is not None and self.process.poll() is None
 
-    # One request to mpv, its answer (None when mpv doesn't answer)
-    def command(self, *args):
+    # One request to mpv (the radio, or the one at <path>), its answer (None when mpv doesn't answer)
+    def command(self, *args, path=None):
         try:
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(0.4)
-                client.connect(str(self.socket))
+                client.connect(str(path or self.socket))
                 client.sendall((json.dumps({"command": list(args), "request_id": 1}) + "\n").encode())
                 data = b""
                 while True:
@@ -496,6 +500,8 @@ class Radio:
                 self.command("set_property", "loop-file", "inf" if self.state["loop"] else "no")
         elif action == "offline":
             self.keep(message.get("station", ""), int(message.get("index", 0)))
+        elif action == "sound":
+            self.sound(message.get("station", ""), message.get("key", ""))
         elif action == "folder":
             data = station(message.get("station", ""))
             if data:
@@ -556,6 +562,32 @@ class Radio:
             self.process.terminate()
         self.process = None
 
+    # A sound of a page (the Miku beam): mpv plays it like the radio (WebKit refused to play it at times), the radio
+    # paused meanwhile; the pages learn where it is once it plays (their clock)
+    def sound(self, name, key):
+        file = media_file(name, key)
+        if not file or not shutil.which("mpv") or (self.effect and self.effect.poll() is None):
+            self.tell(f"window.wdSoundStarted && wdSoundStarted({json.dumps(key)}, -1)")
+            return
+        resume = self.running() and self.command("get_property", "pause") is False
+        if resume:
+            self.command("set_property", "pause", True)
+        path = RUNTIME_DIR / f"wd-sound-{os.getpid()}.sock"
+        self.effect = subprocess.Popen(
+            ["mpv", "--no-video", "--no-terminal", "--idle=no", f"--input-ipc-server={path}", f"--title=wd-radio {key}",
+             "--volume=80", *shlex.split(os.environ.get("WD_RADIO_ARGS", "")), str(file)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        position = None
+        for _ in range(250):
+            position = self.command("get_property", "time-pos", path=path)
+            if (position is not None and position > 0) or self.effect.poll() is not None:
+                break
+            time.sleep(0.02)
+        self.tell(f"window.wdSoundStarted && wdSoundStarted({json.dumps(key)}, {position or 0})")
+        self.effect.wait()
+        if resume and self.running():
+            self.command("set_property", "pause", False)
+
     # The download button of the player: the track saved as an mp3 where the user says (a dialog), then played from it
     def keep(self, name, index):
         data = station(name)
@@ -614,9 +646,11 @@ class Radio:
             position = self.command("get_property", "playlist-pos") or 0
             self.state.update(playing=True, station=self.station, paused=bool(self.command("get_property", "pause")),
                               index=position, key=self.entries[position][0] if position < len(self.entries) else "",
-                              title=self.command("get_property", "media-title") or "")
+                              title=self.command("get_property", "media-title") or "",
+                              time=self.command("get_property", "time-pos") or 0,
+                              duration=self.command("get_property", "duration") or 0)
         else:
-            self.state.update(playing=False, paused=False, title="", key="")
+            self.state.update(playing=False, paused=False, title="", key="", time=0, duration=0)
         GLib.idle_add(self.publish, dict(self.state))
 
 # =========================
@@ -687,7 +721,7 @@ class Wallpaper:
         self.demo = demo
         self.windows = []
         self.cava = None
-        self.radio = Radio(self.publish, self.refresh_stations)
+        self.radio = Radio(self.publish, self.refresh_stations, lambda script: GLib.idle_add(self.run_js, script))
         # the folders of the radios (edited by hand, by wd-style radio, by the player) reach the pages by themselves
         self.radio_tracks = {}
         GLib.timeout_add_seconds(3, self.watch_radio)
