@@ -429,6 +429,13 @@ Item {
         color: lock.c.base
     }
 
+    // no pointer on the lock
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        cursorShape: Qt.BlankCursor
+    }
+
     Image {
         anchors.fill: parent
         source: "file://" + lock.home + "/.config/wayland-desktop/styles/" + (lock.shell ? "tty" : "dev") + "/wallpaper.jpg"
