@@ -25,7 +25,7 @@ HYPRLAND_COPR="sdegler/hyprland" # fedora-like: hyprland, hyprlock (not in the F
 PACKAGES=(hyprland hyprlock waybar wofi kitty swaybg mako grim slurp wl-clipboard brightnessctl playerctl wireplumber
     libnotify nautilus btop adwaita-cursor-theme jetbrains-mono-fonts-all fontawesome-6-free-fonts
     google-noto-sans-cjk-vf-fonts google-noto-sans-symbols-2-fonts google-noto-color-emoji-fonts
-    quickshell cava python3-gobject python3-cairo webkit2gtk4.1 gtk-layer-shell python3-pillow)
+    quickshell cava python3-gobject python3-cairo webkit2gtk4.1 gtk-layer-shell gtk-session-lock python3-pam python3-pillow)
 
 # Files managed by the install (relative to ~/.config): copies of config/common, links of the active style
 COPIES=(hypr/hyprland.lua kitty/kitty.conf wofi/config)
@@ -119,6 +119,7 @@ pkg_name() {
         deb:python3-cairo) echo "python3-gi-cairo" ;;
         deb:webkit2gtk4.1) echo "gir1.2-webkit2-4.1" ;;
         deb:gtk-layer-shell) echo "gir1.2-gtklayershell-0.1" ;;
+        deb:gtk-session-lock) echo "gir1.2-gtksessionlock-0.1" ;;
         deb:python3-pillow) echo "python3-pil" ;;
         arch:adwaita-cursor-theme) echo "adwaita-cursors" ;;
         arch:adwaita-sans-fonts) echo "adwaita-fonts" ;;
@@ -131,6 +132,7 @@ pkg_name() {
         arch:python3-cairo) echo "python-cairo" ;;
         arch:webkit2gtk4.1) echo "webkit2gtk-4.1" ;;
         arch:python3-pillow) echo "python-pillow" ;;
+        arch:python3-pam) echo "python-pam" ;;
         *) echo "$2" ;;
     esac
 }

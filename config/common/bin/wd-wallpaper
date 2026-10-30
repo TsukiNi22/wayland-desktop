@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-# Usage: wd-wallpaper [page.html] [--demo] | --cache | --radio <command>
+# Usage: wd-wallpaper [page.html] [--demo] | --cache | --lock | --radio <command>
 #   (no page: the wallpaper.html of the active style; --demo: fake music, to try a page)
 #   --cache: download the offline tracks of the radios (radio.json of the styles), then quit
+#   --lock: the live wallpaper of this session locks it (wd-style lock), back once unlocked: 0 unlocked, 1 can't lock
+#           (no live wallpaper, no gtk-session-lock or PAM), 2 died or failed while locked (hyprlock takes it back)
 #   --radio: the tracks of a radio (wd-style radio): list [style] | add <style> <url|mp3|search> [title [subtitle]]
 #            | remove <style> <index> | offline <style> <index|all> [on|off] | folder <style> | show | hide | toggle
 #   SIGHUP: crossfade to the page of the new active style (sent by wd-style), SIGTERM / SIGINT: quit
@@ -17,6 +19,8 @@
 # (downloaded once with yt-dlp, a personal copy); the player loops a track, opens the folder and saves a track as an mp3
 # where the user says; the media of the pages (the video of the Miku beam, the concert clips of the Ado stage) are parts
 # of official videos cut and joined once with ffmpeg in ~/.local/share/wd-radio/media, a personal copy
+# The lock of the session is the wallpaper itself: the lock surfaces (gtk-session-lock) get a live page of the style
+# (fed like the wallpaper: music, radio), which draws its lock over itself; PAM checks the password (hyprlock service)
 import ctypes
 import fcntl
 import functools
@@ -26,6 +30,7 @@ import hashlib
 import json
 import os
 import platform
+import pwd
 import shlex
 import shutil
 import signal
@@ -38,10 +43,10 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 # GTK, WebKit and cairo only for the wallpaper itself (wd-style radio and --cache start at once without them)
-cairo = Gdk = GLib = GLibUnix = Gtk = GtkLayerShell = WebKit2 = None
+cairo = Gdk = Gio = GLib = GLibUnix = Gtk = GtkLayerShell = GtkSessionLock = WebKit2 = None
 
 def load_gui():
-    global cairo, Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2
+    global cairo, Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell, GtkSessionLock, WebKit2
     import cairo
     import gi
 
@@ -51,6 +56,12 @@ def load_gui():
     gi.require_version("WebKit2", "4.1")
     gi.require_version("GLibUnix", "2.0")
     from gi.repository import Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2
+    # the lock of the session (none without it: hyprlock locks)
+    try:
+        gi.require_version("GtkSessionLock", "0.1")
+        from gi.repository import GtkSessionLock
+    except (ValueError, ImportError):
+        GtkSessionLock = None
 
 DATA_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "wayland-desktop"
 RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
@@ -758,6 +769,59 @@ class Watcher:
         GLib.idle_add(self.apply, frames)
 
 # =========================
+# Lock
+# =========================
+def lock_socket():
+    return RUNTIME_DIR / f"wd-lock-{os.environ.get('HYPRLAND_INSTANCE_SIGNATURE', 'session')}.sock"
+
+# wd-wallpaper --lock: asks the wallpaper of this session to lock it, waits for the unlock
+def lock_cli():
+    try:
+        client = socket.socket(socket.AF_UNIX)
+        client.connect(str(lock_socket()))
+        client.sendall(b"lock\n")
+    except OSError:
+        return 1
+    answer = b""
+    with client:
+        while chunk := client.recv(64):
+            answer += chunk
+            if b"unlocked" in answer:
+                return 0
+            if b"failed" in answer and b"locked" not in answer.replace(b"unlocked", b""):
+                return 1
+    # the wallpaper died, or gave the lock up while locked: the session stays locked until hyprlock takes it
+    return 2 if b"locked" in answer else 1
+
+# The facts the locks show (the shell of Terminal: fastfetch, the profiles, its image; System: the face of the user)
+def lock_facts():
+    user = pwd.getpwuid(os.getuid()).pw_name
+    info = {"user": user, "host": socket.gethostname().split(".")[0], "facts": {}, "profiles": [], "style": "",
+            "logo": "", "face": ""}
+    try:
+        result = subprocess.run(["fastfetch", "--format", "json", "--structure",
+                                 "OS:Host:Kernel:Uptime:Packages:CPU:GPU:Memory:Disk:Battery"],
+                                capture_output=True, text=True, timeout=8)
+        info["facts"] = {item["type"]: item.get("result") for item in json.loads(result.stdout)}
+    except (OSError, ValueError, subprocess.TimeoutExpired, KeyError, TypeError):
+        pass
+    for folder in sorted((DATA_DIR / "styles").glob("*/style.env")):
+        name = re.search(r'^NAME="(.*)"$', folder.read_text(), re.M)
+        info["profiles"].append({"id": folder.parent.name, "name": name.group(1) if name else folder.parent.name})
+    try:
+        info["style"] = (DATA_DIR / "current").read_text().strip()
+    except OSError:
+        pass
+    config = Path.home() / ".config" / "fastfetch" / "config.jsonc"
+    source = re.search(r'"source":\s*"([^"]+\.(?:png|jpe?g|webp))"', config.read_text()) if config.exists() else None
+    for key, path in (("logo", Path(os.path.expanduser(source.group(1))) if source else None),
+                      ("face", Path.home() / ".face"), ("face", Path("/var/lib/AccountsService/icons") / user)):
+        if path and not info[key] and path.is_file() and os.access(path, os.R_OK):
+            info[key] = path.as_uri()
+    info["logo"] = info["logo"] or info["face"]
+    return info
+
+# =========================
 # Wallpaper
 # =========================
 class Wallpaper:
@@ -772,6 +836,13 @@ class Wallpaper:
         GLib.timeout_add_seconds(3, self.watch_radio)
         threading.Thread(target=self.radio.stop_others, daemon=True).start()
         self.frames = {}
+        # the lock of the session (gtk-session-lock): its surfaces holding the pages, the clients waiting for the unlock
+        self.locker = None
+        self.covers = []
+        self.lock_clients = []
+        self.checking = False
+        self.facts = {}
+        self.later = set()
         display = Gdk.Display.get_default()
         display.connect("monitor-added", lambda *_: self.build())
         display.connect("monitor-removed", lambda *_: self.build())
@@ -783,9 +854,14 @@ class Wallpaper:
             threading.Thread(target=self.listen, daemon=True).start()
         Watcher(self.power)
         threading.Thread(target=self.cache, daemon=True).start()
+        if not demo:
+            threading.Thread(target=self.serve, daemon=True).start()
 
-    # One background surface per monitor
+    # One background surface per monitor (after the unlock while locked: the pages hold the lock)
     def build(self):
+        if self.locker:
+            self.later.add("build")
+            return False
         for window in self.windows:
             window.destroy()
         self.windows = []
@@ -823,6 +899,12 @@ class Wallpaper:
         return window
 
     def add_view(self, window):
+        view = self.make_view(window)
+        window.overlay.add_overlay(view)
+        window.views.append(view)
+        view.show()
+
+    def make_view(self, window):
         # the pages play their own media (the Miku beam, the Ado stage): no autoplay block, no gesture needed
         view = WebKit2.WebView(website_policies=WebKit2.WebsitePolicies(autoplay=WebKit2.AutoplayPolicy.ALLOW))
         manager = view.get_user_content_manager()
@@ -840,9 +922,7 @@ class Wallpaper:
         view.station = Path(self.page).resolve().parent.name if self.page else (DATA_DIR / "current").read_text().strip()
         view.connect("load-changed", lambda v, event: event == WebKit2.LoadEvent.FINISHED and self.loaded(v))
         view.load_uri(page_uri(self.page, self.demo))
-        window.overlay.add_overlay(view)
-        window.views.append(view)
-        view.show()
+        return view
 
     # Only the rects of the page take the clicks: clickable <window> <[[x, y, w, h], ...]>
     def clickable(self, window, rects):
@@ -854,6 +934,9 @@ class Wallpaper:
         try:
             data = json.loads(value.to_string())
         except ValueError:
+            return
+        # the pages of the lock: their own messages only
+        if getattr(view, "locking", False) and data.get("type") in ("ready", "input", "radio"):
             return
         if data.get("type") == "ready":
             self.shown(view)
@@ -868,6 +951,12 @@ class Wallpaper:
             view.evaluate_javascript("window.wdPlay && wdPlay()", -1, None, None, None, None, None)
         elif data.get("type") == "log":
             print(f"wd-wallpaper: {data.get('text')}", file=sys.stderr)
+        elif data.get("type") == "lock-ready" and self.locker:
+            view.lock_ready = True
+        elif data.get("type") == "unlock" and self.locker:
+            self.check(view, data.get("password", ""))
+        elif data.get("type") == "lock-run" and self.locker:
+            self.lock_run(data.get("command"), data.get("value", ""))
 
     # A page has faded in: the pages below it and the still wallpaper of this session go away
     def shown(self, view):
@@ -896,6 +985,12 @@ class Wallpaper:
 
     # A new page: the radio of another station stops (switching style never leaves a music playing behind)
     def loaded(self, view):
+        if getattr(view, "locking", False):
+            self.give_station(view)
+            view.evaluate_javascript(f"window.wdPower && wdPower(24); window.wdRadio && wdRadio({json.dumps(self.radio.state)});"
+                                     f" window.wdLock && wdLock(true, {json.dumps(self.facts)})", -1, None, None, None,
+                                     None, None)
+            return
         if self.radio.running() and self.radio.station != view.station:
             threading.Thread(target=self.radio.act, args=({"action": "stop"},), daemon=True).start()
         self.give_station(view)
@@ -940,13 +1035,19 @@ class Wallpaper:
         return False
 
     def run_js(self, script):
-        for window in self.windows:
-            for view in window.views:
-                view.evaluate_javascript(script, -1, None, None, None, None, None)
+        for view in self.views():
+            view.evaluate_javascript(script, -1, None, None, None, None, None)
 
-    # Frame rate of each monitor (Watcher): told to its pages when it changes; cava waits while nothing shows
+    # the pages of the wallpaper, and of the lock while locked
+    def views(self):
+        return [view for window in self.windows for view in window.views] + [view for _, _, view in self.covers]
+
+    # Frame rate of each monitor (Watcher): told to its pages when it changes; cava waits while nothing shows; locked:
+    # the pages of the lock at full speed
     def power(self, frames):
         self.frames = frames
+        if self.locker:
+            return False
         for window in self.windows:
             geometry = window.monitor.get_geometry()
             fps = frames.get((geometry.x, geometry.y), 24)
@@ -958,8 +1059,11 @@ class Wallpaper:
             self.cava.send_signal(signal.SIGSTOP if all(w.fps <= 0 for w in self.windows) else signal.SIGCONT)
         return False
 
-    # New style: its page fades in over the current one (crossfade)
+    # New style: its page fades in over the current one (crossfade); after the unlock while locked
     def reload(self):
+        if self.locker:
+            self.later.add("reload")
+            return True
         for window in self.windows:
             self.add_view(window)
         return True
@@ -988,7 +1092,163 @@ class Wallpaper:
                 window.pushed = now
                 for view in window.views:
                     view.evaluate_javascript(script, -1, None, None, None, None, None)
+        for _, _, view in self.covers:
+            if now - getattr(view, "pushed", 0) >= 0.9 / 24:
+                view.pushed = now
+                view.evaluate_javascript(script, -1, None, None, None, None, None)
         return False
+
+    # =========================
+    # Lock
+    # =========================
+    # Lock requests (wd-wallpaper --lock): the client waits on its socket for "locked", then "unlocked"
+    def serve(self):
+        path = lock_socket()
+        path.unlink(missing_ok=True)
+        server = socket.socket(socket.AF_UNIX)
+        server.bind(str(path))
+        server.listen(4)
+        while True:
+            client, _ = server.accept()
+            try:
+                client.settimeout(2)
+                request = client.recv(64)
+                client.settimeout(None)
+            except OSError:
+                client.close()
+                continue
+            if request.strip() == b"lock":
+                GLib.idle_add(self.lock, client)
+            else:
+                client.close()
+
+    def tell(self, clients, word):
+        for client in clients:
+            try:
+                client.sendall(word + b"\n")
+            except OSError:
+                pass
+
+    # Each monitor gets a lock surface with a live page of the style of its own (a WebView moved from the wallpaper
+    # paints nothing there), which draws its lock; the pages of the wallpaper rest meanwhile; no PAM, no session lock or
+    # no page: hyprlock locks instead
+    def lock(self, client):
+        if self.locker:
+            self.lock_clients.append(client)
+            self.tell([client], b"locked")
+            return False
+        try:
+            import pam
+        except ImportError:
+            pam = None
+        if not (GtkSessionLock and GtkSessionLock.is_supported() and pam and self.windows
+                and all(window.views for window in self.windows)):
+            self.tell([client], b"failed")
+            client.close()
+            return False
+        self.lock_clients = [client]
+        self.locker = GtkSessionLock.prepare_lock()
+        self.locker.lock_lock()
+        self.covers = []
+        self.facts = {}
+        for window in self.windows:
+            cover = Gtk.Window()
+            self.locker.new_surface(cover, window.monitor)
+            view = self.make_view(window)
+            # no pointer on the lock (WebKit hides it only once the mouse moves)
+            for widget in (cover, view):
+                widget.connect("realize", lambda w: w.get_window().set_cursor(
+                    Gdk.Cursor.new_for_display(w.get_display(), Gdk.CursorType.BLANK_CURSOR)))
+            view.locking = True
+            view.lock_ready = False
+            cover.add(view)
+            cover.show_all()
+            view.grab_focus()
+            self.covers.append((cover, window, view))
+            window.fps = 0
+            for rest in window.views:
+                rest.evaluate_javascript("window.wdPower && wdPower(0)", -1, None, None, None, None, None)
+        if self.cava and self.cava.poll() is None:
+            self.cava.send_signal(signal.SIGCONT)
+        self.tell(self.lock_clients, b"locked")
+        threading.Thread(target=lambda: GLib.idle_add(self.lock_info, lock_facts()), daemon=True).start()
+        GLib.timeout_add(8000, self.lock_check)
+        return False
+
+    def lock_info(self, info):
+        self.facts = info
+        for _, _, view in self.covers:
+            view.evaluate_javascript(f"window.wdLockInfo && wdLockInfo({json.dumps(info)})", -1, None, None, None,
+                                     None, None)
+        return False
+
+    # A page that doesn't draw its lock: the lock is given up without unlocking (the session stays locked), the client
+    # hands it to hyprlock
+    def lock_check(self):
+        if self.locker and not all(view.lock_ready for _, _, view in self.covers):
+            print("wd-wallpaper: a page did not draw its lock, hyprlock takes it", file=sys.stderr)
+            self.release(unlock=False)
+        return False
+
+    # The password of the page, checked by PAM out of the GTK loop (its delay after a failure included)
+    def check(self, view, password):
+        if self.checking:
+            return
+        self.checking = True
+
+        def run():
+            import pam
+            ok = pam.pam().authenticate(pwd.getpwuid(os.getuid()).pw_name, password, service="hyprlock")
+            GLib.idle_add(self.checked, view, ok)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def checked(self, view, ok):
+        self.checking = False
+        if not self.locker:
+            return False
+        view.evaluate_javascript(f"window.wdLockResult && wdLockResult({'true' if ok else 'false'})", -1, None, None,
+                                 None, None, None)
+        if ok:
+            # the page says welcome back first
+            GLib.timeout_add(450, lambda: self.release(unlock=True) and False)
+        return False
+
+    # The commands of the shell of the Terminal lock that act outside of the page
+    def lock_run(self, command, value):
+        if command == "switch" and value in {p.parent.name for p in (DATA_DIR / "styles").glob("*/style.env")}:
+            subprocess.Popen([str(Path.home() / ".local" / "bin" / "wd-style"), "set", value],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        elif command in ("suspend", "reboot", "poweroff"):
+            subprocess.Popen(["systemctl", command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+
+    # The pages of the lock go, with their web process, the wallpaper plays again; unlock: the session too (else it stays
+    # locked for hyprlock)
+    def release(self, unlock):
+        for _, _, view in self.covers:
+            view.get_user_content_manager().unregister_script_message_handler("wd")
+            view.terminate_web_process()
+        if unlock:
+            self.locker.unlock_and_destroy()
+        else:
+            self.locker.destroy()
+        Gdk.Display.get_default().sync()
+        for cover, _, _ in self.covers:
+            cover.destroy()
+        self.locker = None
+        self.covers = []
+        self.tell(self.lock_clients, b"unlocked" if unlock else b"failed")
+        for client in self.lock_clients:
+            client.close()
+        self.lock_clients = []
+        for window in self.windows:
+            window.fps = -1
+        self.power(self.frames)
+        for task in sorted(self.later):
+            getattr(self, task)()
+        self.later = set()
+        return True
 
     def quit(self):
         if self.cava:
@@ -1006,6 +1266,8 @@ def main():
         return
     if len(sys.argv) > 1 and sys.argv[1] == "--radio":
         sys.exit(radio_cli(sys.argv[2:]))
+    if "--lock" in sys.argv:
+        sys.exit(lock_cli())
     args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
     load_gui()
     # the app id of the dialogs of the radio (a floating window rule of Hyprland)

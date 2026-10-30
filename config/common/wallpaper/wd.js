@@ -6,6 +6,8 @@
 //   wd.levels         48 music levels 0-1 (cava through wdAudio), smoothed, 0 when nothing plays; ?demo fakes music
 //   wd.bass / wd.mid / wd.high / wd.energy / wd.beat (1 on a kick, then decays)
 //   wd.image(src)     an image, drawn with wd.cover(ctx, image, zoom, dx, dy)
+//   wd.glowText(ctx, text, x, y, color, size)   a glow around a text (copies around it, no shadowBlur: the GPU canvas
+//                     of WebKit draws stray bars and rectangles with it now and then); the text is drawn after it
 //   wd.mouse, wd.hit(rect), wd.clickable(rects)   pointer over the page; only the rects get the clicks (the rest of
 //                     the wallpaper lets them through)
 //   wd.radio, wd.radioCommand(action, extra)       state and control of the radio played by wd-wallpaper (mpv)
@@ -15,6 +17,12 @@
 //                     title, panel, border, fg, muted, accent, onAccent, font, mono, corner })
 //   wd.video(key, { audio, loop })   a media of the page (radio.json "media": a clip made by wd-wallpaper), paused
 //                     with the wallpaper; null until it is made; started with wd.play(element)
+//   wd.lock           the lock of the session (wd-style lock): wd-wallpaper locks it with this live page, which draws
+//                     its lock over itself: wd.lockDraw = (g, t, lock) => ... on a canvas above everything (else a
+//                     simple one), or its own elements with wd.lockStart(lock) / wd.lockStop(lock) and its keys with
+//                     wd.lockKeys(event, lock) (true: handled); lock = { on, typed, busy, info, since, failedAt,
+//                     shake() }; wd.lockSubmit(password) gives the password to PAM, wd.lockRun(command, value) the
+//                     commands of the Terminal shell (switch, suspend, reboot, poweroff); the mouse is hidden
 // The body fades in over the still wallpaper (or the previous page), then tells wd-wallpaper it is ready
 "use strict";
 
@@ -208,6 +216,7 @@ const wd = (() => {
                 update(t, Math.min(dt, 0.1));
                 draw(t, Math.min(dt, 0.1));
                 drawRadio(t);
+                drawLock(t);
             }
             requestAnimationFrame(frame);
         };
@@ -272,6 +281,18 @@ const wd = (() => {
         }
         refused.clear();
     };
+
+    function glowText(ctx, text, x, y, color, size) {
+        ctx.save();
+        ctx.fillStyle = color;
+        for (const [ring, alpha] of [[size, 0.08], [size * 0.55, 0.14]]) {
+            ctx.globalAlpha = alpha;
+            for (let i = 0; i < 8; i++) {
+                ctx.fillText(text, x + Math.cos(i * Math.PI / 4) * ring, y + Math.sin(i * Math.PI / 4) * ring);
+            }
+        }
+        ctx.restore();
+    }
 
     // the image fills the screen (crop), zoomed and moved by a few pixels
     function cover(ctx, element, zoom = 1, dx = 0, dy = 0) {
@@ -720,6 +741,123 @@ const wd = (() => {
         };
     };
 
+    // =========================
+    // Lock
+    // =========================
+    const lock = { on: false, typed: "", busy: false, ready: false, info: {}, since: "", failedAt: -1 };
+    let lockLayer = null;
+
+    // how far the lock shakes after a wrong password (0 once still)
+    lock.shake = () => {
+        const k = (performance.now() - lock.failedAt) / 1000;
+
+        return lock.failedAt > 0 && k < 0.5 ? Math.sin(k * 55) * 14 * (1 - k / 0.5) : 0;
+    };
+
+    window.wdLock = (on, info) => {
+        Object.assign(lock, { on: on, typed: "", busy: false, ready: false, failedAt: -1 });
+        if (!lockLayer) {
+            lockLayer = canvas("wd-lock");
+            Object.assign(lockLayer.canvas.style, { position: "fixed", inset: "0", width: "100%", height: "100%",
+                zIndex: "20", cursor: "none", display: "none" });
+        }
+        lockLayer.clearRect(0, 0, state.width, state.height);
+        lockLayer.canvas.style.display = on ? "block" : "none";
+        document.documentElement.style.cursor = on ? "none" : "";
+        if (on) {
+            lock.info = Object.assign({}, info);
+            lock.since = new Date().toTimeString().slice(0, 5);
+            if (state.lockStart) {
+                state.lockStart(lock);
+            }
+        } else if (state.lockStop) {
+            state.lockStop(lock);
+        }
+    };
+    window.wdLockInfo = info => {
+        Object.assign(lock.info, info);
+        if (state.lockInfo) {
+            state.lockInfo(lock);
+        }
+    };
+    window.wdLockResult = ok => {
+        lock.busy = false;
+        lock.typed = "";
+        if (!ok) {
+            lock.failedAt = performance.now();
+        }
+        if (state.lockResult) {
+            state.lockResult(ok, lock);
+        }
+    };
+
+    function lockSubmit(password) {
+        if (lock.busy || !password) {
+            return;
+        }
+        lock.busy = true;
+        post({ type: "unlock", password: password });
+    }
+
+    function lockRun(command, value = "") {
+        post({ type: "lock-run", command: command, value: value });
+    }
+
+    // the keys go to the lock: the page's own (the shell of Terminal), else a password typed blind
+    addEventListener("keydown", event => {
+        if (!lock.on) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.lockKeys && state.lockKeys(event, lock)) {
+            return;
+        }
+        if (lock.busy) {
+            return;
+        }
+        if (event.key === "Enter") {
+            lockSubmit(lock.typed);
+        } else if (event.key === "Backspace") {
+            lock.typed = lock.typed.slice(0, -1);
+        } else if (event.key === "Escape" || (event.ctrlKey && event.key === "u")) {
+            lock.typed = "";
+        } else if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+            lock.typed += event.key;
+        }
+    }, true);
+
+    // the lock of a page without its own: the clock and the password over the page, a little darker
+    function plainLock(g, t, lock) {
+        const w = state.width;
+        const h = state.height;
+        const x = w / 2 + lock.shake();
+
+        g.fillStyle = "rgba(0, 0, 0, 0.35)";
+        g.fillRect(0, 0, w, h);
+        g.textAlign = "center";
+        g.fillStyle = "#ffffff";
+        g.font = `200 ${Math.round(h * 0.12)}px "Adwaita Sans", sans-serif`;
+        g.fillText(new Date().toTimeString().slice(0, 5), x, h * 0.42);
+        g.font = `${Math.round(h * 0.022)}px "Adwaita Sans", sans-serif`;
+        g.fillStyle = "rgba(255, 255, 255, 0.75)";
+        g.fillText(lock.busy ? "\u2026" : (lock.typed ? "\u25cf".repeat(lock.typed.length) : "Password"), x, h * 0.55);
+        g.textAlign = "start";
+    }
+
+    function drawLock(t) {
+        if (!lock.on || !lockLayer) {
+            return;
+        }
+        lockLayer.clearRect(0, 0, state.width, state.height);
+        (state.lockDraw || plainLock)(lockLayer, t, lock);
+        // drawn once: wd-wallpaper keeps the lock (else it gives it to hyprlock)
+        if (!lock.ready) {
+            lock.ready = true;
+            post({ type: "lock-ready" });
+        }
+    }
+
     addEventListener("resize", resize);
     // errors of the page in the log of wd-wallpaper
     addEventListener("error", event => post({ type: "log", text: `${event.message} (${event.filename}:${event.lineno})` }));
@@ -728,5 +866,5 @@ const wd = (() => {
     document.body.style.opacity = "0";
     document.body.style.transition = "opacity 0.9s ease-out";
     return Object.assign(state, { canvas, run, image, video, play, cover, rand, clickable, hit, radioCommand, marquee, player,
-        cursor });
+        cursor, glowText, lock, lockSubmit, lockRun });
 })();

@@ -14,7 +14,7 @@
 #                        <url|mp3|search> [title [subtitle]] | remove <style> <index> | offline <style> <index|all>
 #                        [on|off] | folder <style> | show | hide | toggle [style]
 #   power                lock, log out, suspend, reboot or shut down in a wofi menu
-#   lock                 lock screen: a shell (better-tty), a getty (Dev), else hyprlock
+#   lock                 lock screen: the live wallpaper (Dev: a getty), else a shell (better-tty) or hyprlock
 #   monitor              system monitor (btop, htop or top) in a floating terminal
 #   files [folder]       the file manager on this screen (Super+E, the folder button of the radio)
 #   settings <panel>     network, sound or power settings (GNOME settings when installed)
@@ -335,16 +335,27 @@ menu() {
     done
 }
 
-# better-tty and Dev: the lock of the overview shell (quickshell); the other styles, or without it: hyprlock (its
-# background: the session itself). Terminal shows the session behind its lock too: a capture of each screen taken just
-# before ($XDG_RUNTIME_DIR/wd-lock-<screen>.png, deleted at the unlock); Dev keeps its own
+# Every style but Dev: the live wallpaper locks the session itself (its page goes on behind the lock, drawn by the
+# page), back here once unlocked; when it died while locked, hyprlock takes the lock back
+# Without it (still wallpaper, no gtk-session-lock): better-tty and Dev lock with the overview shell (quickshell), the
+# others with hyprlock (its background: the session itself); Terminal shows the session behind its shell too: a
+# capture of each screen taken just before ($XDG_RUNTIME_DIR/wd-lock-<screen>.png, deleted at the unlock)
 lock_screen() {
     local output
     local pid
     local runtime="${XDG_RUNTIME_DIR:-/tmp}"
+    local status
     local style
 
     style=$(current)
+    if [[ "$style" != "dev" && -x "$WALLPAPER_BIN" ]]; then
+        status=0
+        "$WALLPAPER_BIN" --lock || status=$?
+        case "$status" in
+            0) return 0 ;;
+            2) exec hyprlock ;;
+        esac
+    fi
     rm -f "$runtime"/wd-lock-*.png
     if [[ "$style" == "tty" ]] && has grim; then
         for output in $(hyprctl monitors | awk '/^Monitor/ { print $2 }'); do
