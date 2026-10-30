@@ -1398,7 +1398,8 @@ function drawRadio(t, dt) {
     drawEmote("rose", x + ctx.measureText("ADO RADIO").width + 8 * u, p.y + 15 * u, 18 * u);
     ctx.font = `600 ${15 * u}px ${JP}`;
     ctx.fillStyle = "#eaf1ff";
-    wd.marquee(ctx, radio.title(), x, p.y + 57 * u, p.w - 216 * u, t);
+    radio.dot(ctx, x + 4.5 * u, p.y + 52 * u, 4.5 * u, t);
+    wd.marquee(ctx, radio.title(), x + 15 * u, p.y + 57 * u, p.w - 231 * u, t);
     ctx.font = `${12 * u}px ${MONO}`;
     ctx.fillStyle = on ? `rgb(${RED})` : `rgba(${SKY}, 0.7)`;
     ctx.fillText(radio.status(), x, p.y + 79 * u);

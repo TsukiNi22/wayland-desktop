@@ -311,6 +311,9 @@ const wd = (() => {
     // mp3 (a save dialog), open the folder of the radio (its mp3 files and online.md)), the clicks are handled here
     let ownPlayer = false;
 
+    // the colors of the state of a radio track (player().dot)
+    const DOTS = { local: "#3fd27a", online: "#f5c542", loading: "#a46ad8", error: "#ef4b4b" };
+
     function player(embedded = false) {
         ownPlayer = ownPlayer || !embedded;
         const self = {
@@ -347,6 +350,39 @@ const wd = (() => {
 
                 return self.playing() && state.radio.duration
                     ? `${clock(self.progress() * state.radio.duration)} / ${clock(state.radio.duration)}` : "";
+            },
+            // the state of the shown track: local (a file here), online, loading (or being saved), error (mpv could not
+            // load it lately, or an online one without network)
+            source: () => {
+                const track = self.current();
+
+                if (track.downloading || (self.playing() && state.radio.loading)) {
+                    return "loading";
+                }
+                if ((state.radio.failed || []).includes(track.key)) {
+                    return "error";
+                }
+                if (track.file || track.cached) {
+                    return "local";
+                }
+                return state.radio.network === false ? "error" : "online";
+            },
+            // its dot, before the title: green local, yellow online, violet loading (pulsing), red unreachable
+            dot: (ctx, x, y, r, t) => {
+                const kind = self.source();
+
+                ctx.save();
+                ctx.globalAlpha *= kind === "loading" ? 0.55 + 0.45 * Math.sin(t * 5) : 1;
+                ctx.shadowColor = "transparent";
+                ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+                ctx.beginPath();
+                ctx.arc(x, y, r + 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = DOTS[kind];
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
             },
             status: () => {
                 if (!state.radio.available && !self.current().cached) {
@@ -560,7 +596,8 @@ const wd = (() => {
             g.fillText("ST", x + 18, y + 68);
             g.fillText("POS", x + 18, y + 88);
             g.fillStyle = look.fg;
-            marquee(g, title, x + 62, y + 48, w - 80, t);
+            builtIn.dot(g, x + 66, y + 43.5, 4, t);
+            marquee(g, title, x + 76, y + 48, w - 94, t);
             g.fillText(status.replace(builtIn.time(), "").trim(), x + 62, y + 68);
             g.fillText(`[${"#".repeat(done)}${"-".repeat(cells - done)}] ${builtIn.time() || "--:--"}`, x + 62, y + 88);
             builtIn.buttons(g, x + 18, y + 104, 12, Object.assign(colors, { square: 0 }));
@@ -582,7 +619,8 @@ const wd = (() => {
             g.textAlign = "start";
             g.font = `500 19px ${look.font}`;
             g.fillStyle = look.fg;
-            marquee(g, title, x + 20, y + 58, w - 40, t);
+            builtIn.dot(g, x + 25, y + 51.5, 5, t);
+            marquee(g, title, x + 38, y + 58, w - 58, t);
             bar(x + 20, y + 72, w - 40, look.accent, "rgba(255, 255, 255, 0.1)");
             builtIn.buttons(g, x + 20, y + 88, 14, Object.assign(colors, { button: "rgba(255, 255, 255, 0.07)",
                 ring: "rgba(255, 255, 255, 0.14)" }));
@@ -603,7 +641,8 @@ const wd = (() => {
             g.fillStyle = look.accent;
             g.fillText(label, x + 14, y + 14);
             g.fillStyle = look.fg;
-            marquee(g, title, x + 18, y + 46, w - 36, t);
+            builtIn.dot(g, x + 22, y + 41, 4, t);
+            marquee(g, title, x + 32, y + 46, w - 50, t);
             g.fillStyle = look.muted;
             g.fillText(status, x + 18, y + 68);
             builtIn.buttons(g, x + 18, y + 82, 12, Object.assign(colors, { square: 4, button: "rgba(224, 222, 244, 0.06)" }));
@@ -635,7 +674,10 @@ const wd = (() => {
             g.fillText(`\u25cf ${name.toUpperCase()}   ${status}`, x, y + 24);
             g.font = `500 16px ${look.font}`;
             g.fillStyle = look.fg;
-            g.fillText(title.length > 48 ? `${title.slice(0, 47)}\u2026` : title, x, y + 50);
+            const shown = title.length > 48 ? `${title.slice(0, 47)}\u2026` : title;
+
+            g.fillText(shown, x + 8, y + 50);
+            builtIn.dot(g, x + 8 - g.measureText(shown).width / 2 - 11, y + 44.5, 4.5, t);
             g.textAlign = "start";
             bar(left + 24, y + 62, w - 48, look.accent, "rgba(236, 232, 225, 0.15)");
             builtIn.buttons(g, x - row / 2, y + 76, size, Object.assign(colors, { button: "rgba(0, 0, 0, 0.3)",
@@ -656,7 +698,8 @@ const wd = (() => {
             g.fillText(status, x + 18 + g.measureText(name.toUpperCase()).width + 16, y + 24);
             g.font = `600 15px ${look.font}`;
             g.fillStyle = look.fg;
-            marquee(g, title, x + 18, y + 50, w - 36, t);
+            builtIn.dot(g, x + 22.5, y + 45, 4.5, t);
+            marquee(g, title, x + 33, y + 50, w - 51, t);
             builtIn.buttons(g, x + 18, y + 66, 14, colors);
         }
         g.textAlign = "start";

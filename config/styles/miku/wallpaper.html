@@ -525,8 +525,9 @@ function drawRadio(t) {
     ctx.font = `700 ${13 * u}px ${MONO}`;
     ctx.fillText("39.39 FM", lcd.x + 12 * u, lcd.y + 20 * u);
     ctx.font = `600 ${14 * u}px ${JP}`;
-    wd.marquee(ctx, radio.title(), lcd.x + 12 * u, lcd.y + 41 * u, lcd.w - 24 * u, t);
+    wd.marquee(ctx, radio.title(), lcd.x + 26 * u, lcd.y + 41 * u, lcd.w - 38 * u, t);
     ctx.restore();
+    radio.dot(ctx, lcd.x + 16 * u, lcd.y + 36 * u, 4 * u, t);
 
     // tuning scale: the needle sits on the track
     const scale = { x: lcd.x + 8 * u, y: lcd.y + lcd.h + 10 * u, w: lcd.w - 16 * u };

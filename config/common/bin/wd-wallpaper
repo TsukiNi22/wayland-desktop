@@ -41,7 +41,7 @@ from urllib.parse import urlencode
 cairo = Gdk = GLib = GLibUnix = Gtk = GtkLayerShell = WebKit2 = None
 
 def load_gui():
-    global cairo, Gdk, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2
+    global cairo, Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2
     import cairo
     import gi
 
@@ -50,7 +50,7 @@ def load_gui():
     gi.require_version("GtkLayerShell", "0.1")
     gi.require_version("WebKit2", "4.1")
     gi.require_version("GLibUnix", "2.0")
-    from gi.repository import Gdk, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2
+    from gi.repository import Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell, WebKit2
 
 DATA_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "wayland-desktop"
 RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
@@ -432,6 +432,8 @@ class Radio:
         self.socket = RUNTIME_DIR / f"wd-radio-{os.getpid()}.sock"
         # the list mpv plays (key, source, title), changed live with the folder of the radio
         self.entries = []
+        # the tracks mpv could not load lately (no network, a video gone): their key, when
+        self.errors = {}
         self.state = {"available": self.available(), "playing": False, "paused": False, "title": "", "index": 0,
                       "station": "", "key": "", "loop": bool(read_json(USER_RADIO_DIR / "player.json", {}).get("loop"))}
 
@@ -534,6 +536,39 @@ class Radio:
              f"--title=wd-radio {name}", *shlex.split(os.environ.get("WD_RADIO_ARGS", "")), *arguments],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         threading.Thread(target=self.watch, args=(self.process,), daemon=True).start()
+        threading.Thread(target=self.listen, args=(self.process,), daemon=True).start()
+
+    # The events of this mpv: a track it could not load is kept in errors (shown red by the pages) for a while
+    def listen(self, process):
+        for _ in range(50):
+            if process.poll() is not None:
+                return
+            client = socket.socket(socket.AF_UNIX)
+            try:
+                client.connect(str(self.socket))
+                break
+            except OSError:
+                client.close()
+                time.sleep(0.1)
+        else:
+            return
+        with client:
+            buffer = b""
+            while process.poll() is None and (chunk := client.recv(4096)):
+                *lines, buffer = (buffer + chunk).split(b"\n")
+                for line in lines:
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue
+                    if event.get("event") == "end-file" and event.get("reason") == "error":
+                        self.failed(event.get("playlist_entry_id"))
+
+    def failed(self, entry):
+        files = {item.get("id"): item.get("filename") for item in self.command("get_property", "playlist") or []}
+        for key, source, _ in self.entries:
+            if source == files.get(entry):
+                self.errors[key] = time.time()
 
     # The folder of the playing radio changed: the tracks gone leave the list, the new ones join its end (the music
     # goes on)
@@ -644,13 +679,23 @@ class Radio:
     def update(self):
         if self.running():
             position = self.command("get_property", "playlist-pos") or 0
-            self.state.update(playing=True, station=self.station, paused=bool(self.command("get_property", "pause")),
-                              index=position, key=self.entries[position][0] if position < len(self.entries) else "",
-                              title=self.command("get_property", "media-title") or "",
-                              time=self.command("get_property", "time-pos") or 0,
-                              duration=self.command("get_property", "duration") or 0)
+            paused = bool(self.command("get_property", "pause"))
+            moment = self.command("get_property", "time-pos")
+            key = self.entries[position][0] if position < len(self.entries) else ""
+            # playing again: no more an error
+            if moment:
+                self.errors.pop(key, None)
+            self.state.update(playing=True, station=self.station, paused=paused, index=position, key=key,
+                              title=self.command("get_property", "media-title") or "", time=moment or 0,
+                              duration=self.command("get_property", "duration") or 0,
+                              loading=not paused and (moment is None
+                                                      or bool(self.command("get_property", "paused-for-cache"))))
         else:
-            self.state.update(playing=False, paused=False, title="", key="", time=0, duration=0)
+            self.state.update(playing=False, paused=False, title="", key="", time=0, duration=0, loading=False)
+        # the errors of the last 10 minutes, the network (an online track can't play without it)
+        now = time.time()
+        self.errors = {key: at for key, at in self.errors.items() if now - at < 600}
+        self.state.update(failed=list(self.errors), network=Gio.NetworkMonitor.get_default().get_network_available())
         GLib.idle_add(self.publish, dict(self.state))
 
 # =========================
