@@ -996,7 +996,7 @@ function nextStage() {
     const now = made.findIndex(key => stageVideo.src === media[key]);
 
     stageVideo.src = media[made[(now + 1) % made.length]];
-    stageVideo.play().catch(() => {});
+    wd.play(stageVideo);
 }
 
 function drawConcert() {
@@ -1053,13 +1053,14 @@ function drawCage(t) {
         stageVideo = first ? wd.video(first, { loop: false }) : null;
         if (stageVideo) {
             stageVideo.addEventListener("ended", nextStage);
-            stageVideo.play().catch(() => {});
+            wd.play(stageVideo);
         }
     }
-    // WebKit refuses a play() made before the wallpaper shows: asked again (once a second) while it should play
-    if (stageVideo && stageVideo.paused && !stageVideo.ended && t - stageTry > 1) {
+    // a play() refused (made before the wallpaper shows, or no user gesture yet): asked again once a second while it
+    // should play (not held by the wallpaper)
+    if (stageVideo && stageVideo.paused && !stageVideo.ended && !stageVideo.wdHeld && t - stageTry > 1) {
         stageTry = t;
-        stageVideo.play().catch(() => {});
+        wd.play(stageVideo);
     }
     if (stageVideo && (stageShown || stageVideo.readyState >= 2)) {
         // the first frame fades in

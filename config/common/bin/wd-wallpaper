@@ -818,6 +818,9 @@ class Wallpaper:
                 self.clickable(view.window, view.rects)
         elif data.get("type") == "radio":
             self.radio.handle(data)
+        elif data.get("type") == "play":
+            # a play of the page that WebKit refused for want of a user gesture: a script of this side counts as one
+            view.evaluate_javascript("window.wdPlay && wdPlay()", -1, None, None, None, None, None)
         elif data.get("type") == "log":
             print(f"wd-wallpaper: {data.get('text')}", file=sys.stderr)
 

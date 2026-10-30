@@ -107,7 +107,7 @@ function fire() {
     beamVideo = beamVideo || wd.video("beam", { audio: false });
     if (beamVideo) {
         beamVideo.currentTime = 0;
-        beamVideo.play().catch(() => {});
+        wd.play(beamVideo);
     }
     wd.radioCommand("sound", { station: wd.station.station, key: "beam" });
     // no answer (no mpv, nothing made yet): the clock starts anyway

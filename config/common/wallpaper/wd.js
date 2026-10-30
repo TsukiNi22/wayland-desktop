@@ -14,7 +14,7 @@
 //                     shaped by wd.radioLook = { layout: box | card | terminal | pane | camera, place: () => ({ x, y, w }),
 //                     title, panel, border, fg, muted, accent, onAccent, font, mono, corner })
 //   wd.video(key, { audio, loop })   a media of the page (radio.json "media": a clip made by wd-wallpaper), paused
-//                     with the wallpaper; null until it is made
+//                     with the wallpaper; null until it is made; started with wd.play(element)
 // The body fades in over the still wallpaper (or the previous page), then tells wd-wallpaper it is ready
 "use strict";
 
@@ -69,7 +69,7 @@ const wd = (() => {
                 element.wdHeld = true;
             } else if (fps > 0 && element.wdHeld) {
                 element.wdHeld = false;
-                element.play().catch(() => {});
+                play(element);
             }
         }
     };
@@ -245,10 +245,33 @@ const wd = (() => {
         document.body.appendChild(element);
         videos.push({ element: element, loop: !!options.loop });
         if (options.loop && state.fps > 0) {
-            element.play().catch(() => {});
+            play(element);
         }
         return element;
     }
+
+    // WebKit lets a video play only after a user gesture while the system saves power (the power-saver profile, a
+    // laptop on battery): a play it refuses is asked again by wd-wallpaper, whose own scripts count as one
+    const refused = new Set();
+
+    function play(element) {
+        element.play().catch(error => {
+            if (error.name !== "NotAllowedError") {
+                return;
+            }
+            if (!refused.size) {
+                post({ type: "play" });
+            }
+            refused.add(element);
+        });
+    }
+
+    window.wdPlay = () => {
+        for (const element of refused) {
+            element.play().catch(() => {});
+        }
+        refused.clear();
+    };
 
     // the image fills the screen (crop), zoomed and moved by a few pixels
     function cover(ctx, element, zoom = 1, dx = 0, dy = 0) {
@@ -661,6 +684,6 @@ const wd = (() => {
     document.addEventListener("mouseleave", () => Object.assign(state.mouse, { x: -1, y: -1 }));
     document.body.style.opacity = "0";
     document.body.style.transition = "opacity 0.9s ease-out";
-    return Object.assign(state, { canvas, run, image, video, cover, rand, clickable, hit, radioCommand, marquee, player,
+    return Object.assign(state, { canvas, run, image, video, play, cover, rand, clickable, hit, radioCommand, marquee, player,
         cursor });
 })();
