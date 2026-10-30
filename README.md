@@ -110,9 +110,10 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 | the others | hyprlock, the lock screen of the style (the password shows as emojis in Ado and Miku) |
 
 > [!TIP]
-> The radios of Ado and Miku play their `radio.json`: a few tracks are kept offline (千本桜, ワールドイズマイン, うっせぇわ,
-> 新時代: downloaded once by `install.sh` with yt-dlp in `~/.local/share/wd-radio`, a personal copy, never in this
-> repository) and start at once, the others play from YouTube (mpv + yt-dlp). The pages show parts of official videos
+> The radios play their `radio.json` (Ado: 21 tracks, Miku: 18, the others: Value), every track kept offline: downloaded
+> once by `install.sh` with yt-dlp in `~/.local/share/wd-radio` (a personal copy, never in this repository, about
+> 140 MB), they start at once and play without network; the tracks you add yourself to `online.md` play from YouTube
+> (mpv + yt-dlp) until you save them. The pages show parts of official videos
 > cut once with ffmpeg in `~/.local/share/wd-radio/media` (personal copies too): the beam of M@GICAL☆CURE! LOVE ♥ SHOT!
 > for the Miku beam, wide shots of the stage of six official live videos for the Ado stage. The title, the media keys and the bar follow (mpv-mpris); they keep playing across a change of
 > style and stop with the live wallpaper. Your own emotes (png, gif, webp...) in `~/.local/share/wd-emotes` join the
