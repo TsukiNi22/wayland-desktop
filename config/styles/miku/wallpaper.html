@@ -564,14 +564,162 @@ function drawRadio(t) {
 
 layout();
 addEventListener("resize", layout);
+// =========================
+// Lock: a disc of 39.39 FM (its ring between teal and pink turning with the music), the sticky note on its edge,
+// emojis floating up, leeks for the password
+// =========================
+const EMOJIS = ["\u266a", "\u266b", "\ud83c\udfb5", "\u2728", "\ud83d\udc99", "\ud83e\udd6c", "\ud83c\udf38"];
+const floating = Array.from({ length: 18 }, (_, i) => ({ x: (i * 0.137 + 0.05) % 1, y: (i * 0.271) % 1,
+    speed: 0.025 + (i % 5) * 0.008, size: 18 + (i % 4) * 8, emoji: EMOJIS[i % EMOJIS.length], phase: i * 1.7 }));
+let lockLast = 0;
+
+wd.lockDraw = (g, t, lock) => {
+    const w = wd.width;
+    const h = wd.height;
+    const dt = Math.min(0.1, Math.max(0, t - lockLast));
+    const cx = w / 2;
+    const cy = h * 0.43;
+    const r = h * 0.2;
+    const failed = lock.failedAt > 0 && performance.now() - lock.failedAt < 2500;
+    const tries = lock.tries || 0;
+
+    lockLast = t;
+    g.fillStyle = "rgba(4, 22, 23, 0.45)";
+    g.fillRect(0, 0, w, h);
+    // the emojis going up, a hop on the kicks
+    g.textAlign = "center";
+    for (const item of floating) {
+        item.y -= item.speed * dt;
+        if (item.y < -0.05) {
+            item.y = 1.05;
+        }
+        g.globalAlpha = 0.55 + 0.35 * Math.sin(t + item.phase);
+        g.font = `${Math.round(item.size * u * (1 + wd.beat * 0.25))}px "Noto Color Emoji", sans-serif`;
+        g.fillText(item.emoji, (item.x + Math.sin(t * 0.4 + item.phase) * 0.015) * w, item.y * h);
+    }
+    g.globalAlpha = 1;
+    // the disc, its ring of music
+    g.save();
+    g.translate(cx + lock.shake(), cy);
+    g.fillStyle = "rgba(5, 27, 28, 0.86)";
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.fill();
+    g.rotate(t * 0.3);
+    for (let i = 0; i < 72; i++) {
+        const level = wd.levels[i % 48];
+        const a = i / 72 * Math.PI * 2;
+        const color = mix(TEAL, PINK, (Math.sin(a) + 1) / 2);
+
+        g.strokeStyle = `rgba(${color.join(", ")}, ${0.5 + level * 0.5})`;
+        g.lineWidth = 4 * u;
+        g.lineCap = "round";
+        g.beginPath();
+        g.moveTo(Math.cos(a) * (r + 10 * u), Math.sin(a) * (r + 10 * u));
+        g.lineTo(Math.cos(a) * (r + (14 + level * 60) * u), Math.sin(a) * (r + (14 + level * 60) * u));
+        g.stroke();
+    }
+    const ring = g.createLinearGradient(-r, -r, r, r);
+
+    ring.addColorStop(0, `rgb(${TEAL.join(", ")})`);
+    ring.addColorStop(1, `rgb(${PINK.join(", ")})`);
+    g.strokeStyle = ring;
+    g.lineWidth = 6 * u;
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.stroke();
+    g.restore();
+    g.lineCap = "butt";
+    g.fillStyle = "#7ff5ea";
+    g.font = `700 ${Math.round(13 * u)}px ${MONO}`;
+    g.fillText("39.39 FM  \u00b7  LOCKED", cx + lock.shake(), cy - r * 0.52);
+    g.font = `800 ${Math.round(h * 0.1)}px "Adwaita Sans", sans-serif`;
+    wd.glowText(g, new Date().toTimeString().slice(0, 5), cx + lock.shake(), cy + h * 0.03, `rgb(${PINK.join(", ")})`, 9 * u);
+    g.fillText(new Date().toTimeString().slice(0, 5), cx + lock.shake(), cy + h * 0.03);
+    g.fillStyle = `rgb(${TEAL.join(", ")})`;
+    g.font = `600 ${Math.round(16 * u)}px ${JP}`;
+    g.fillText(`\u266a ${new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} \u266a`,
+        cx + lock.shake(), cy + r * 0.42);
+    if (wd.radio.playing && wd.radio.title) {
+        g.fillStyle = "rgba(233, 255, 253, 0.8)";
+        g.font = `${Math.round(13 * u)}px ${JP}`;
+        g.fillText(wd.radio.title.length > 30 ? wd.radio.title.slice(0, 29) + "\u2026" : wd.radio.title, cx, cy + r * 0.62);
+    }
+
+    // the password: a pill under the disc, a leek a letter
+    const fw = 360 * u;
+    const fh = 54 * u;
+    const fx = cx - fw / 2 + lock.shake();
+    const fy = cy + r + 46 * u;
+    const pill = g.createLinearGradient(fx, 0, fx + fw, 0);
+
+    pill.addColorStop(0, `rgb(${TEAL.join(", ")})`);
+    pill.addColorStop(1, `rgb(${PINK.join(", ")})`);
+    g.fillStyle = "rgba(15, 58, 59, 0.92)";
+    g.strokeStyle = failed ? `rgb(${PINK.join(", ")})` : pill;
+    g.lineWidth = 3 * u;
+    g.beginPath();
+    g.roundRect(fx, fy, fw, fh, fh / 2);
+    g.fill();
+    g.stroke();
+    if (lock.typed.length) {
+        const count = lock.typed.length;
+        const step = Math.min(30 * u, (fw - 40 * u) / count);
+
+        g.font = `${Math.round(22 * u)}px "Noto Color Emoji", sans-serif`;
+        for (let i = 0; i < count; i++) {
+            const hop = Math.max(0, Math.sin(t * 8 - i * 0.6)) * 4 * u;
+
+            g.fillText("\ud83e\udd6c", cx + lock.shake() + (i - (count - 1) / 2) * step, fy + fh / 2 + 8 * u - hop);
+        }
+    } else {
+        g.fillStyle = failed ? `rgb(${PINK.join(", ")})` : "#86b9b5";
+        g.font = `600 ${Math.round(17 * u)}px "Adwaita Sans", sans-serif`;
+        g.fillText(lock.busy ? "\u266a \u266a \u266a" : (failed ? "try again \u266a" : "Unlock to sing \u266a"), cx + lock.shake(),
+            fy + fh / 2 + 6 * u);
+    }
+
+    // the sticky note of the POC on the edge of the disc
+    g.save();
+    g.translate(cx + r * 0.95, cy - r * 0.78);
+    g.rotate(-0.1 + Math.sin(t * 1.2) * 0.02);
+    g.fillStyle = "rgba(0, 0, 0, 0.3)";
+    g.fillRect(-119 * u, -54 * u, 250 * u, 124 * u);
+    g.fillStyle = "#fff09a";
+    g.fillRect(-125 * u, -62 * u, 250 * u, 124 * u);
+    g.fillStyle = "rgba(255, 222, 90, 0.9)";
+    g.fillRect(-125 * u, -62 * u, 250 * u, 14 * u);
+    g.textAlign = "left";
+    g.fillStyle = "#4a3b1a";
+    g.font = `italic ${Math.round(15 * u)}px "Adwaita Sans", sans-serif`;
+    g.fillText(failed ? `oops \u00d7${tries} \u2014 again \u266a` : "today's mood: \u266a \u266a \u266a", -108 * u, -18 * u);
+    g.fillStyle = `rgb(${PINK.join(", ")})`;
+    g.font = `800 ${Math.round(16 * u)}px "Adwaita Sans", sans-serif`;
+    g.fillText("39", -108 * u, 12 * u);
+    g.fillStyle = "#4a3b1a";
+    g.font = `${Math.round(15 * u)}px "Adwaita Sans", sans-serif`;
+    g.fillText(" = san-kyu = thank you", -108 * u + g.measureText("39").width + 6 * u, 12 * u);
+    g.font = `${Math.round(16 * u)}px ${JP}`;
+    g.fillText("\u2728 (/\u25d5\u30ee\u25d5)/ \u266a", -108 * u, 42 * u);
+    g.restore();
+    g.textAlign = "start";
+};
+
+wd.lockResult = (ok, lock) => {
+    lock.tries = ok ? 0 : (lock.tries || 0) + 1;
+};
+
 wd.run((t, dt) => {
     drawArt(t);
     drawRing(t);
     drawRibbons(t);
     drawNotes(t, dt);
     drawRadio(t);
-    drawNote(dt);
-    drawBeam(dt);
+    // the lock has its own sticky note
+    if (!wd.lock.on) {
+        drawNote(dt);
+        drawBeam(dt);
+    }
 });
 </script>
 </body>

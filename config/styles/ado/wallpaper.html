@@ -1413,6 +1413,128 @@ function drawRadio(t, dt) {
 makeEmotes();
 layout();
 addEventListener("resize", layout);
+// =========================
+// Lock: the HUD of the page in the middle (ADO // PROTOCOL, 世界征服 down its side, WORLD DOMINATION: the part of the
+// year done), her live stage going on behind, blue roses for the password, うっせぇわ when it is wrong
+// =========================
+function hudCorner(g, x, y, dx, dy, size) {
+    g.beginPath();
+    g.moveTo(x, y + dy * size);
+    g.lineTo(x, y);
+    g.lineTo(x + dx * size, y);
+    g.stroke();
+}
+
+wd.lockDraw = (g, t, lock) => {
+    const w = wd.width;
+    const h = wd.height;
+    const pw = 640 * u;
+    const ph = 420 * u;
+    const x = w / 2 - pw / 2 + lock.shake();
+    const y = h / 2 - ph / 2;
+    const failed = lock.failedAt > 0 && performance.now() - lock.failedAt < 2500;
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    const year = (now - start) / (new Date(now.getFullYear() + 1, 0, 1) - start);
+
+    g.fillStyle = "rgba(3, 5, 14, 0.42)";
+    g.fillRect(0, 0, w, h);
+    // a blue light around the panel (rings, never shadowBlur)
+    for (let i = 1; i <= 4; i++) {
+        g.strokeStyle = `rgba(${BLUE}, ${0.12 / i})`;
+        g.lineWidth = 6 * u;
+        g.strokeRect(x - i * 5 * u, y - i * 5 * u, pw + i * 10 * u, ph + i * 10 * u);
+    }
+    g.fillStyle = "rgba(5, 8, 20, 0.84)";
+    g.fillRect(x, y, pw, ph);
+    g.strokeStyle = `rgba(${BLUE}, 0.5)`;
+    g.lineWidth = 1;
+    g.strokeRect(x + 0.5, y + 0.5, pw, ph);
+    g.strokeStyle = `rgb(${SKY})`;
+    g.lineWidth = 3 * u;
+    hudCorner(g, x, y, 1, 1, 34 * u);
+    hudCorner(g, x + pw, y + ph, -1, -1, 34 * u);
+    // a scan line going down the panel
+    g.fillStyle = `rgba(${BLUE}, 0.12)`;
+    g.fillRect(x, y + (t * 0.25 % 1) * ph, pw, 2 * u);
+    g.textAlign = "start";
+    g.fillStyle = `rgba(${SKY}, 0.85)`;
+    g.font = `700 ${Math.round(13 * u)}px ${MONO}`;
+    g.fillText("ADO // PROTOCOL", x + 30 * u, y + 36 * u);
+    g.textAlign = "end";
+    g.fillStyle = `rgba(${RED}, ${0.6 + 0.4 * Math.sin(t * 4)})`;
+    g.fillText("\u25cf", x + pw - 100 * u, y + 36 * u);
+    g.fillStyle = `rgba(${SKY}, 0.85)`;
+    g.fillText("LOCKED", x + pw - 30 * u, y + 36 * u);
+    // 世界征服 down the side
+    g.textAlign = "center";
+    g.fillStyle = "#eaf1ff";
+    g.font = `900 ${Math.round(38 * u)}px ${JP}`;
+    "世界征服".split("").forEach((c, i) => g.fillText(c, x + 62 * u, y + 120 * u + i * 62 * u));
+    const mid = x + pw / 2 + 40 * u;
+
+    g.font = `italic 900 ${Math.round(96 * u)}px ${SANS}`;
+    wd.glowText(g, now.toTimeString().slice(0, 5), mid, y + 160 * u, `rgb(${BLUE})`, 10 * u);
+    g.fillStyle = "#eaf1ff";
+    g.fillText(now.toTimeString().slice(0, 5), mid, y + 160 * u);
+    g.font = `italic 700 ${Math.round(15 * u)}px ${MONO}`;
+    g.fillText(`WORLD DOMINATION  ${(year * 100).toFixed(1)}%`, mid, y + 200 * u);
+    const cells = 24;
+
+    for (let i = 0; i < cells; i++) {
+        const lit = i / cells < year;
+
+        g.fillStyle = lit ? `rgba(${BLUE}, ${0.75 + 0.25 * wd.levels[i * 2 % 48]})` : `rgba(${SKY}, 0.18)`;
+        g.fillRect(mid - 150 * u + i * 12.5 * u, y + 214 * u, 10 * u, 10 * u);
+    }
+    // the password: a blue rose a letter
+    const fw = 380 * u;
+    const fh = 56 * u;
+    const fx = mid - fw / 2;
+    const fy = y + 252 * u;
+    const edge = g.createLinearGradient(fx, 0, fx + fw, 0);
+
+    edge.addColorStop(0, failed ? `rgb(${RED})` : `rgb(${BLUE})`);
+    edge.addColorStop(1, failed ? `rgb(${RED})` : `rgb(${SKY})`);
+    g.fillStyle = "rgba(11, 20, 48, 0.95)";
+    g.fillRect(fx, fy, fw, fh);
+    g.strokeStyle = edge;
+    g.lineWidth = 2 * u;
+    g.strokeRect(fx, fy, fw, fh);
+    if (lock.typed.length) {
+        const count = lock.typed.length;
+        const size = 30 * u;
+        const step = Math.min(size + 4 * u, (fw - 30 * u) / count);
+
+        for (let i = 0; i < count; i++) {
+            const turn = Math.sin(t * 3 + i) * 0.15;
+            const cx = mid + (i - (count - 1) / 2) * step;
+
+            g.save();
+            g.translate(cx, fy + fh / 2);
+            g.rotate(turn);
+            if (EMOTES.rose) {
+                g.drawImage(EMOTES.rose, -size / 2, -size / 2, size, size);
+            }
+            g.restore();
+        }
+    } else {
+        g.fillStyle = failed ? `rgb(${RED})` : `rgba(${SKY}, 0.75)`;
+        g.font = `${failed ? "900 " : ""}${Math.round(17 * u)}px ${JP}`;
+        g.fillText(lock.busy ? "\u2026" : (failed ? "うっせぇわ!!" : "Password"), mid, fy + fh / 2 + 6 * u);
+    }
+    g.fillStyle = `rgba(${SKY}, 0.7)`;
+    g.font = `${Math.round(12 * u)}px ${MONO}`;
+    g.fillText(`${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}  `
+        + now.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase(), mid, fy + fh + 34 * u);
+    if (wd.radio.playing && wd.radio.title) {
+        g.fillStyle = "#eaf1ff";
+        g.font = `${Math.round(14 * u)}px ${JP}`;
+        g.fillText(`ADO RADIO  \u266a  ${wd.radio.title}`, w / 2, h - 60 * u);
+    }
+    g.textAlign = "start";
+};
+
 wd.run((t, dt) => {
     drawRose(t);
     drawTitle(t);

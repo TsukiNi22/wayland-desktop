@@ -8,6 +8,31 @@
     html { background: transparent; }
     body { margin: 0; height: 100vh; overflow: hidden; background: #191724; }
     canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    /* the lock: the shell of better-tty over the live page */
+    #shell { position: fixed; inset: 0; z-index: 30; display: none; cursor: none; color: #e0def4;
+        font-family: "JetBrains Mono", monospace; background: rgba(25, 23, 36, 0.62); overflow: hidden; }
+    #shell::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+        background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0 1px, transparent 1px 3px); }
+    #shell .fetch { position: absolute; display: flex; gap: 2em; }
+    #shell .picture { border-radius: 12px; background: #1f1d2e; overflow: hidden; display: flex; align-items: center;
+        justify-content: center; color: #c4a7e7; font-size: 4em; flex: none; }
+    #shell .picture img { width: 100%; height: 100%; object-fit: cover; }
+    #shell .facts div { white-space: pre; line-height: 1.25; }
+    #shell .swatches { display: flex; gap: 6px; padding-top: 0.6em; }
+    #shell .swatches span { width: 2em; height: 1em; border-radius: 3px; }
+    #shell .board { position: absolute; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+    #shell .line { white-space: pre-wrap; word-break: break-all; line-height: 1.25; }
+    #shell .caret { display: inline-block; width: 0.6em; height: 1.15em; vertical-align: text-bottom; background: #e0def4;
+        animation: blink 1.06s steps(1) infinite; }
+    #shell .status { position: absolute; left: 10px; right: 10px; bottom: 10px; height: 1.9em; border-radius: 8px;
+        background: #1f1d2e; display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
+        font-size: 0.9em; color: #908caa; }
+    #shell .glyph { position: absolute; top: -40px; color: #9ccfd8; opacity: 0.5; font-size: 18px;
+        animation: fall linear infinite; }
+    #shell .train { position: absolute; white-space: pre; animation: train 3.5s linear forwards; }
+    @keyframes blink { 50% { opacity: 0; } }
+    @keyframes fall { to { transform: translateY(110vh); } }
+    @keyframes train { from { left: 100%; } to { left: -110%; } }
 </style>
 </head>
 <body>
@@ -310,6 +335,438 @@ function draw(t, dt) {
 
 layout();
 addEventListener("resize", layout);
+// =========================
+// Lock: the shell of better-tty (its fastfetch, a prompt: login, switch <profile>, help...) over the live page
+// =========================
+const shell = { lines: [], stage: "command", login: "", input: "", history: [], back: -1, confirm: "", rain: false,
+    element: null };
+const COMMANDS = ["help", "login", "switch", "profiles", "whoami", "fastfetch", "date", "uptime", "music", "clear",
+    "history", "echo", "cowsay", "fortune", "sl", "matrix", "hack", "sudo", "exit", "39", "suspend", "reboot", "poweroff"];
+const FORTUNES = ["There is no place like 127.0.0.1", "It works on my machine.", "sudo make me a sandwich",
+    "A clean desk is a sign of a full trash bin.", "The cake is a lie.", "Real programmers count from 0.",
+    "rm -rf / is not a backup strategy", "39 = san-kyu = thank you"];
+const TRAIN = "      ====        ________                ___________\n  _D _|  |_______/        \\__I_I_____===__|_________|\n"
+    + "   |(_)---  |   H\\________/ |   |        =|___ ___|\n   /     |  |   H  |  |     |   |         ||_| |_||\n"
+    + "  |      |  |   H  |__--------------------| [___] |\n  | ________|___H__/__|_____/[][]~\\_______|       |\n"
+    + "  |/ |   |-----------I_____I [][] []  D   |=======|_\n__/ =| o |=-~~\\  /~~\\  /~~\\  /~~\\ ____Y___________|__\n"
+    + " |/-=|___|=    ||    ||    ||    |_____/~\\___/\n  \\_/      \\O=====O=====O=====O_/      \\_/";
+
+function element(tag, className, text) {
+    const node = document.createElement(tag);
+
+    if (className) {
+        node.className = className;
+    }
+    if (text !== undefined) {
+        node.textContent = text;
+    }
+    return node;
+}
+
+function say(text, color) {
+    for (const line of String(text).split("\n")) {
+        shell.lines.push({ text: line, color: color || C.text });
+    }
+    shell.lines = shell.lines.slice(-200);
+    paintShell();
+}
+
+function profileName(id) {
+    const found = (wd.lock.info.profiles || []).find(p => p.id === id);
+
+    return found ? found.name : id;
+}
+
+// the facts of fastfetch, like the shell of quickshell
+function facts() {
+    const i = wd.lock.info.facts || {};
+    const gb = bytes => (bytes / 1073741824).toFixed(1) + " GiB";
+    const list = [];
+    const up = i.Uptime ? Math.floor(i.Uptime.uptime / 1000) : 0;
+
+    if (i.OS) {
+        list.push(["os", i.OS.prettyName]);
+    }
+    if (i.Host) {
+        list.push(["host", i.Host.name]);
+    }
+    if (i.Kernel) {
+        list.push(["kernel", i.Kernel.release]);
+    }
+    if (up) {
+        list.push(["uptime", `${Math.floor(up / 86400)}d ${Math.floor(up % 86400 / 3600)}h ${Math.floor(up % 3600 / 60)}m`]);
+    }
+    if (i.Packages) {
+        list.push(["packages", String(i.Packages.all)]);
+    }
+    list.push(["wm", "Hyprland"]);
+    if (i.CPU) {
+        list.push(["cpu", i.CPU.cpu]);
+    }
+    if (i.GPU && i.GPU.length) {
+        list.push(["gpu", i.GPU.map(g => g.name).filter(n => n).join(" + ")]);
+    }
+    if (i.Memory) {
+        list.push(["memory", `${gb(i.Memory.used)} / ${gb(i.Memory.total)}`]);
+    }
+    if (i.Disk && i.Disk.length) {
+        list.push(["disk", `${gb(i.Disk[0].bytes.used)} / ${gb(i.Disk[0].bytes.total)}`]);
+    }
+    if (i.Battery && i.Battery.length) {
+        list.push(["battery", `${Math.round(i.Battery[0].capacity)}%`]);
+    }
+    list.push(["profile", profileName(wd.lock.info.style || "tty")]);
+    return list;
+}
+
+function prompt() {
+    if (shell.stage === "password") {
+        return `password for ${shell.login}: `;
+    }
+    return shell.stage === "busy" ? "" : "> ";
+}
+
+// the whole shell drawn again: the fastfetch block, the transcript and its prompt, the status line of tmux
+function paintShell() {
+    const root = shell.element;
+
+    if (!root) {
+        return;
+    }
+    const size = Math.max(14, Math.round(wd.height / 62));
+    const column = wd.width * 0.07;
+    const info = wd.lock.info;
+
+    root.style.fontSize = `${size}px`;
+    root.replaceChildren();
+    const fetch = element("div", "fetch");
+    const picture = element("div", "picture");
+    const side = Math.round(wd.height * 0.3);
+
+    Object.assign(fetch.style, { left: `${column}px`, top: `${wd.height * 0.08}px` });
+    Object.assign(picture.style, { width: `${side}px`, height: `${side}px` });
+    if (info.logo) {
+        const image = element("img");
+
+        image.src = info.logo;
+        picture.append(image);
+    } else {
+        picture.textContent = "\u276f_";
+    }
+    const list = element("div", "facts");
+    const title = element("div", "", `${info.user || wd.user}@${info.host || wd.host}`);
+
+    Object.assign(title.style, { color: C.foam, fontWeight: "bold", fontSize: "1.2em" });
+    list.append(title, Object.assign(element("div", "", "\u2500".repeat(28)), { style: `color: ${C.muted}` }));
+    for (const [key, value] of facts()) {
+        const row = element("div");
+
+        row.append(Object.assign(element("span", "", key.padEnd(10)), { style: `color: ${C.iris}` }), element("span", "", value));
+        list.append(row);
+    }
+    const swatches = element("div", "swatches");
+
+    for (const color of [C.love, C.gold, C.rose, C.pine, C.foam, C.iris, C.text, C.muted]) {
+        swatches.append(Object.assign(element("span"), { style: `background: ${color}` }));
+    }
+    list.append(swatches);
+    fetch.append(picture, list);
+    root.append(fetch);
+    const top = wd.height * 0.08 + side + size * 2;
+    const board = element("div", "board");
+
+    Object.assign(board.style, { left: `${column}px`, top: `${top}px`, width: `${wd.width - 2 * column}px`,
+        height: `${wd.height - top - size * 3.6}px` });
+    for (const line of shell.lines.slice(-80)) {
+        board.append(Object.assign(element("div", "line", line.text || " "), { style: `color: ${line.color}` }));
+    }
+    const line = element("div", "line");
+
+    line.append(Object.assign(element("span", "", prompt()), { style: `color: ${shell.stage === "command" ? C.iris : C.text}` }));
+    // the password is never shown, not even as dots (like a console)
+    line.append(element("span", "", shell.stage === "password" ? "" : shell.input));
+    if (shell.stage !== "busy") {
+        line.append(element("span", "caret"));
+    }
+    board.append(line);
+    root.append(board);
+    const status = element("div", "status");
+    const playing = wd.radio.playing && wd.radio.title ? `   \u266a ${wd.radio.title}` : "";
+    const now = new Date();
+
+    status.append(element("span", "", `[locked] ${info.user || wd.user}@${info.host || wd.host}${playing}`),
+        Object.assign(element("span", "", `${now.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}`
+            + `  ${now.toTimeString().slice(0, 5)}`), { style: `color: ${C.gold}` }));
+    root.append(status);
+    if (shell.rain) {
+        for (let i = 0; i < 48; i++) {
+            const glyph = element("span", "glyph", "01\uff71\uff72\uff73\uff74\uff75#$%&*+=<>"[i % 16]);
+
+            Object.assign(glyph.style, { left: `${(i * 37) % wd.width}px`, animationDuration: `${1.8 + (i * 97) % 2200 / 1000}s`,
+                animationDelay: `${-(i * 0.37) % 2}s` });
+            root.append(glyph);
+        }
+    }
+    if (shell.train) {
+        root.append(Object.assign(element("div", "train", TRAIN), { style: `top: ${wd.height * 0.45}px` }));
+    }
+}
+
+function cowsay(text) {
+    say(` ${"_".repeat(text.length + 2)}\n< ${text} >\n ${"-".repeat(text.length + 2)}\n        \\   ^__^\n`
+        + "         \\  (oo)\\_______\n            (__)\\       )\\/\\\n                ||----w |\n                ||     ||");
+}
+
+function complete(text) {
+    const words = text.split(" ");
+    const pool = words.length > 1 && words[0] === "switch" ? (wd.lock.info.profiles || []).map(p => p.id) : COMMANDS;
+    const last = words[words.length - 1];
+    const found = pool.filter(w => w.startsWith(last));
+
+    if (found.length === 1) {
+        words[words.length - 1] = found[0];
+        return words.join(" ") + (words.length === 1 && found[0] === "switch" ? " " : "");
+    }
+    if (found.length > 1) {
+        say(found.join("  "), C.subtle);
+    }
+    return text;
+}
+
+function hack(step = 0) {
+    const steps = ["[\u25a0\u25a1\u25a1\u25a1\u25a1] bypassing the firewall...", "[\u25a0\u25a0\u25a1\u25a1\u25a1] decrypting /etc/shadow...",
+        "[\u25a0\u25a0\u25a0\u25a1\u25a1] downloading more RAM...", "[\u25a0\u25a0\u25a0\u25a0\u25a1] reversing the polarity...",
+        "[\u25a0\u25a0\u25a0\u25a0\u25a0] ACCESS DENIED. just type login :)"];
+
+    shell.stage = "busy";
+    say(steps[step], step === steps.length - 1 ? C.love : C.foam);
+    if (step + 1 < steps.length) {
+        setTimeout(() => hack(step + 1), 420);
+    } else {
+        shell.stage = "command";
+        paintShell();
+    }
+}
+
+function run(text) {
+    const words = text.trim().split(/\s+/).filter(w => w);
+    const name = words[0] || "";
+    const rest = words.slice(1).join(" ");
+    const profiles = wd.lock.info.profiles || [];
+    const user = wd.lock.info.user || wd.user;
+
+    if (shell.confirm && name !== shell.confirm) {
+        shell.confirm = "";
+    }
+    switch (name) {
+    case "":
+        break;
+    case "help":
+        say("login                 type your password to unlock\n"
+            + "switch <profile>      change the style (Tab completes)\n"
+            + "profiles              the styles you can switch to\n"
+            + "whoami                you and the active profile\n"
+            + "fastfetch \u00b7 date \u00b7 uptime \u00b7 music \u00b7 history \u00b7 clear\n"
+            + "suspend \u00b7 reboot \u00b7 poweroff\n"
+            + "and a few more: sudo, cowsay, fortune, sl, matrix, hack, 39, exit...", C.subtle);
+        break;
+    case "login":
+        shell.login = user;
+        shell.stage = "password";
+        break;
+    case "switch":
+        if (!rest) {
+            say("switch <profile>: " + profiles.map(p => p.id).join("  "), C.subtle);
+        } else if (profiles.some(p => p.id === rest)) {
+            wd.lockRun("switch", rest);
+            wd.lock.info.style = rest;
+            say(`profile \u2192 ${profileName(rest)}  (the lock stays until you log in)`, C.foam);
+        } else {
+            say(`switch: no profile '${rest}' (profiles lists them)`, C.love);
+        }
+        break;
+    case "profiles":
+    case "ls":
+        for (const p of profiles) {
+            const on = p.id === wd.lock.info.style;
+
+            say(`${on ? "\u25cf" : " "} ${p.id.padEnd(14)} ${p.name}`, on ? C.iris : C.text);
+        }
+        break;
+    case "whoami":
+        say(`${user}  \u00b7  profile: ${profileName(wd.lock.info.style || "tty")}  \u00b7  locked since ${wd.lock.since}`);
+        break;
+    case "fastfetch":
+    case "neofetch":
+        for (const [key, value] of facts()) {
+            say(`${key.padEnd(9)} ${value}`);
+        }
+        break;
+    case "date":
+        say(new Date().toString());
+        break;
+    case "uptime":
+        say(`up ${(facts().find(f => f[0] === "uptime") || [])[1] || "?"}`);
+        break;
+    case "music":
+    case "np":
+        say(wd.radio.playing && wd.radio.title ? `\u266a ${wd.radio.title}` : "nothing playing",
+            wd.radio.playing ? C.foam : C.subtle);
+        break;
+    case "clear":
+        shell.lines = [];
+        break;
+    case "history":
+        shell.history.forEach((h, i) => say(`${String(i + 1).padStart(4)}  ${h}`, C.subtle));
+        break;
+    case "echo":
+        say(rest);
+        break;
+    case "cowsay":
+        cowsay(rest || "moo");
+        break;
+    case "fortune":
+        say(FORTUNES[Math.floor(Math.random() * FORTUNES.length)], C.gold);
+        break;
+    case "sl":
+        shell.train = true;
+        setTimeout(() => {
+            shell.train = false;
+            paintShell();
+        }, 3500);
+        break;
+    case "matrix":
+        shell.rain = !shell.rain;
+        break;
+    case "hack":
+        hack();
+        return;
+    case "sudo":
+        say(`${user} is not in the sudoers file. This incident will be reported.`, C.love);
+        break;
+    case "rm":
+        say(rest.includes("-rf") ? "nice try." : "rm: the files are behind the lock", C.love);
+        break;
+    case "exit":
+    case "logout":
+    case "quit":
+        say("there is no exit. type login.", C.gold);
+        break;
+    case "39":
+        say("san-kyu! \u266a (/\u25d5\u30ee\u25d5)/", "#39c5bb");
+        break;
+    case "lock":
+        say("already locked :)", C.subtle);
+        break;
+    case "suspend":
+        wd.lockRun("suspend");
+        break;
+    case "reboot":
+    case "poweroff":
+        if (shell.confirm === name) {
+            wd.lockRun(name);
+        } else {
+            shell.confirm = name;
+            say(`${name}: type it again to confirm`, C.gold);
+        }
+        break;
+    default:
+        say(`${name}: command not found (help)`, C.love);
+    }
+    paintShell();
+}
+
+// a line typed (Enter): a command, or the password
+function submit(text) {
+    if (shell.stage === "password") {
+        say(prompt(), C.muted);
+        if (text) {
+            shell.stage = "busy";
+            wd.lockSubmit(text);
+        } else {
+            say("authentication failed: try again (login)", C.love);
+            shell.stage = "command";
+        }
+    } else if (shell.stage === "command") {
+        say("> " + text, C.iris);
+        if (text.trim()) {
+            shell.history.push(text.trim());
+        }
+        shell.back = -1;
+        run(text);
+    }
+    paintShell();
+}
+
+wd.lockStart = lock => {
+    if (!shell.element) {
+        shell.element = element("div");
+        shell.element.id = "shell";
+        document.body.append(shell.element);
+    }
+    Object.assign(shell, { lines: [], stage: "command", input: "", back: -1, confirm: "", rain: false, train: false });
+    shell.element.style.display = "block";
+    say("locked. type help, or login to come back.", C.subtle);
+};
+wd.lockStop = () => {
+    if (shell.element) {
+        shell.element.style.display = "none";
+        shell.element.replaceChildren();
+    }
+    shell.input = "";
+};
+wd.lockInfo = () => paintShell();
+wd.lockResult = ok => {
+    if (ok) {
+        say(`welcome back, ${shell.login} \u266a`, C.foam);
+        shell.stage = "busy";
+    } else {
+        say("authentication failed: try again (login)", C.love);
+        shell.stage = "command";
+    }
+    paintShell();
+};
+// the canvas of the lock stays empty: the shell is made of elements
+wd.lockDraw = () => {
+    // the status line keeps its clock and the music
+    if (shell.element && Math.floor(performance.now() / 1000) !== shell.second) {
+        shell.second = Math.floor(performance.now() / 1000);
+        const status = shell.element.querySelector(".status");
+
+        if (status && shell.second % 10 === 0) {
+            paintShell();
+        }
+    }
+};
+wd.lockKeys = event => {
+    if (shell.stage === "busy") {
+        return true;
+    }
+    if (event.key === "Enter") {
+        const text = shell.input;
+
+        shell.input = "";
+        submit(text);
+    } else if (event.key === "Tab" && shell.stage === "command") {
+        shell.input = complete(shell.input);
+    } else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && shell.stage === "command" && shell.history.length) {
+        shell.back = event.key === "ArrowUp" ? Math.min(shell.history.length - 1, shell.back + 1) : Math.max(-1, shell.back - 1);
+        shell.input = shell.back < 0 ? "" : shell.history[shell.history.length - 1 - shell.back];
+    } else if (event.ctrlKey && event.key === "l") {
+        shell.lines = [];
+    } else if (event.ctrlKey && event.key === "c") {
+        say(prompt() + (shell.stage === "password" ? "" : shell.input) + "^C", C.muted);
+        shell.input = "";
+        shell.stage = "command";
+    } else if (event.key === "Backspace") {
+        shell.input = shell.input.slice(0, -1);
+    } else if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        shell.input += event.key;
+    }
+    paintShell();
+    return true;
+};
+
 wd.run(draw);
 </script>
 </body>

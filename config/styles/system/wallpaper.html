@@ -165,8 +165,8 @@ function drawWave(t) {
 function drawClock() {
     const now = new Date();
 
-    // a still wallpaper keeps no clock (hyprlock draws its own)
-    if (wd.still !== null) {
+    // a still wallpaper keeps no clock (hyprlock draws its own), nor the lock (its clock is in the middle)
+    if (wd.still !== null || wd.lock.on) {
         return;
     }
     const x = wd.width * 0.09;
@@ -183,6 +183,179 @@ function drawClock() {
     ctx.font = `400 ${Math.round(wd.height * 0.017)}px "JetBrains Mono", monospace`;
     ctx.fillText(`${wd.user}@${wd.host}  ·  ${wd.info.os}`, x + 6, y + wd.height * 0.09);
 }
+
+// =========================
+// Lock: a light clock, the user in a ring of the music, a password of glass, the state of the machine in chips
+// =========================
+const face = new Image();
+
+wd.lockInfo = lock => {
+    if (lock.info.face && face.src !== lock.info.face) {
+        face.src = lock.info.face;
+    }
+};
+
+function chip(g, text, x, y, color) {
+    g.font = '13px "JetBrains Mono", monospace';
+    const w = g.measureText(text).width + 30;
+
+    g.fillStyle = "rgba(14, 18, 23, 0.6)";
+    g.strokeStyle = "rgba(90, 169, 255, 0.28)";
+    g.lineWidth = 1;
+    g.beginPath();
+    g.roundRect(x - w / 2, y - 15, w, 30, 15);
+    g.fill();
+    g.stroke();
+    g.fillStyle = color;
+    g.textAlign = "center";
+    g.fillText(text, x, y + 4.5);
+    return w;
+}
+
+wd.lockDraw = (g, t, lock) => {
+    const w = wd.width;
+    const h = wd.height;
+    const cx = w / 2;
+    const now = new Date();
+    const facts = lock.info.facts || {};
+    const veil = g.createRadialGradient(cx, h / 2, h * 0.2, cx, h / 2, h * 0.95);
+
+    veil.addColorStop(0, "rgba(9, 12, 17, 0.25)");
+    veil.addColorStop(1, "rgba(9, 12, 17, 0.75)");
+    g.fillStyle = veil;
+    g.fillRect(0, 0, w, h);
+    g.textAlign = "center";
+    g.fillStyle = "#d6dde7";
+    g.font = `200 ${Math.round(h * 0.12)}px "Adwaita Sans", "Inter", sans-serif`;
+    g.fillText(now.toTimeString().slice(0, 5), cx, h * 0.25);
+    g.fillStyle = "#5aa9ff";
+    g.font = `500 ${Math.round(h * 0.022)}px "Adwaita Sans", sans-serif`;
+    g.fillText(now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }), cx, h * 0.25 + h * 0.05);
+
+    // the user, in a ring of the music turning around
+    const ay = h * 0.47;
+    const r = h * 0.07;
+
+    g.save();
+    g.translate(cx, ay);
+    g.rotate(t * 0.15);
+    for (let i = 0; i < 96; i++) {
+        const level = wd.levels[i % 48];
+        const a = i / 96 * Math.PI * 2;
+        const length = 4 + level * h * 0.045;
+        const k = (Math.sin(a) + 1) / 2;
+
+        g.strokeStyle = `rgba(${Math.round(90 + 5 * k)}, ${Math.round(169 + 42 * k)}, ${Math.round(255 - 114 * k)}, ${0.45 + level * 0.55})`;
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(Math.cos(a) * (r + 10), Math.sin(a) * (r + 10));
+        g.lineTo(Math.cos(a) * (r + 10 + length), Math.sin(a) * (r + 10 + length));
+        g.stroke();
+    }
+    // a satellite on its orbit
+    g.rotate(t * 0.6);
+    g.strokeStyle = "rgba(90, 169, 255, 0.25)";
+    g.lineWidth = 1;
+    g.beginPath();
+    g.arc(0, 0, r + h * 0.07, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = "#5fd38d";
+    g.beginPath();
+    g.arc(r + h * 0.07, 0, 4, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+    g.save();
+    g.beginPath();
+    g.arc(cx, ay, r, 0, Math.PI * 2);
+    g.clip();
+    if (face.complete && face.naturalWidth) {
+        g.drawImage(face, cx - r, ay - r, r * 2, r * 2);
+    } else {
+        const ground = g.createLinearGradient(cx - r, ay - r, cx + r, ay + r);
+
+        ground.addColorStop(0, "#5aa9ff");
+        ground.addColorStop(1, "#5fd38d");
+        g.fillStyle = ground;
+        g.fillRect(cx - r, ay - r, r * 2, r * 2);
+        g.fillStyle = "#0e1217";
+        g.font = `600 ${Math.round(r)}px "Adwaita Sans", sans-serif`;
+        g.fillText((lock.info.user || wd.user || "?")[0].toUpperCase(), cx, ay + r * 0.36);
+    }
+    g.restore();
+    g.fillStyle = "#d6dde7";
+    g.font = `600 ${Math.round(h * 0.024)}px "Adwaita Sans", sans-serif`;
+    g.fillText(lock.info.user || wd.user, cx, ay + r + h * 0.085);
+
+    // the password of glass: its dots light up, a light runs over it while PAM checks
+    const fw = 380;
+    const fh = 52;
+    const fx = cx - fw / 2 + lock.shake();
+    const fy = h * 0.66;
+    const failed = lock.failedAt > 0 && performance.now() - lock.failedAt < 2500;
+    const ring = g.createLinearGradient(fx, fy, fx + fw, fy + fh);
+
+    ring.addColorStop(0, failed ? "#ff6b6b" : "#5aa9ff");
+    ring.addColorStop(1, failed ? "#ff6b6b" : "#5fd38d");
+    g.fillStyle = "rgba(14, 18, 23, 0.72)";
+    g.strokeStyle = ring;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.roundRect(fx, fy, fw, fh, fh / 2);
+    g.fill();
+    g.stroke();
+    if (lock.busy) {
+        const k = (t * 1.4) % 1;
+        const shine = g.createLinearGradient(fx + fw * (k - 0.3), 0, fx + fw * k, 0);
+
+        shine.addColorStop(0, "rgba(90, 169, 255, 0)");
+        shine.addColorStop(1, "rgba(90, 169, 255, 0.35)");
+        g.fillStyle = shine;
+        g.beginPath();
+        g.roundRect(fx, fy, fw, fh, fh / 2);
+        g.fill();
+    }
+    const count = lock.typed.length;
+
+    if (count) {
+        const step = Math.min(22, (fw - 60) / count);
+
+        for (let i = 0; i < count; i++) {
+            const x = cx + lock.shake() + (i - (count - 1) / 2) * step;
+            const k = i / Math.max(1, count - 1);
+
+            g.fillStyle = `rgb(${Math.round(90 + 5 * k)}, ${Math.round(169 + 42 * k)}, ${Math.round(255 - 114 * k)})`;
+            g.beginPath();
+            g.arc(x, fy + fh / 2, 5.5, 0, Math.PI * 2);
+            g.fill();
+        }
+    } else {
+        g.fillStyle = failed ? "#ff6b6b" : "#7b8798";
+        g.font = `${Math.round(h * 0.018)}px "Adwaita Sans", sans-serif`;
+        g.fillText(lock.busy ? "checking\u2026" : (failed ? "Wrong password" : "Password"), cx + lock.shake(), fy + fh / 2 + 6);
+    }
+
+    // the machine: battery, the radio, who and where
+    const chips = [];
+    const battery = (facts.Battery || [])[0];
+
+    if (battery) {
+        chips.push([`\u26a1 ${Math.round(battery.capacity)}%`, battery.capacity < 20 ? "#ff6b6b" : "#5fd38d"]);
+    }
+    if (wd.radio.playing && wd.radio.title) {
+        chips.push([`\u266a ${wd.radio.title.length > 40 ? wd.radio.title.slice(0, 39) + "\u2026" : wd.radio.title}`, "#d6dde7"]);
+    }
+    chips.push([`${lock.info.user || wd.user}@${lock.info.host || wd.host}`, "#7b8798"]);
+    chips.push([`locked at ${lock.since}`, "#7b8798"]);
+    g.font = '13px "JetBrains Mono", monospace';
+    const widths = chips.map(([text]) => g.measureText(text).width + 30);
+    let x = cx - (widths.reduce((a, b) => a + b, 0) + 12 * (chips.length - 1)) / 2;
+
+    chips.forEach(([text, color], i) => {
+        chip(g, text, x + widths[i] / 2, h * 0.9, color);
+        x += widths[i] + 12;
+    });
+    g.textAlign = "start";
+};
 
 wd.run((t, dt) => {
     drawAurora(t);

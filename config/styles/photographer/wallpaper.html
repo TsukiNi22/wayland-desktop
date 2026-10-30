@@ -20,7 +20,9 @@
 // the small radio of wd.js, fitted into this page (Super+Shift+M or wd-style radio hide: hidden)
 wd.radioLook = { layout: "camera", panel: "rgba(12, 10, 8, 0.55)", border: "rgba(236, 232, 225, 0.6)",
     fg: "rgba(236, 232, 225, 0.92)", muted: "rgba(236, 232, 225, 0.6)", accent: "rgba(217, 164, 65, 0.95)",
-    onAccent: "#14120f", corner: 4, title: "film radio", place: () => ({ x: wd.width / 2, y: wd.height - 230, w: 520 }) };
+    onAccent: "#14120f", corner: 4, title: "film radio",
+    // locked: under the film strip of the lock
+    place: () => ({ x: wd.width / 2, y: wd.lock.on ? wd.height * 0.68 : wd.height - 230, w: 520 }) };
 
 const ctx = wd.canvas("main");
 const grain = wd.canvas("grain");
@@ -149,11 +151,214 @@ function drawGrain(t) {
     grain.fillRect(0, 0, wd.width, wd.height);
 }
 
+// =========================
+// Lock: the screen of a camera over the live wall - grid of thirds, REC and its timecode, the battery, the AF corners
+// around the clock, the password as frames on a strip of film, the exposure meter following the music, a live
+// histogram, the date printed on the film, the shutter at the unlock
+// =========================
+const CREAM = "236, 232, 225";
+const AMBER = "217, 164, 65";
+let shutter = -1;
+
+function bracket(g, x, y, w, h, size) {
+    g.beginPath();
+    for (const [cx, cy, dx, dy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) {
+        g.moveTo(cx, cy + dy * size);
+        g.lineTo(cx, cy);
+        g.lineTo(cx + dx * size, cy);
+    }
+    g.stroke();
+}
+
+wd.lockResult = ok => {
+    if (ok) {
+        shutter = performance.now();
+    }
+};
+
+wd.lockDraw = (g, t, lock) => {
+    const w = wd.width;
+    const h = wd.height;
+    const m = 46;
+    const now = new Date();
+    const failed = lock.failedAt > 0 && performance.now() - lock.failedAt < 2500;
+    const mono = size => `${size}px "JetBrains Mono", monospace`;
+    const serif = (size, style = "") => `${style} ${size}px "Noto Serif", serif`;
+
+    // a little darker at the edges, the grid of thirds, the corners of the frame
+    const veil = g.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h);
+
+    veil.addColorStop(0, "rgba(10, 9, 8, 0.15)");
+    veil.addColorStop(1, "rgba(10, 9, 8, 0.6)");
+    g.fillStyle = veil;
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = `rgba(${CREAM}, 0.16)`;
+    g.lineWidth = 1;
+    g.beginPath();
+    for (const k of [1 / 3, 2 / 3]) {
+        g.moveTo(w * k, m);
+        g.lineTo(w * k, h - m);
+        g.moveTo(m, h * k);
+        g.lineTo(w - m, h * k);
+    }
+    g.stroke();
+    g.strokeStyle = `rgba(${CREAM}, 0.85)`;
+    g.lineWidth = 2;
+    bracket(g, m, m, w - 2 * m, h - 2 * m, 40);
+
+    // the top line: REC and its timecode, the mode, the battery
+    const run = Math.floor((performance.now() - (lock.lockedAt || (lock.lockedAt = performance.now()))) / 1000);
+    const code = [Math.floor(run / 3600), Math.floor(run / 60) % 60, run % 60].map(n => String(n).padStart(2, "0")).join(":");
+
+    g.textAlign = "start";
+    g.font = mono(15);
+    g.fillStyle = `rgba(224, 122, 95, ${Math.floor(t * 2) % 2 ? 1 : 0.25})`;
+    g.fillText("\u25cf", m + 26, m + 38);
+    g.fillStyle = `rgb(${CREAM})`;
+    g.fillText(`REC  ${code}`, m + 48, m + 38);
+    g.textAlign = "center";
+    g.fillText("M   \u00b7   4K 24p   \u00b7   RAW+JPEG   \u00b7   AF-S", w / 2, m + 38);
+    const battery = ((lock.info.facts || {}).Battery || [])[0];
+
+    if (battery) {
+        const bx = w - m - 128;
+        const by = m + 24;
+        const level = battery.capacity / 100;
+
+        g.strokeStyle = `rgb(${CREAM})`;
+        g.lineWidth = 1.5;
+        g.strokeRect(bx, by, 40, 18);
+        g.fillStyle = `rgb(${CREAM})`;
+        g.fillRect(bx + 40, by + 5, 3, 8);
+        g.fillStyle = level < 0.2 ? "rgb(224, 122, 95)" : `rgb(${CREAM})`;
+        g.fillRect(bx + 3, by + 3, 34 * level, 12);
+        g.textAlign = "start";
+        g.fillText(`${Math.round(battery.capacity)}%`, bx + 52, m + 38);
+    }
+
+    // the clock in the AF corners: amber while it waits, green once a password is in
+    const cy = h * 0.42;
+    const focus = lock.typed.length ? "rgb(126, 211, 150)" : `rgb(${AMBER})`;
+
+    g.textAlign = "center";
+    g.font = serif(Math.round(h * 0.14));
+    wd.glowText(g, now.toTimeString().slice(0, 5), w / 2, cy, "#000000", 6);
+    g.fillStyle = `rgb(${CREAM})`;
+    g.fillText(now.toTimeString().slice(0, 5), w / 2, cy);
+    const day = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+
+    g.font = serif(Math.round(h * 0.022), "italic");
+    wd.glowText(g, day, w / 2, cy + h * 0.05, "#000000", 3);
+    g.fillStyle = `rgb(${AMBER})`;
+    g.fillText(day, w / 2, cy + h * 0.05);
+    g.strokeStyle = focus;
+    g.lineWidth = 2;
+    bracket(g, w / 2 - h * 0.26, cy - h * 0.15, h * 0.52, h * 0.22, 26);
+    g.fillStyle = focus;
+    g.font = mono(11);
+    g.fillText(lock.typed.length ? "\u25cf AF  LOCKED" : "AF", w / 2 - h * 0.26 + 40, cy - h * 0.15 - 8);
+
+    // the password: frames on a strip of film, its holes running
+    const sw = Math.min(w * 0.5, 620);
+    const sh = 74;
+    const sx = w / 2 - sw / 2 + lock.shake();
+    const sy = h * 0.58;
+
+    g.fillStyle = "rgba(20, 17, 14, 0.92)";
+    g.fillRect(sx, sy, sw, sh);
+    g.fillStyle = "rgba(236, 232, 225, 0.75)";
+    const shift = (t * 30) % 22;
+
+    for (let x = sx + 8 - shift; x < sx + sw - 10; x += 22) {
+        if (x > sx + 2) {
+            g.fillRect(x, sy + 6, 10, 7);
+            g.fillRect(x, sy + sh - 13, 10, 7);
+        }
+    }
+    const count = lock.typed.length;
+
+    if (count) {
+        const step = Math.min(46, (sw - 30) / count);
+
+        for (let i = 0; i < count; i++) {
+            const x = w / 2 + lock.shake() + (i - (count - 1) / 2) * step - 18;
+            const light = g.createLinearGradient(x, sy + 18, x + 36, sy + sh - 18);
+
+            light.addColorStop(0, "rgba(255, 196, 120, 0.95)");
+            light.addColorStop(1, "rgba(217, 120, 65, 0.85)");
+            g.fillStyle = light;
+            g.beginPath();
+            g.roundRect(x, sy + 19, 36, sh - 38, 3);
+            g.fill();
+        }
+    } else {
+        g.fillStyle = failed ? "rgb(224, 122, 95)" : `rgba(${CREAM}, 0.6)`;
+        g.font = serif(17, "italic");
+        g.fillText(lock.busy ? "developing\u2026" : (failed ? "out of focus \u2014 try again" : "type to expose"),
+            w / 2 + lock.shake(), sy + sh / 2 + 6);
+    }
+
+    // the exposure line, its meter following the music
+    const ly = h - m - 74;
+    const meter = Math.max(-3, Math.min(3, (wd.energy - 0.12) * 18));
+
+    g.fillStyle = `rgb(${CREAM})`;
+    g.font = mono(14);
+    g.fillText(`1/${wd.energy > 0.02 ? 500 : 125}    F1.8    ISO ${200 + Math.round(wd.energy * 600)}    35mm`, w / 2, ly);
+    g.font = mono(11);
+    g.fillText("-3 \u00b7 \u00b7 2 \u00b7 \u00b7 1 \u00b7 \u00b7 0 \u00b7 \u00b7 1 \u00b7 \u00b7 2 \u00b7 \u00b7 3+", w / 2, ly + 30);
+    g.fillStyle = `rgb(${AMBER})`;
+    g.beginPath();
+    g.moveTo(w / 2 + meter * 46, ly + 36);
+    g.lineTo(w / 2 + meter * 46 - 5, ly + 46);
+    g.lineTo(w / 2 + meter * 46 + 5, ly + 46);
+    g.fill();
+
+    // the histogram of the music, bottom left; the date printed on the film, bottom right
+    const hx = m + 30;
+    const hy = h - m - 30;
+
+    g.fillStyle = "rgba(10, 9, 8, 0.55)";
+    g.fillRect(hx, hy - 80, 200, 80);
+    g.fillStyle = `rgba(${CREAM}, 0.75)`;
+    for (let i = 0; i < 48; i++) {
+        const bar = Math.max(1, (wd.levels[i] * 0.9 + 0.05 * Math.sin(t + i)) * 76);
+
+        g.fillRect(hx + 4 + i * 4, hy - bar, 3, bar);
+    }
+    const stamp = `'${String(now.getFullYear()).slice(2)}  ${now.getMonth() + 1}  ${now.getDate()}`;
+
+    g.font = mono(26);
+    g.textAlign = "end";
+    wd.glowText(g, stamp, w - m - 34, h - m - 34, "rgb(255, 110, 40)", 4);
+    g.fillStyle = "#ff8a3d";
+    g.fillText(stamp, w - m - 34, h - m - 34);
+    if (wd.radio.playing && wd.radio.title) {
+        g.textAlign = "center";
+        g.fillStyle = `rgb(${AMBER})`;
+        g.font = serif(15, "italic");
+        g.fillText(`\u266a  ${wd.radio.title}`, w / 2, ly - 34);
+    }
+    // the shutter at the unlock
+    if (shutter > 0) {
+        const k = (performance.now() - shutter) / 450;
+
+        if (k < 1) {
+            g.fillStyle = `rgba(255, 255, 255, ${0.9 * (1 - k)})`;
+            g.fillRect(0, 0, w, h);
+        }
+    }
+    g.textAlign = "start";
+};
+
 wd.run((t, dt) => {
     drawWall(t);
     drawLeak(t);
     drawBokeh(t, dt);
-    drawViewfinder(t);
+    // the lock has its own viewfinder
+    if (!wd.lock.on) {
+        drawViewfinder(t);
+    }
     drawGrain(t);
 }, 24);
 </script>
