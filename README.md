@@ -137,6 +137,10 @@ System, Dev, Terminal and Photographer have a small radio fitted into their page
 Ado's Value): under the clock, a `[ radio ]` block under the registers, a tmux pane, a line of the viewfinder.
 `Super+Shift+M` or `wd-style radio show | hide | toggle [style]` hides or shows it.
 
+A dot before the title of every radio tells where its track is: green on this computer (an mp3 of the folder, a track
+kept offline), yellow online, violet (pulsing) while it loads or downloads, red when it can't play (mpv could not load
+it in the last 10 minutes, or an online track without network).
+
 > [!IMPORTANT]
 > The files already there are saved once (`<file>.wd-backup`) and put back by `./install.sh remove`;
 > `~/.config/hypr/user.lua` (keyboard detected at the install) is yours and never replaced.
