@@ -2,7 +2,7 @@
 <!-- wayland-desktop style: Miku - live wallpaper (wd-wallpaper): Miku and her 39, a ring of spectrum turning around
      the 39, notes rising with the music, teal and pink twin-tail ribbons, a light sweeping the stripes, a retro radio
      to click (39.39 FM: famous Miku songs) and the sticky note of the POC: click it for the MIKU MIKU BEAM (Now
-     Loading, the three lights of the count and its subtitles, then the beam of its official video, a personal copy
+     Loading, the three lights of the count, then the beam of its official video, a personal copy
      cut once by wd-wallpaper) -->
 <html>
 <head>
@@ -83,41 +83,48 @@ function drawNote(dt) {
 }
 
 // The beam of "M@GICAL☆CURE! LOVE ♥ SHOT!" (SAWTOWNE feat. Hatsune Miku): its part of the official video (radio.json
-// "media", cut once by wd-wallpaper from 1:25.28 of the video, a personal copy) gives the sound and the clock; on that
-// clock, before the video shows: its subtitles, the "Now Loading..." card, the three lights of the count with their
-// flashes (on the voice: its accents measured in the sound, the cuts of the video come 0.2 s before "Two" and
-// "Three"); from "Ready?" (its next cut) on, the video itself: MIKU MIKU BEAAAAM!!
-const LINES = [[0, 2.15, "and now it's time..."], [2.2, 4.75, "for the moment you've been waiting for!"], [4.89, 6.2, "One!"],
-    [6.23, 7.45, "Two!"], [7.48, 8.36, "Three——!!!"]];
+// "media", cut once by wd-wallpaper from 1:25.28 of the video, a personal copy); its sound plays in an audio element and
+// gives the clock, the video follows it muted (WebKit lets a muted video play; a video with sound was refused); on that
+// clock, before the video shows: the "Now Loading..." card, the three lights of the count with their flashes (on the
+// voice: its accents measured in the sound, the cuts of the video come 0.2 s before "Two" and "Three"); from "Ready?"
+// (its next cut) on, the video itself: MIKU MIKU BEAAAAM!!
 const COUNT = [4.89, 6.23, 7.48];
 const READY = 8.36;
 const END = 19.3;
 let beamVideo = null;
+let beamSound = null;
 let analyser = null;
 
 function fire() {
+    const media = wd.station && wd.station.media ? wd.station.media.beam : null;
+
     if (beam) {
         return;
     }
-    beamVideo = beamVideo || wd.video("beam", { audio: true });
     beam = { start: performance.now(), data: null };
-    if (!beamVideo) {
+    if (!media) {
         return;
     }
+    beamSound = beamSound || new Audio(media);
+    beamVideo = beamVideo || wd.video("beam", { audio: false });
     try {
         if (!analyser) {
             audio = new AudioContext();
             analyser = audio.createAnalyser();
             analyser.fftSize = 512;
-            audio.createMediaElementSource(beamVideo).connect(analyser).connect(audio.destination);
+            audio.createMediaElementSource(beamSound).connect(analyser).connect(audio.destination);
         }
         audio.resume();
         beam.data = new Uint8Array(analyser.fftSize);
     } catch (error) {
         beam.data = null;
     }
-    beamVideo.currentTime = 0;
-    beamVideo.play();
+    beamSound.currentTime = 0;
+    beamSound.play().catch(() => {});
+    if (beamVideo) {
+        beamVideo.currentTime = 0;
+        beamVideo.play().catch(() => {});
+    }
 }
 
 addEventListener("click", event => {
@@ -126,9 +133,9 @@ addEventListener("click", event => {
     }
 });
 
-// time of the video (or of the clock without it) and its loudness 0-1
+// time of the sound (or of the clock without it) and its loudness 0-1
 function beamTime() {
-    return beamVideo && !beamVideo.paused ? beamVideo.currentTime : (performance.now() - beam.start) / 1000;
+    return beamSound && !beamSound.paused ? beamSound.currentTime : (performance.now() - beam.start) / 1000;
 }
 
 function loudness() {
@@ -296,37 +303,28 @@ function drawLights(t, alpha) {
     ctx.restore();
 }
 
-// a subtitle as in the video: white, outlined, at the bottom
-function subtitle(text, y, alpha) {
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = `700 ${wd.height * 0.034}px "Adwaita Sans", sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = wd.height * 0.008;
-    ctx.strokeStyle = "rgba(20, 20, 30, 0.9)";
-    ctx.strokeText(text, wd.width / 2, y);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(text, wd.width / 2, y);
-    ctx.restore();
-}
-
 function drawBeam(dt) {
     if (!beam) {
         return;
     }
     const t = beamTime();
 
-    if (t >= END || (beamVideo && beamVideo.ended)) {
+    if (t >= END || (beamSound && beamSound.ended)) {
         beam = null;
+        if (beamVideo) {
+            beamVideo.pause();
+        }
         return;
     }
     const level = loudness();
     const shown = beamVideo && beamVideo.readyState >= 2 && t >= READY;
 
+    // the video keeps to the clock of the sound
+    if (beamVideo && Math.abs(beamVideo.currentTime - t) > 0.15) {
+        beamVideo.currentTime = t;
+    }
     if (!shown) {
-        // the count: the screen darkens, the loading card fills, then the lights, a flash on each, the subtitles
+        // the count: the screen darkens, the loading card fills, then the lights, a flash on each
         ctx.fillStyle = `rgba(4, 22, 23, ${Math.min(0.55, t * 0.25)})`;
         ctx.fillRect(0, 0, wd.width, wd.height);
         if (t < COUNT[0] + 0.1) {
@@ -339,11 +337,6 @@ function drawBeam(dt) {
             if (t >= at && t < at + 0.25) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * (1 - (t - at) / 0.25)})`;
                 ctx.fillRect(0, 0, wd.width, wd.height);
-            }
-        }
-        for (const [from, to, text] of LINES) {
-            if (t >= from && t < to) {
-                subtitle(text, wd.height * 0.88, Math.min(1, (t - from) / 0.12, (to - t) / 0.12));
             }
         }
         // no video (not made yet): the words of the beam over a violet light, on the clock
