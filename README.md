@@ -37,11 +37,21 @@ Wayland configuration. Every style has working windows, a lock screen, files, a 
 | <img src="docs/images/tty-lock.jpg" width="300"> | <img src="docs/images/miku-lock.jpg" width="300"> | <img src="docs/images/photographer-lock.jpg" width="300"> |
 | **Terminal / better-tty** (getty login) | **Miku** | **Photographer** (viewfinder) |
 
-In the Wayland session, the lock shows the session itself behind it (its windows, a little darker), for every style
-but Dev and its own console: System a card of glass (light clock, date, battery and network), Miku the LCD of the
-39.39 FM with the sticky note of the POC and leeks for dots, Ado the HUD of her page (世界征服, WORLD DOMINATION: the
-part of the year done) with blue flowers for dots, Photographer a viewfinder (REC, battery, an AF frame around the
-password, the exposure line, the date printed on the film), Terminal its shell over a capture of the screens.
+In the Wayland session, every style but Dev (its own console) locks with its live wallpaper: the lock surfaces get the
+page of the style, still moving (its animation, the radio, the music), and the page draws its lock over itself, the
+mouse hidden; PAM checks the password (the hyprlock service):
+
+| Style | Lock |
+| ---- | ---- |
+| System | a light clock, the user in a ring of the music with a satellite on its orbit, a password of glass, chips: battery, the radio, who, since when |
+| Miku | a disc of 39.39 FM whose ring turns with the music, the sticky note of the POC on its edge, emojis floating up, leeks for the password |
+| Ado | the HUD of her page over her live stage: 世界征服, WORLD DOMINATION (the part of the year done), blue roses for the password, うっせぇわ!! when it is wrong |
+| Photographer | the screen of a camera: grid of thirds, REC and its timecode, battery, AF corners around the clock, the password as frames on a strip of film, exposure meter and histogram following the music, the date printed on the film, the shutter at the unlock |
+| Terminal | its shell (fastfetch, `login`, `switch <profile>`, `help`...) over the live page |
+
+Without the live wallpaper (still wallpaper, no gtk-session-lock), hyprlock locks with the session behind it (its windows,
+a little darker), and Terminal its quickshell shell over a capture of the screens. If the wallpaper dies while locked,
+the session stays locked and hyprlock takes the lock back.
 
 ## Wayland configs
 
@@ -69,7 +79,8 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 > [!NOTE]
 > Every config: Hyprland, hyprlock, waybar, wofi, kitty, swaybg, mako, grim, slurp, wl-clipboard, brightnessctl, playerctl,
 > wireplumber, libnotify, nautilus, btop, quickshell (overview, lock of better-tty and Dev), cava (music), python GTK +
-> WebKit 4.1 + gtk-layer-shell (live wallpapers), Pillow (animated cursors), the Adwaita cursor and the fonts (JetBrains
+> WebKit 4.1 + gtk-layer-shell (live wallpapers), gtk-session-lock + python3-pam (the live lock), Pillow (animated
+> cursors), the Adwaita cursor and the fonts (JetBrains
 > Mono, Font Awesome, Noto CJK, Noto Sans Symbols 2, Noto Color Emoji); each style adds the `PACKAGES` of its `style.env`
 > (its font, `mpv` + `yt-dlp` + `mpv-mpris` for the radio of Ado and Miku, `ffmpeg` for the clips of their pages). A package missing in the repositories of the family is skipped: the overview falls back to the wofi
 > launcher, the wallpaper to the still image, the radio tells what it needs.
