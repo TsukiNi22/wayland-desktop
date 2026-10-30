@@ -37,6 +37,12 @@ Wayland configuration. Every style has working windows, a lock screen, files, a 
 | <img src="docs/images/tty-lock.jpg" width="300"> | <img src="docs/images/miku-lock.jpg" width="300"> | <img src="docs/images/photographer-lock.jpg" width="300"> |
 | **Terminal / better-tty** (getty login) | **Miku** | **Photographer** (viewfinder) |
 
+In the Wayland session, the lock shows the session itself behind it (its windows, a little darker), for every style
+but Dev and its own console: System a card of glass (light clock, date, battery and network), Miku the LCD of the
+39.39 FM with the sticky note of the POC and leeks for dots, Ado the HUD of her page (世界征服, WORLD DOMINATION: the
+part of the year done) with blue flowers for dots, Photographer a viewfinder (REC, battery, an AF frame around the
+password, the exposure line, the date printed on the film), Terminal its shell over a capture of the screens.
+
 ## Wayland configs
 
 > Hyprland (Lua config, 0.55+), waybar, wofi, kitty, hyprlock and mako configs inspired by the POCs, a GNOME-like overview
