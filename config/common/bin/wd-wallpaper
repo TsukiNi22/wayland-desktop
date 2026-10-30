@@ -499,8 +499,8 @@ class Radio:
         elif action == "folder":
             data = station(message.get("station", ""))
             if data:
-                subprocess.Popen(["xdg-open", data["folder"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                 start_new_session=True)
+                subprocess.Popen([str(Path.home() / ".local/bin/wd-style"), "files", data["folder"]],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         self.update()
 
     def play(self, name, index):
@@ -793,7 +793,10 @@ class Wallpaper:
         window = view.window
         if view not in window.views:
             return
+        # the old pages go, with their web process (a destroyed view kept it, ~250 MB at each change of style)
         for old in window.views[:window.views.index(view)]:
+            old.get_user_content_manager().unregister_script_message_handler("wd")
+            old.terminate_web_process()
             window.overlay.remove(old)
             old.destroy()
         window.views = window.views[window.views.index(view):]

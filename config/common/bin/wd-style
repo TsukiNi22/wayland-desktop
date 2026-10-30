@@ -15,6 +15,7 @@
 #   power                lock, log out, suspend, reboot or shut down in a wofi menu
 #   lock                 lock screen: a shell (better-tty), a getty (Dev), else hyprlock
 #   monitor              system monitor (btop, htop or top) in a floating terminal
+#   files [folder]       the file manager on this screen (Super+E, the folder button of the radio)
 #   settings <panel>     network, sound or power settings (GNOME settings when installed)
 #   cava                 music bars for the waybar module (flat when silent, empty without a player)
 #   calendar             GNOME calendar, else three months in a floating terminal
@@ -361,6 +362,24 @@ overview() {
     fi
 }
 
+# Nautilus opens its windows in the instance that owns its name on the user bus: a GNOME session running next to this
+# one shares that bus, the window would open over there; a Nautilus of its own (its own bus) then
+files() {
+    local folder="${1:-$HOME}"
+    local pid
+
+    if ! has nautilus; then
+        exec xdg-open "$folder"
+    fi
+    for pid in $(pgrep -u "$(id -u)" -x nautilus); do
+        if ! tr '\0' '\n' < "/proc/$pid/environ" 2> /dev/null \
+            | grep -qx "HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-none}"; then
+            exec dbus-run-session -- nautilus --new-window "$folder"
+        fi
+    done
+    exec nautilus --new-window "$folder"
+}
+
 monitor() {
     local tool
 
@@ -491,6 +510,7 @@ case "${1:-}" in
     power) power ;;
     lock) lock_screen ;;
     monitor) monitor ;;
+    files) files "${2:-}" ;;
     settings) settings "${2:-network}" ;;
     cava) cava_bar ;;
     calendar) calendar ;;
@@ -499,7 +519,7 @@ case "${1:-}" in
         session "$(current)"
         ;;
     *)
-        sed -n '2,23s/^# \?//p' "$0"
+        sed -n '2,24s/^# \?//p' "$0"
         exit 1
         ;;
 esac

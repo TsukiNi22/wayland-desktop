@@ -5,7 +5,6 @@
 local home     = os.getenv("HOME")
 local terminal = "kitty"
 local launcher = "wofi --show drun"
-local files    = "nautilus"
 local wd_style = home .. "/.local/bin/wd-style"
 local mainMod  = "SUPER"
 
@@ -136,7 +135,8 @@ hl.gesture({
 hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(launcher))
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(files))
+-- the file manager on this screen (wd-style: a GNOME session running next to this one would take its window)
+hl.bind(mainMod .. " + E", style("files"))
 hl.bind(mainMod .. " + C", hl.dsp.window.close())
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen())
