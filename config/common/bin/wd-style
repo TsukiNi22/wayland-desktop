@@ -164,8 +164,9 @@ wallpaper() {
     fi
 }
 
-# Cursors of the style (made by install.sh), animated: art (wd-<style>-art, the default: drawn like emojis), badge
-# (wd-<style>: the arrow and the small mascot of the style), off (the normal one); "on" of before is art
+# Cursors of the style (made by install.sh), animated, 48 px so that their art shows: art (wd-<style>-art, the default:
+# the chibis of miku and ado, the look of the style for the others), badge (wd-<style>: the arrow and the small mascot
+# of the style), off (the normal one, 24 px); "on" of before is art
 cursor_mode() {
     local mode
 
@@ -181,7 +182,7 @@ cursor() {
         badge) theme="wd-$1" ;;
     esac
     if [[ -n "$theme" && -d "$ICONS_DIR/$theme" ]]; then
-        hyprctl setcursor "$theme" 32 > /dev/null
+        hyprctl setcursor "$theme" 48 > /dev/null
     else
         hyprctl setcursor Adwaita 24 > /dev/null
     fi
