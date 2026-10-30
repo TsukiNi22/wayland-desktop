@@ -4,9 +4,11 @@
 #   wd-<style>      the shapes in the colors of the style (theme.json) and a small animated mascot next to the arrow,
 #                   the hand and the wait cursors (system: an orb, dev: a robot, ado: a blue rose, tty: a prompt, miku:
 #                   twin-tails, photographer: a camera)
-#   wd-<style>-art  the pointer, the hand and the wait cursors drawn as art, like emojis (miku: a leek and her chibi face,
-#                   ado: a blue rose and rose-chan, system: glass and a ring, dev: pixels and a block cursor, tty:
-#                   rose-pine and a prompt, photographer: cream and an aperture), the other shapes in its colors
+#   wd-<style>-art  drawn as art: miku and ado as pixel chibis, a pose for each shape (peeking over the pointer, tapping
+#                   with a leek / a microphone, asleep / puffing while it waits, shaken while a window moves, pulling
+#                   the resize arrows, arms crossed when it is forbidden); the others in the look of their style (system:
+#                   glass and a ring, dev: pixels and a block cursor, tty: rose-pine and a prompt, photographer: cream
+#                   and an aperture) for the pointer, the hand and the wait cursors, the other shapes from wd-<style>
 import json
 import math
 import struct
@@ -167,17 +169,19 @@ def frames(style: str, c: dict, shape: str, hot: tuple) -> list:
         images.append(image)
     return images
 
-def xcursor(path: Path, images: list, hot: tuple) -> None:
+def xcursor(path: Path, images: list, hot: tuple, delay: int = DELAY, pixel: bool = False) -> None:
+    """pixel: pixel art drawn on the 32 grid, kept sharp (its blocks of SCALE pixels) instead of smoothed"""
     chunks = []
     for size in SIZES:
+        resample = (Image.NEAREST if size >= 32 else Image.BOX) if pixel else Image.LANCZOS
         for image in images:
-            raw = image.resize((size, size), Image.LANCZOS).tobytes()
+            raw = image.resize((size, size), resample).tobytes()
             # premultiplied ARGB, little endian
             pixels = b"".join(struct.pack("<I", (raw[i + 3] << 24) | (raw[i] * raw[i + 3] // 255 << 16)
                                           | (raw[i + 1] * raw[i + 3] // 255 << 8) | (raw[i + 2] * raw[i + 3] // 255))
                               for i in range(0, len(raw), 4))
             header = struct.pack("<9I", 36, 0xFFFD0002, size, 1, size, size, round(hot[0] * size / 32),
-                                 round(hot[1] * size / 32), DELAY if len(images) > 1 else 0)
+                                 round(hot[1] * size / 32), delay if len(images) > 1 else 0)
             chunks.append((size, header + pixels))
     offset = 16 + 12 * len(chunks)
     toc = b""
@@ -221,93 +225,10 @@ def stroke(draw: ImageDraw.ImageDraw, points: list, color: tuple, width: float) 
     for x, y in (points[0], points[-1]):
         blob(draw, x, y, width / 2, width / 2, color)
 
-def leek(draw: ImageDraw.ImageDraw, x0: float, y0: float, x1: float, y1: float, frame: int) -> None:
-    """A leek from its white root (x0, y0) to its green leaves (x1, y1), the leaves swaying"""
-    dx, dy = x1 - x0, y1 - y0
-    along = lambda k, side=0.0: (x0 + dx * k - dy * side, y0 + dy * k + dx * side)
-    sway = math.sin(frame / FRAMES * 2 * math.pi) * 0.12
-    # the outline, then the white stalk, its light green middle, the leaves
-    stroke(draw, [along(0), along(0.62)], (24, 70, 48), 6.2)
-    for i, spread in enumerate((-0.16, 0.02, 0.2)):
-        tip = along(1.0, spread + sway * (1 + i * 0.4))
-        stroke(draw, [along(0.58), along(0.8, spread * 0.6 + sway * 0.5), tip], (24, 70, 48), 4.6)
-    stroke(draw, [along(0.02), along(0.42)], (248, 252, 242), 4.4)
-    stroke(draw, [along(0.4), along(0.6)], (190, 232, 140), 4.4)
-    for i, spread in enumerate((-0.16, 0.02, 0.2)):
-        tip = along(1.0, spread + sway * (1 + i * 0.4))
-        stroke(draw, [along(0.58), along(0.8, spread * 0.6 + sway * 0.5), tip], (70, 170, 70) if i != 1 else (98, 196, 84), 2.8)
-    for side in (-0.05, 0.05):
-        stroke(draw, [along(0, 0), along(-0.06, side)], (210, 196, 160), 0.8)
-
-def note(draw: ImageDraw.ImageDraw, x: float, y: float, size: float, color: tuple) -> None:
-    blob(draw, x, y, size * 0.55, size * 0.42, color)
-    stroke(draw, [(x + size * 0.45, y), (x + size * 0.45, y - size * 1.5), (x + size * 1.1, y - size * 1.1)], color, size * 0.32)
-
-def chibi(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float, frame: int) -> None:
-    """Miku as an emoji: her face, her bangs, her twin tails swinging, the pink ties"""
-    teal, dark, pink = (57, 197, 187), (16, 96, 92), (225, 40, 133)
-    swing = math.sin(frame / FRAMES * 2 * math.pi) * r * 0.25
-    for side in (-1, 1):
-        stroke(draw, [(cx + side * r * 0.75, cy - r * 0.35), (cx + side * (r * 1.15 + swing * side), cy + r * 0.6),
-                      (cx + side * (r * 1.05 + swing * side * 1.4), cy + r * 1.35)], dark, r * 0.62)
-        stroke(draw, [(cx + side * r * 0.75, cy - r * 0.35), (cx + side * (r * 1.15 + swing * side), cy + r * 0.6),
-                      (cx + side * (r * 1.05 + swing * side * 1.4), cy + r * 1.35)], teal, r * 0.42)
-        blob(draw, cx + side * r * 0.78, cy - r * 0.38, r * 0.2, r * 0.2, pink)
-    blob(draw, cx, cy, r, r, (255, 236, 226), dark, 0.9)
-    # the bangs, three points over the forehead
-    draw.chord(((cx - r) * SCALE, (cy - r) * SCALE, (cx + r) * SCALE, (cy + r * 0.2) * SCALE), 180, 360, fill=teal)
-    for k in (-0.55, 0, 0.55):
-        draw.polygon(grid([(cx + (k - 0.28) * r, cy - r * 0.42), (cx + (k + 0.28) * r, cy - r * 0.42), (cx + k * r, cy + r * 0.05)]),
-                     fill=teal)
-    blink = frame == 5
-    for side in (-1, 1):
-        if blink:
-            stroke(draw, [(cx + side * r * 0.5 - r * 0.15, cy + r * 0.25), (cx + side * r * 0.5 + r * 0.15, cy + r * 0.25)], dark, r * 0.1)
-        else:
-            blob(draw, cx + side * r * 0.42, cy + r * 0.25, r * 0.17, r * 0.24, (24, 140, 136))
-            blob(draw, cx + side * r * 0.42 - r * 0.05, cy + r * 0.17, r * 0.06, r * 0.06, (255, 255, 255))
-    stroke(draw, [(cx - r * 0.14, cy + r * 0.6), (cx, cy + r * 0.68), (cx + r * 0.14, cy + r * 0.6)], pink, r * 0.09)
-
-def rose(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float, turn: float) -> None:
-    """A blue rose seen from above: rings of petals lighter toward the heart, a spiral bud, turning with turn"""
-    for ring, (count, size, color) in enumerate(((6, 1.0, (24, 46, 150)), (5, 0.74, (52, 96, 220)), (3, 0.5, (120, 160, 250)))):
-        for i in range(count):
-            a = turn * (1 + ring * 0.6) + i * 2 * math.pi / count + ring * 0.5
-            px, py = cx + math.cos(a) * r * size * 0.5, cy + math.sin(a) * r * size * 0.5
-            blob(draw, px, py, r * size * 0.42, r * size * 0.42, color, (12, 26, 92), 0.5)
-    blob(draw, cx, cy, r * 0.24, r * 0.24, (190, 212, 255))
-    draw.arc(((cx - r * 0.2) * SCALE, (cy - r * 0.2) * SCALE, (cx + r * 0.2) * SCALE, (cy + r * 0.2) * SCALE),
-             math.degrees(turn), math.degrees(turn) + 270, fill=(30, 60, 170), width=max(1, round(r * 0.08 * SCALE)))
-
-def rose_chan(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float, frame: int) -> None:
-    """rose-chan as an emoji: the blue face of the Ado emotes, its rose on top, blinking"""
-    blob(draw, cx, cy, r, r, (91, 140, 255), (11, 26, 92), 0.9)
-    blob(draw, cx - r * 0.3, cy - r * 0.35, r * 0.35, r * 0.25, (198, 220, 255, 150))
-    rose(draw, cx - r * 0.55, cy - r * 0.85, r * 0.55, frame * 0.3)
-    for side in (-1, 1):
-        if frame in (4, 5):
-            stroke(draw, [(cx + side * r * 0.4 - r * 0.15, cy + r * 0.15), (cx + side * r * 0.4 + r * 0.15, cy + r * 0.15)],
-                   (11, 26, 92), r * 0.1)
-        else:
-            blob(draw, cx + side * r * 0.4, cy + r * 0.12, r * 0.14, r * 0.2, (11, 26, 92))
-        blob(draw, cx + side * r * 0.62, cy + r * 0.45, r * 0.16, r * 0.1, (255, 150, 200, 140))
-    stroke(draw, [(cx - r * 0.2, cy + r * 0.48), (cx, cy + r * 0.6), (cx + r * 0.2, cy + r * 0.48)], (11, 26, 92), r * 0.09)
-
-def tip(draw: ImageDraw.ImageDraw, color: tuple, outline: tuple) -> None:
-    """the small point of the art hand cursors (their hot spot, top left)"""
-    draw.polygon(grid([(2, 2), (10, 5), (5, 10)]), fill=color, outline=outline, width=SCALE)
-
 def spinner(draw: ImageDraw.ImageDraw, style: str, c: dict, cx: float, cy: float, r: float, frame: int) -> None:
     """the wait animation of the art theme"""
     k = frame / FRAMES * 2 * math.pi
-    if style == "miku":
-        leek(draw, cx - math.cos(k) * r, cy - math.sin(k) * r, cx + math.cos(k) * r, cy + math.sin(k) * r, frame)
-        for i, color in enumerate(((225, 40, 133), (57, 197, 187))):
-            a = -k + i * math.pi
-            note(draw, cx + math.cos(a) * r * 0.95, cy + math.sin(a) * r * 0.95, r * 0.28, color)
-    elif style == "ado":
-        rose(draw, cx, cy, r, k)
-    elif style == "dev":
+    if style == "dev":
         draw.rectangle(((cx - r) * SCALE, (cy - r * 0.8) * SCALE, (cx + r) * SCALE, (cy + r * 0.8) * SCALE),
                        fill=(4, 7, 5), outline=c["accent"], width=SCALE)
         a = (frame % 4) * math.pi / 4
@@ -335,14 +256,7 @@ def spinner(draw: ImageDraw.ImageDraw, style: str, c: dict, cx: float, cy: float
                  -math.degrees(k) * 1.5, -math.degrees(k) * 1.5 + 200, fill=c["accent2"], width=round(r * 0.22 * SCALE))
 
 def art_pointer(image: Image.Image, draw: ImageDraw.ImageDraw, style: str, c: dict, frame: int) -> None:
-    if style == "miku":
-        leek(draw, 2.6, 2.6, 27, 27, frame)
-        if frame % 4 < 2:
-            note(draw, 25, 11, 3, (225, 40, 133))
-    elif style == "ado":
-        gradient_polygon(image, ARROW, (60, 100, 230), (16, 30, 110), (170, 200, 255))
-        rose(draw, 21, 21, 7.5, frame / FRAMES * math.pi * 0.5)
-    elif style == "dev":
+    if style == "dev":
         # a pixel arrow, then the block cursor of a terminal blinking next to it
         rows = ["X", "XX", "XGX", "XGGX", "XGGGX", "XGGGGX", "XGGGGGX", "XGGGGGGX", "XGGGGXXXX", "XGGXGX", "XGX XGX",
                 "XX  XGX", "X    XX"]
@@ -364,18 +278,12 @@ def art_pointer(image: Image.Image, draw: ImageDraw.ImageDraw, style: str, c: di
         gradient_polygon(image, ARROW, (150, 205, 255), c["accent"], (240, 248, 255))
 
 def art_hand(image: Image.Image, draw: ImageDraw.ImageDraw, style: str, c: dict, frame: int) -> None:
-    if style == "miku":
-        tip(draw, (57, 197, 187), (16, 96, 92))
-        chibi(draw, 17, 16, 8.5, frame)
-    elif style == "ado":
-        tip(draw, (91, 140, 255), (11, 26, 92))
-        rose_chan(draw, 17.5, 17.5, 9, frame)
-    else:
-        art_pointer(image, draw, style, c, frame)
-        draw.ellipse((17 * SCALE, 17 * SCALE, 29 * SCALE, 29 * SCALE), outline=c["accent"], width=SCALE)
+    art_pointer(image, draw, style, c, frame)
+    draw.ellipse((17 * SCALE, 17 * SCALE, 29 * SCALE, 29 * SCALE), outline=c["accent"], width=SCALE)
 
-def art_frames(style: str, c: dict, shape: str) -> list:
-    """The art shapes (animated: the pointer, the hand, the wait cursors); None for the shapes kept from wd-<style>"""
+def art_frames(style: str, c: dict, shape: str) -> tuple:
+    """(images, hot spot, delay) of an art shape (animated: the pointer, the hand, the wait cursors); None for the
+    shapes kept from wd-<style>"""
     if shape not in ("left_ptr", "hand2", "watch", "left_ptr_watch"):
         return None
     images = []
@@ -391,7 +299,361 @@ def art_frames(style: str, c: dict, shape: str) -> list:
             if shape == "left_ptr_watch":
                 spinner(draw, style, c, 24, 24, 5.5, frame)
         images.append(image)
-    return images
+    return images, ART_HOTSPOTS[shape], DELAY
+
+# =========================
+# Chibis of miku and ado (pixel art on the 32 x 32 grid, a pose for each shape)
+# =========================
+CHIBI = {
+    "miku": {"hair": (64, 201, 192), "light": (150, 236, 228), "line": (18, 58, 66), "skin": (255, 236, 224),
+             "eye": (24, 160, 168), "pupil": (14, 70, 84), "blush": (255, 150, 170), "tie": (232, 54, 142),
+             "cloth": (196, 204, 212), "ledge": (232, 242, 244), "prop": (64, 201, 192), "arrow": (255, 120, 186),
+             "slow": 200},
+    "ado": {"hair": (42, 56, 136), "light": (88, 122, 220), "shade": (28, 34, 92), "line": (12, 14, 38), "skin": (255, 236, 228),
+            "eye": (70, 216, 216), "pupil": (16, 76, 96), "blush": (255, 160, 176), "tie": (74, 116, 236),
+            "cloth": (30, 30, 38), "ledge": (40, 44, 60), "prop": (74, 116, 236), "arrow": (150, 206, 255),
+            "slow": 140},
+}
+WHITE = (255, 255, 255)
+RED = (228, 50, 62)
+MOUTH = (150, 40, 64)
+GOLD = (255, 214, 80)
+# the pointer of the chibi cursors: O its line, F its fill, L its light edge (the hot spot on the first O)
+POINTER = ["O", "OO", "OLO", "OLFO", "OLFFO", "OLFFFO", "OLFFFFO", "OLFFFFFO", "OLFFFFFFO", "OLFFFFOOOO", "OLFOFFO",
+           "OLO OFFO", "OO   OFFO", "      OO"]
+# the axis of each resize arrow
+AXES = {"sb_h_double_arrow": (1, 0), "sb_v_double_arrow": (0, 1), "fd_double_arrow": (1, 1), "bd_double_arrow": (1, -1)}
+CHIBI_HOTSPOTS = {"left_ptr": (1, 1), "left_ptr_watch": (1, 1), "hand2": (2, 2)}
+
+class Sprite:
+    """A 32 x 32 frame of pixel art: shapes set pixel by pixel, then a dark line around them"""
+
+    def __init__(self) -> None:
+        self.image = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        self.draw = ImageDraw.Draw(self.image)
+
+    def rect(self, x0: float, y0: float, x1: float, y1: float, color: tuple) -> None:
+        self.draw.rectangle((x0, y0, x1, y1), fill=color)
+
+    def oval(self, cx: float, cy: float, rx: float, ry: float, color: tuple) -> None:
+        self.draw.ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=color)
+
+    def poly(self, points: list, color: tuple) -> None:
+        self.draw.polygon(points, fill=color)
+
+    def line(self, points: list, color: tuple, width: int = 1) -> None:
+        self.draw.line(points, fill=color, width=width)
+
+    def dots(self, points: list, color: tuple) -> None:
+        for point in points:
+            self.draw.point(point, fill=color)
+
+    def rows(self, x: int, y: int, rows: list, colors: dict) -> None:
+        """a small bitmap: one string a row, each letter a color of colors (the others left empty)"""
+        for dy, row in enumerate(rows):
+            for dx, key in enumerate(row):
+                if key in colors:
+                    self.draw.point((x + dx, y + dy), fill=colors[key])
+
+    def outline(self, color: tuple) -> None:
+        """the dark line around everything drawn until now (the 4 neighbours of each pixel)"""
+        pixels = self.image.load()
+        ring = [(x, y) for y in range(32) for x in range(32) if not pixels[x, y][3]
+                and any(0 <= x + dx < 32 and 0 <= y + dy < 32 and pixels[x + dx, y + dy][3]
+                        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))]
+        for point in ring:
+            pixels[point] = color + (255,)
+
+    def base(self) -> Image.Image:
+        return self.image.resize((32 * SCALE, 32 * SCALE), Image.NEAREST)
+
+def eye(s: Sprite, p: dict, x: int, y: int, w: int, kind: str, side: int, frame: int) -> None:
+    """one eye, its top left at (x, y), w wide; side -1 for the left one (its inner side on the right)"""
+    if kind == "blink":
+        s.line([(x - 1, y + 2), (x + w, y + 2)], p["pupil"])
+    elif kind == "sleep":
+        s.dots([(x - 1, y + 1)] + [(x + i, y + 2) for i in range(w)] + [(x + w, y + 1)], p["pupil"])
+    elif kind == "strain":
+        tip, back = (x + w, x - 1) if side < 0 else (x - 1, x + w)
+        s.line([(back, y), (tip, y + 1), (back, y + 2)], p["pupil"])
+    elif kind == "dizzy":
+        ring = [(x - 1, y), (x, y), (x + 1, y), (x + 1, y + 1), (x + 1, y + 2), (x, y + 2), (x - 1, y + 2), (x - 1, y + 1)]
+        s.dots(ring, p["pupil"])
+        s.dots([ring[(frame * side) % 8]], WHITE)
+        s.dots([(x, y + 1)], p["eye"])
+    elif kind == "angry":
+        inner, outer = (x + w, x - 1) if side < 0 else (x - 1, x + w)
+        s.line([(outer, y - 1), (inner, y)], p["pupil"])
+        s.rect(x, y + 1, x + w - 1, y + 2, p["eye"])
+        s.dots([(inner + side, y + 2)], p["pupil"])
+    else:
+        s.rect(x, y, x + w - 1, y + 2, p["eye"])
+        s.line([(x, y), (x + w - 1, y)], p["pupil"])
+        s.dots([(x, y + 1)], WHITE)
+        if kind == "wide":
+            s.dots([(x + w - 1, y + 2)], WHITE)
+
+def mouth(s: Sprite, cx: int, y: int, kind: str) -> None:
+    if kind == "open":
+        s.rect(cx - 1, y - 1, cx + 1, y + 1, MOUTH)
+        s.dots([(cx, y + 1)], (255, 130, 150))
+    elif kind == "shout":
+        s.rect(cx - 2, y - 2, cx + 2, y + 1, MOUTH)
+        s.rect(cx - 1, y, cx + 1, y + 1, (255, 110, 130))
+    elif kind == "pout":
+        s.dots([(cx - 1, y), (cx, y + 1), (cx + 1, y)], MOUTH)
+    elif kind == "wavy":
+        s.dots([(cx - 2, y), (cx - 1, y - 1), (cx, y), (cx + 1, y - 1), (cx + 2, y)], MOUTH)
+    elif kind == "flat":
+        s.line([(cx - 1, y), (cx + 1, y)], MOUTH)
+    elif kind == "o":
+        s.dots([(cx, y)], MOUTH)
+    else:
+        s.dots([(cx - 1, y), (cx, y + 1), (cx + 1, y)], MOUTH)
+
+def head(s: Sprite, who: str, cx: int, cy: int, eyes: str = "open", face: str = "smile", tails: int = 0,
+         frame: int = 0, puffed: bool = False) -> None:
+    """the chibi head of miku (teal twin tails, two points on top) or ado (long dark blue hair, a bow under the chin),
+    the middle of its face at (cx, cy); tails: how far the hair swings"""
+    p = CHIBI[who]
+    if who == "miku":
+        for side in (-1, 1):
+            x, y = cx + side * 8, cy - 5
+            s.poly([(x, y - 1), (x + side * 4, y + 2), (x + side * 4 + tails, y + 9), (x + side * 3 + tails, y + 13),
+                    (x + side + tails, y + 10), (x - side, y + 3)], p["hair"])
+            s.line([(x + side * 2, y + 2), (x + side * 2 + tails, y + 9)], p["light"])
+        s.oval(cx, cy - 2, 9, 8, p["hair"])
+        for side in (-1, 1):
+            s.poly([(cx + side * 8, cy - 6), (cx + side * 7, cy - 13), (cx + side * 3, cy - 9)], p["hair"])
+            s.dots([(cx + side * 7, cy - 10), (cx + side * 6, cy - 9)], p["light"])
+            s.rect(cx + side * 8 - 1, cy - 6, cx + side * 8 + 1, cy - 4, p["tie"])
+        s.oval(cx, cy + 1, 7, 6, p["skin"])
+        s.rect(cx - 7, cy - 6, cx + 7, cy - 3, p["hair"])
+        for x0, x1, tip in ((-7, -3, -6), (-4, 1, -1), (0, 4, 2), (3, 7, 6)):
+            s.poly([(cx + x0, cy - 3), (cx + x1, cy - 3), (cx + tip, cy + (1 if tip % 2 == 0 else 0))], p["hair"])
+        for side in (-1, 1):
+            s.rect(min(cx + side * 7, cx + side * 8), cy - 3, max(cx + side * 7, cx + side * 8), cy + 5, p["hair"])
+        s.line([(cx - 5, cy - 6), (cx - 1, cy - 7)], p["light"])
+        width, left = 2, cx - 4
+    else:
+        # the long hair flared over the shoulders, in strands, lighter blue at the ends
+        for side in (-1, 1):
+            x = cx + side * 7
+            s.poly([(x, cy - 4), (x + side * 3, cy - 2), (x + side * 5 + tails, cy + 9), (x + side * 5 + tails, cy + 13),
+                    (x + side * 3 + tails, cy + 11), (x + side * 2 + tails, cy + 14), (x + tails, cy + 11),
+                    (x - side, cy + 13), (x - side * 2, cy + 6)], p["hair"])
+            s.line([(x + side * 2, cy + 1), (x + side * 3 + tails, cy + 9)], p["shade"])
+            s.line([(x, cy + 3), (x + tails, cy + 9)], p["shade"])
+            for dx, top in ((4, 10), (2, 11), (-1, 11)):
+                s.line([(x + side * dx + tails, cy + top), (x + side * dx + tails, cy + top + 2)], p["light"])
+        s.oval(cx, cy - 2, 10, 8, p["hair"])
+        # the jacket and the bow under the chin, its blue rose in the middle
+        s.rect(cx - 5, cy + 7, cx + 5, cy + 9, p["cloth"])
+        s.poly([(cx - 4, cy + 6), (cx - 1, cy + 8), (cx - 4, cy + 10)], (140, 140, 152))
+        s.poly([(cx + 4, cy + 6), (cx + 1, cy + 8), (cx + 4, cy + 10)], (140, 140, 152))
+        s.rect(cx - 1, cy + 7, cx + 1, cy + 9, p["tie"])
+        s.oval(cx, cy + 1, 7 if puffed else 6, 6, p["skin"])
+        s.rect(cx - 7, cy - 6, cx + 7, cy - 2, p["hair"])
+        for x0, x1, tip in ((-7, -3, -5), (-4, 1, -1), (0, 4, 2), (3, 7, 6)):
+            s.poly([(cx + x0, cy - 2), (cx + x1, cy - 2), (cx + tip, cy + 1)], p["hair"])
+        for side in (-1, 1):
+            s.rect(min(cx + side * 6, cx + side * 7), cy - 2, max(cx + side * 6, cx + side * 7), cy + 7, p["hair"])
+        # the shine across the top of the head
+        s.line([(cx - 6, cy - 5), (cx - 3, cy - 7), (cx + 1, cy - 7)], p["light"])
+        s.dots([(cx + 3, cy - 7), (cx + 4, cy - 6)], p["light"])
+        width, left = 3, cx - 5
+    for side, x in ((-1, left), (1, 2 * cx - left - width + 1)):
+        eye(s, p, x, cy + 1, width, eyes, side, frame)
+    blush = [(cx - 6, cy + 4), (cx - 5, cy + 4), (cx + 5, cy + 4), (cx + 6, cy + 4)]
+    if puffed:
+        blush += [(cx - 6, cy + 5), (cx + 6, cy + 5)]
+    s.dots(blush, p["blush"])
+    mouth(s, cx, cy + 5, face)
+
+def paw(s: Sprite, who: str, x: float, y: float, big: bool = False) -> None:
+    s.rect(round(x) - 1, round(y) - 1, round(x) + big, round(y) + big, CHIBI[who]["skin"])
+
+def zed(s: Sprite, x: int, y: int, big: bool) -> None:
+    rows = ["XXXX", "  X ", " X  ", "XXXX"] if not big else ["XXXXX", "   X ", "  X  ", " X   ", "XXXXX"]
+    s.rows(x, y, rows, {"X": WHITE})
+
+def cloud(s: Sprite, x: float, y: float, r: float) -> None:
+    s.oval(x, y, r, r * 0.8, WHITE)
+    s.oval(x - r * 0.8, y + r * 0.3, r * 0.7, r * 0.6, WHITE)
+    s.oval(x + r * 0.8, y + r * 0.3, r * 0.7, r * 0.6, WHITE)
+
+def star(s: Sprite, x: int, y: int, big: bool) -> None:
+    s.dots([(x, y), (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)], GOLD)
+    if big:
+        s.dots([(x - 3, y), (x + 3, y), (x, y - 3), (x, y + 3), (x - 2, y - 2), (x + 2, y + 2), (x + 2, y - 2),
+                (x - 2, y + 2)], GOLD)
+
+def note(s: Sprite, x: int, y: int, color: tuple) -> None:
+    s.rect(x, y + 3, x + 1, y + 4, color)
+    s.line([(x + 1, y), (x + 1, y + 3)], color)
+    s.dots([(x + 2, y), (x + 3, y + 1)], color)
+
+def sweat(s: Sprite, x: int, y: int) -> None:
+    s.dots([(x, y), (x - 1, y + 1), (x, y + 1), (x + 1, y + 1), (x, y + 2)], (150, 210, 255))
+
+def anger(s: Sprite, x: int, y: int) -> None:
+    s.dots([(x - 1, y - 2), (x - 1, y - 1), (x - 2, y - 1), (x + 1, y - 2), (x + 1, y - 1), (x + 2, y - 1),
+            (x - 1, y + 2), (x - 1, y + 1), (x - 2, y + 1), (x + 1, y + 2), (x + 1, y + 1), (x + 2, y + 1)], RED)
+
+def pointer(s: Sprite, p: dict) -> None:
+    s.rows(1, 1, POINTER, {"O": p["line"], "F": p["prop"], "L": p["light"]})
+
+def tap(s: Sprite, who: str, frame: int) -> None:
+    """the hand: miku taps with a leek, ado with a microphone, its end on the hot spot"""
+    p = CHIBI[who]
+    turn = (0, -0.12, -0.24, -0.12, 0, 0, 0, 0)[frame]
+    px, py = 15, 16
+    vx, vy = -12.5, -13.5
+    cos, sin = math.cos(turn), math.sin(turn)
+    tx, ty = px + vx * cos - vy * sin, py + vx * sin + vy * cos
+    along = lambda k: (tx + (px - tx) * k, ty + (py - ty) * k)
+    hit = frame in (4, 5)
+    if who == "miku":
+        s.line([along(0.55), along(1.3)], (70, 170, 70), 3)
+        s.line([along(0.9), (along(1.3)[0] + 3, along(1.3)[1] - 1)], (98, 196, 84), 2)
+        s.line([along(0.05), along(0.45)], (248, 252, 242), 3)
+        s.line([along(0.42), along(0.58)], (190, 232, 140), 3)
+        s.dots([along(0.0)], (210, 196, 160))
+    else:
+        s.line([along(0.25), along(1.1)], (36, 36, 44), 2)
+        s.oval(tx + 1.5, ty + 1.5, 2.5, 2.5, (176, 180, 192))
+        s.dots([(round(tx + 1), round(ty + 1)), (round(tx + 2), round(ty + 2))], (110, 114, 126))
+    head(s, who, 22, 22, "strain" if hit else ("blink" if frame == 7 else "open"), "open" if hit else
+         ("shout" if who == "ado" and frame == 5 else "smile"), (0, 0, -1, -1, 1, 1, 0, 0)[frame], frame)
+    paw(s, who, px, py)
+    paw(s, who, px + 2, py + 2)
+    if hit:
+        star(s, 3, 3, frame == 5)
+        if who == "ado":
+            note(s, 9, 1 + (frame == 5), p["tie"])
+
+def resize(s: Sprite, who: str, axis: tuple, frame: int) -> None:
+    """pulling the two ends of the resize arrow"""
+    p = CHIBI[who]
+    pull = (0, 1, 2, 2, 1, 0, 0, 0)[frame]
+    n = math.hypot(*axis)
+    ux, uy = axis[0] / n, axis[1] / n
+    length = (12.5 if axis[0] and axis[1] else 13) + pull * 0.6
+    for side in (-1, 1):
+        tip = (15.5 + side * ux * length, 15.5 + side * uy * length)
+        base = (tip[0] - side * ux * 4, tip[1] - side * uy * 4)
+        s.poly([tip, (base[0] - uy * 3.5, base[1] + ux * 3.5), (base[0] + uy * 3.5, base[1] - ux * 3.5)], p["prop"])
+    s.line([(15.5 - ux * length, 15.5 - uy * length), (15.5 + ux * length, 15.5 + uy * length)], p["prop"], 3)
+    head(s, who, 16, 17, "strain" if pull else "open", "open" if pull else "flat", 0, frame)
+    # the heads of the arrow over her hair, light with a dark edge, her hands holding them
+    for side in (-1, 1):
+        tip = (15.5 + side * ux * length, 15.5 + side * uy * length)
+        base = (tip[0] - side * ux * 5, tip[1] - side * uy * 5)
+        s.poly([tip, (base[0] - uy * 4.5, base[1] + ux * 4.5), (base[0] + uy * 4.5, base[1] - ux * 4.5)], p["line"])
+        tip = (tip[0] - side * ux * 1.5, tip[1] - side * uy * 1.5)
+        base = (tip[0] - side * ux * 2.8, tip[1] - side * uy * 2.8)
+        s.poly([tip, (base[0] - uy * 2.6, base[1] + ux * 2.6), (base[0] + uy * 2.6, base[1] - ux * 2.6)], p["arrow"])
+        paw(s, who, 15.5 + side * ux * (length - 6), 15.5 + side * uy * (length - 6), True)
+    if pull:
+        sweat(s, 26, 7)
+
+def chibi_frames(who: str, shape: str) -> tuple:
+    """(images, hot spot, delay) of a shape of the chibi theme; None for the crosshair (kept from wd-<style>)"""
+    if shape == "crosshair":
+        return None
+    p = CHIBI[who]
+    images = []
+    for frame in range(FRAMES):
+        s = Sprite()
+        swing = (0, 1, 1, 1, 0, -1, -1, -1)[frame]
+        arrow = False
+        if shape in ("left_ptr", "left_ptr_watch"):
+            # peeking over a ledge under the pointer; waiting: asleep (miku) or puffing (ado)
+            waiting = shape == "left_ptr_watch"
+            cy = 19 + (frame in (3, 4, 5))
+            if waiting and who == "miku":
+                head(s, who, 20, cy, "sleep", "o", swing, frame)
+                zed(s, 26, 8 - frame % 4, False)
+            elif waiting:
+                head(s, who, 20, cy, "angry", "pout", swing, frame, True)
+                cloud(s, 11.5 - frame % 4 * 0.5, 9 - frame % 4 * 0.5, 1.5 + frame % 4 * 0.4)
+                cloud(s, 29 + frame % 4 * 0.5, 9 - frame % 4 * 0.5, 1.5 + frame % 4 * 0.4)
+            else:
+                head(s, who, 20, cy, "blink" if frame == 6 else "open", "smile", swing, frame)
+            s.rect(10, 27, 31, 30, p["ledge"])
+            s.line([(10, 27), (31, 27)], p["prop"])
+            paw(s, who, 15, 27)
+            paw(s, who, 26, 27)
+            arrow = True
+        elif shape == "hand2":
+            tap(s, who, frame)
+        elif shape == "watch":
+            if who == "miku":
+                # asleep on her arms, a bubble growing, the z going up
+                cy = 16 + (frame in (2, 3, 4, 5))
+                head(s, who, 16, cy, "sleep", "o", swing // 2, frame)
+                s.rect(5, 26, 27, 29, p["cloth"])
+                paw(s, who, 11, 26)
+                paw(s, who, 22, 26)
+                r = (0, 1, 1, 2, 2, 3, 1, 0)[frame]
+                if r:
+                    s.draw.ellipse((19 - r, cy + 6 - r, 19 + r, cy + 6 + r), fill=(205, 240, 255))
+                zed(s, 24, 7 - frame % 4, False)
+                zed(s, 27, 1 + (frame % 4 > 1), True)
+            else:
+                # the angry puff: cheeks full, steam out of both sides
+                head(s, who, 16, 17, "angry", "pout", 0, frame, True)
+                k = frame % 4
+                cloud(s, 6 - k * 0.7, 8 - k * 0.6, 1.8 + k * 0.5)
+                cloud(s, 26 + k * 0.7, 8 - k * 0.6, 1.8 + k * 0.5)
+                if frame % 4 < 2:
+                    anger(s, 26, 19)
+        elif shape in ("fleur", "grab"):
+            if shape == "fleur":
+                # shaken while a window moves: dizzy, the hair flying the other way
+                dx = (0, 2, 0, -2)[frame % 4]
+                head(s, who, 16 + dx, 17, "dizzy", "wavy", -dx, frame)
+                if dx:
+                    x = 3 if dx > 0 else 28
+                    s.line([(x, 11), (x, 15)], WHITE)
+                    s.line([(x, 18), (x, 22)], WHITE)
+            else:
+                # ready to grab: both hands up
+                head(s, who, 16, 17, "wide", "open", swing, frame)
+                up = frame % 4 < 2
+                paw(s, who, 8, 24 - 2 * up, True)
+                paw(s, who, 23, 24 - 2 * (not up), True)
+        elif shape in AXES:
+            resize(s, who, AXES[shape], frame)
+        elif shape == "not-allowed":
+            s.draw.ellipse((1, 1, 30, 30), outline=RED, width=2)
+            s.line([(6, 25), (25, 6)], RED, 2)
+            shake = (0, 1, 0, -1)[frame % 4]
+            head(s, who, 16 + shake, 15, "angry", "shout" if who == "ado" else "pout", -shake, frame)
+            s.line([(10 + shake, 22), (22 + shake, 27)], p["cloth"], 2)
+            s.line([(10 + shake, 27), (22 + shake, 22)], p["cloth"], 2)
+            paw(s, who, 10 + shake, 22)
+            paw(s, who, 23 + shake, 22)
+            if frame % 4 < 2:
+                anger(s, 25, 6)
+        elif shape == "xterm":
+            if who == "miku":
+                for side in (-1, 1):
+                    x = 16 + side * 5
+                    s.poly([(x, 4), (x + side * 3, 7), (x + side * 3 + swing, 13), (x + side + swing, 15), (x, 7)], p["hair"])
+                    s.rect(x - 1, 3, x + 1, 5, p["tie"])
+            s.rect(15, 5, 16, 26, p["hair"])
+            s.rect(11, 4, 20, 5, p["hair"])
+            s.rect(11, 26, 20, 27, p["hair"])
+            if who == "ado":
+                s.oval(15.5, 3, 2.5, 2.5, p["tie"])
+                s.dots([(15, 3), (16, 2)], (190, 212, 255))
+        s.outline(p["line"])
+        if arrow:
+            pointer(s, p)
+        images.append(s.base())
+    hot = CHIBI_HOTSPOTS.get(shape, (16, 16))
+    return images, hot, p["slow"] if shape == "watch" else 120
 
 ART_HOTSPOTS = {"left_ptr": (2, 2), "left_ptr_watch": (2, 2), "hand2": (2, 2), "watch": (16, 16)}
 
@@ -416,17 +678,19 @@ def theme(style_dir: Path, icons: Path) -> None:
     (folder.parent / "index.theme").write_text(f"[Icon Theme]\nName=wd-{style_dir.name}\n"
                                                f"Comment=wayland-desktop {data['name']} cursors\nInherits=Adwaita\n")
 
-# The art theme: its own pointer, hand and wait cursors, the other shapes from wd-<style> (Inherits)
+# The art theme: its own shapes (miku and ado: all but the crosshair), the others from wd-<style> (Inherits)
 def art_theme(style_dir: Path, icons: Path) -> None:
     data = json.loads((style_dir / "theme.json").read_text())
     c = {key: rgb(data[key]) for key in ("bg", "fg", "accent", "accent2", "urgent")}
     folder = icons / f"wd-{style_dir.name}-art" / "cursors"
     folder.mkdir(parents=True, exist_ok=True)
+    chibi = style_dir.name in CHIBI
     for shape, aliases in ALIASES.items():
-        images = art_frames(style_dir.name, c, shape)
-        if not images:
+        made = chibi_frames(style_dir.name, shape) if chibi else art_frames(style_dir.name, c, shape)
+        if not made:
             continue
-        xcursor(folder / shape, images, ART_HOTSPOTS[shape])
+        images, hot, delay = made
+        xcursor(folder / shape, images, hot, delay, chibi)
         for alias in aliases:
             link = folder / alias
             if link.is_symlink() or link.exists():
