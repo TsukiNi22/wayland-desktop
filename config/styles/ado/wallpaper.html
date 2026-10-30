@@ -978,15 +978,30 @@ function drawCrowd(t, show) {
     ctx.globalAlpha = 1;
 }
 
-// The stage from the concert itself: the clip of the Ado Box made by wd-wallpaper (radio.json "media": wide shots of the
-// official live video of 心という名の不可解 at K-Arena, a personal copy), its edges melted into the rose; the drawn stage
-// above until it is made
+// The stage from the concerts themselves: clips made by wd-wallpaper (radio.json "media": wide shots of official live
+// videos, personal copies), one after the other for their colors - the blue Ado Box of K-Arena, the red theater of the
+// Tokyo Dome, the fire of Hibana, the lasers of Odo, the golden sun of the Budokan, the red and cyan cage of Usseewa -
+// their edges melted into the rose; the drawn stage above until one is made
+const STAGES = ["stage", "stage-red", "stage-fire", "stage-odo", "stage-gold", "stage-usseewa"];
 let stageVideo = null;
+let stageShown = false;
+let stageTry = -1;
 const stageLayer = document.createElement("canvas");
+
+// the next clip that is made, when one ends (a single one loops)
+function nextStage() {
+    const media = wd.station.media || {};
+    const made = STAGES.filter(key => media[key]);
+    const now = made.findIndex(key => stageVideo.src === media[key]);
+
+    stageVideo.src = media[made[(now + 1) % made.length]];
+    stageVideo.play().catch(() => {});
+}
 
 function drawConcert() {
     const w = wd.width * 0.68;
-    const h = w * stageVideo.videoHeight / stageVideo.videoWidth;
+    // 16:9 while the next clip loads (its size is 0 until then)
+    const h = w * (stageVideo.videoWidth ? stageVideo.videoHeight / stageVideo.videoWidth : 9 / 16);
     const x = wd.width * 0.31 - w / 2;
     const y = wd.height * 0.54 - h / 2;
     const g = stageLayer.getContext("2d");
@@ -998,6 +1013,11 @@ function drawConcert() {
         stageLayer.height = lh;
     }
     g.globalCompositeOperation = "source-over";
+    // between two clips the last frame stays
+    if (stageVideo.readyState < 2) {
+        ctx.drawImage(stageLayer, x, y, w, h);
+        return;
+    }
     g.drawImage(stageVideo, 0, 0, lw, lh);
     // an oval mask: the shot fades into the rose around it
     g.save();
@@ -1026,8 +1046,22 @@ function drawCage(t) {
     const s = stage();
     const show = SHOWS[Math.floor(t / SHOW_TIME) % SHOWS.length];
 
-    stageVideo = stageVideo || wd.video("stage", { loop: true });
-    if (stageVideo && stageVideo.readyState >= 2) {
+    if (!stageVideo && wd.station && wd.station.media) {
+        const first = STAGES.find(key => wd.station.media[key]);
+
+        stageVideo = first ? wd.video(first, { loop: false }) : null;
+        if (stageVideo) {
+            stageVideo.addEventListener("ended", nextStage);
+            stageVideo.play().catch(() => {});
+        }
+    }
+    // WebKit refuses a play() made before the wallpaper shows: asked again (once a second) while it should play
+    if (stageVideo && stageVideo.paused && !stageVideo.ended && t - stageTry > 1) {
+        stageTry = t;
+        stageVideo.play().catch(() => {});
+    }
+    if (stageVideo && (stageShown || stageVideo.readyState >= 2)) {
+        stageShown = true;
         drawConcert();
         return;
     }

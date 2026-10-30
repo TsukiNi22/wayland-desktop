@@ -108,6 +108,24 @@
             "subtitle": "Kirai Kirai Jiga Hidai",
             "url": "https://www.youtube.com/watch?v=gmJiYoRhO5g",
             "offline": false
+        },
+        {
+            "title": "Value",
+            "subtitle": "Live, Saitama Super Arena 2025",
+            "url": "https://www.youtube.com/watch?v=SrGRWVSCZ7Y",
+            "offline": false
+        },
+        {
+            "title": "Value",
+            "subtitle": "Live, Japan National Stadium 2024",
+            "url": "https://www.youtube.com/watch?v=YFXn2WTwXxc",
+            "offline": false
+        },
+        {
+            "title": "罪と罰",
+            "subtitle": "Crime and Punishment, Live, Saitama Super Arena 2022",
+            "url": "https://www.youtube.com/watch?v=nlg5SNNhl6A",
+            "offline": false
         }
     ],
     "media": {
@@ -145,6 +163,165 @@
             "fps": 24,
             "bitrate": "1500k",
             "title": "the Ado Box on stage, 心という名の不可解 at K-Arena Yokohama 2024 (Ado, official live video)"
+        },
+        "stage-red": {
+            "url": "https://www.youtube.com/watch?v=K9xb-JrhG50",
+            "sections": [
+                [
+                    21,
+                    27
+                ],
+                [
+                    60,
+                    66
+                ],
+                [
+                    72,
+                    75
+                ],
+                [
+                    117,
+                    121
+                ],
+                [
+                    231,
+                    235
+                ]
+            ],
+            "video": true,
+            "audio": false,
+            "height": 540,
+            "fps": 24,
+            "bitrate": "1500k",
+            "title": "the red theater of アイ・アイ・ア at the Tokyo Dome (Ado, official live video)"
+        },
+        "stage-fire": {
+            "url": "https://www.youtube.com/watch?v=JsZASL6V0QU",
+            "sections": [
+                [
+                    51,
+                    54
+                ],
+                [
+                    84,
+                    93
+                ],
+                [
+                    132,
+                    142
+                ],
+                [
+                    168,
+                    171
+                ],
+                [
+                    189,
+                    192
+                ],
+                [
+                    204,
+                    210
+                ]
+            ],
+            "video": true,
+            "audio": false,
+            "height": 540,
+            "fps": 24,
+            "bitrate": "1500k",
+            "title": "the fire of ヒバナ at the Saitama Super Arena (Ado, official live video)"
+        },
+        "stage-odo": {
+            "url": "https://www.youtube.com/watch?v=YGx5fcgEuwA",
+            "sections": [
+                [
+                    57,
+                    60
+                ],
+                [
+                    69,
+                    72
+                ],
+                [
+                    96,
+                    99
+                ],
+                [
+                    123,
+                    129
+                ],
+                [
+                    183,
+                    186
+                ]
+            ],
+            "video": true,
+            "audio": false,
+            "height": 540,
+            "fps": 24,
+            "bitrate": "1500k",
+            "title": "the pink and violet lasers of 踊 at the Saitama Super Arena 2022 (Ado, official live video)"
+        },
+        "stage-gold": {
+            "url": "https://www.youtube.com/watch?v=Igr6jQJEoNs",
+            "sections": [
+                [
+                    21,
+                    24
+                ],
+                [
+                    72,
+                    78
+                ],
+                [
+                    102,
+                    108
+                ],
+                [
+                    120,
+                    130
+                ],
+                [
+                    192,
+                    195
+                ]
+            ],
+            "video": true,
+            "audio": false,
+            "height": 540,
+            "fps": 24,
+            "bitrate": "1500k",
+            "title": "the golden sun of 唱 at the Nippon Budokan 2023 (Ado, official live video)"
+        },
+        "stage-usseewa": {
+            "url": "https://www.youtube.com/watch?v=8dnjqzodjgo",
+            "sections": [
+                [
+                    99,
+                    102
+                ],
+                [
+                    123,
+                    132
+                ],
+                [
+                    141,
+                    144
+                ],
+                [
+                    162,
+                    165
+                ],
+                [
+                    201,
+                    207
+                ]
+            ],
+            "video": true,
+            "audio": false,
+            "height": 540,
+            "fps": 24,
+            "bitrate": "1500k",
+            "title": "the red and cyan cage of うっせぇわ, four tours (Ado, official live video)"
         }
     }
 }

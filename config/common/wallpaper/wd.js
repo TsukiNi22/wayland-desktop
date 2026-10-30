@@ -61,10 +61,13 @@ const wd = (() => {
     // how much of the wallpaper shows (wd-wallpaper): the frame rate follows
     window.wdPower = fps => {
         state.fps = fps;
-        for (const { element, loop } of videos) {
+        // a video paused here plays again when the wallpaper shows again (one paused by the page stays paused)
+        for (const { element } of videos) {
             if (fps <= 0 && !element.paused) {
                 element.pause();
-            } else if (fps > 0 && loop && element.paused) {
+                element.wdHeld = true;
+            } else if (fps > 0 && element.wdHeld) {
+                element.wdHeld = false;
                 element.play().catch(() => {});
             }
         }
@@ -234,9 +237,10 @@ const wd = (() => {
         element.loop = !!options.loop;
         element.playsInline = true;
         element.preload = "auto";
-        // in the document (tiny, behind the page): WebKit only runs and paints a video that is in it
-        Object.assign(element.style, { position: "fixed", left: "0", top: "0", width: "2px", height: "2px", opacity: "0.01",
-            zIndex: "-1", pointerEvents: "none" });
+        // in the document, tiny and under the canvas of the page: WebKit only runs, paints and lets play a video that
+        // is in it and visible
+        Object.assign(element.style, { position: "fixed", left: "0", top: "0", width: "2px", height: "2px", zIndex: "-1",
+            pointerEvents: "none" });
         document.body.appendChild(element);
         videos.push({ element: element, loop: !!options.loop });
         if (options.loop && state.fps > 0) {
