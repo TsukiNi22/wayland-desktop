@@ -6,16 +6,17 @@
 #                   twin-tails, photographer: a camera)
 #   wd-<style>-art  drawn as art: miku and ado as pixel chibis, a pose for each shape (peeking over the pointer, tapping
 #                   with a leek / a microphone, asleep / puffing while it waits, shaken while a window moves, pulling
-#                   the resize arrows, arms crossed when it is forbidden); the others in the look of their style (system:
-#                   glass and a ring, dev: pixels and a block cursor, tty: rose-pine and a prompt, photographer: cream
-#                   and an aperture) for the pointer, the hand and the wait cursors, the other shapes from wd-<style>
+#                   the resize arrows, arms crossed when it is forbidden); the others draw every shape in the look of
+#                   their style, the shape itself animated (system: glass with a light passing over it, dev: green
+#                   pixels with a scan line, tty: iris turning to rose, photographer: cream with an amber edge and a
+#                   glint; a finger tapping, fingers flexing, arrows stretching, a sign wobbling, a spinner of the style)
 import json
 import math
 import struct
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 SIZES = (24, 32, 48)
 SCALE = 4
@@ -191,115 +192,157 @@ def xcursor(path: Path, images: list, hot: tuple, delay: int = DELAY, pixel: boo
     path.write_bytes(b"Xcur" + struct.pack("<3I", 16, 0x10000, len(chunks)) + toc + b"".join(data for _, data in chunks))
 
 # =========================
-# Art cursors (drawn on the same 32 x 32 grid)
+# Art cursors of system, dev, tty and photographer: every shape in the look of the style, the shape itself animated
 # =========================
 ARROW = [(2, 2), (2, 22), (7, 17.5), (10.5, 25), (13.5, 23.6), (10, 16.5), (16.5, 16.5)]
+# hot spots of the art shapes that differ from wd-<style>
+ART_HOTSPOTS = {"hand2": (11.5, 2), "grab": (16, 16)}
 
 def grid(points: list) -> list:
     return [(x * SCALE, y * SCALE) for x, y in points]
 
-def gradient_polygon(image: Image.Image, points: list, top: tuple, bottom: tuple, outline: tuple,
-                     width: float = 1.5) -> None:
-    """A polygon filled with a vertical gradient (top to bottom of the grid), outlined"""
-    size = image.size
-    mask = Image.new("L", size, 0)
-    ImageDraw.Draw(mask).polygon(grid(points), fill=255)
-    shade = Image.new("RGBA", size)
-    shading = ImageDraw.Draw(shade)
-    for y in range(size[1]):
-        k = y / size[1]
-        shading.line(((0, y), (size[0], y)), fill=tuple(int(a + (b - a) * k) for a, b in zip(top, bottom)) + (255,))
-    image.paste(shade, (0, 0), mask)
-    ImageDraw.Draw(image, "RGBA").polygon(grid(points), outline=outline, width=round(width * SCALE))
+def box(x0: float, y0: float, x1: float, y1: float) -> tuple:
+    return (x0 * SCALE, y0 * SCALE, x1 * SCALE, y1 * SCALE)
 
-def glow(image: Image.Image, points: list, color: tuple) -> None:
-    ImageDraw.Draw(image, "RGBA").polygon(grid(points), outline=color + (70,), width=4 * SCALE)
+def rotated(points: list, angle: float, cx: float = 16, cy: float = 16) -> list:
+    cos, sin = math.cos(angle), math.sin(angle)
+    return [(cx + x * cos - y * sin, cy + x * sin + y * cos) for x, y in points]
 
-def blob(draw: ImageDraw.ImageDraw, cx: float, cy: float, rx: float, ry: float, fill: tuple, outline=None,
-         width: float = 1) -> None:
-    draw.ellipse(((cx - rx) * SCALE, (cy - ry) * SCALE, (cx + rx) * SCALE, (cy + ry) * SCALE), fill=fill,
-                 outline=outline, width=round(width * SCALE) if outline else 0)
+def mix(a: tuple, b: tuple, k: float) -> tuple:
+    return tuple(round(x + (y - x) * k) for x, y in zip(a, b))
 
-def stroke(draw: ImageDraw.ImageDraw, points: list, color: tuple, width: float) -> None:
-    draw.line(grid(points), fill=color, width=max(1, round(width * SCALE)), joint="curve")
-    for x, y in (points[0], points[-1]):
-        blob(draw, x, y, width / 2, width / 2, color)
-
-def spinner(draw: ImageDraw.ImageDraw, style: str, c: dict, cx: float, cy: float, r: float, frame: int) -> None:
-    """the wait animation of the art theme"""
-    k = frame / FRAMES * 2 * math.pi
-    if style == "dev":
-        draw.rectangle(((cx - r) * SCALE, (cy - r * 0.8) * SCALE, (cx + r) * SCALE, (cy + r * 0.8) * SCALE),
-                       fill=(4, 7, 5), outline=c["accent"], width=SCALE)
-        a = (frame % 4) * math.pi / 4
-        stroke(draw, [(cx - math.cos(a) * r * 0.5, cy - math.sin(a) * r * 0.5), (cx + math.cos(a) * r * 0.5, cy + math.sin(a) * r * 0.5)],
-               c["accent"], r * 0.18)
-    elif style == "tty":
+def silhouette(style: str, shape: str, frame: int) -> tuple:
+    """(mask, inner lines, fill level) of a shape at a frame: the shape itself moves - the finger taps, the fingers
+    flex, the arrows stretch, the sign wobbles, the crosshair breathes, the arrow fills up while it waits, the spinner of
+    the style turns"""
+    k = frame / FRAMES
+    wave = (1 - math.cos(k * 2 * math.pi)) / 2
+    mask = Image.new("L", (32 * SCALE, 32 * SCALE), 0)
+    d = ImageDraw.Draw(mask)
+    lines = []
+    level = None
+    if shape in ("left_ptr", "left_ptr_watch"):
+        d.polygon(grid(ARROW), fill=255)
+        if shape == "left_ptr_watch":
+            level = (frame + 1) / FRAMES
+    elif shape == "hand2":
+        press = (0, 0, 0, 0.6, 1.4, 0.6, 0, 0)[frame]
+        d.rounded_rectangle(box(9, 2, 14, 17), radius=2.5 * SCALE, fill=255)
+        d.rounded_rectangle(box(7.5, 11 + press, 23, 27), radius=4 * SCALE, fill=255)
+        d.rounded_rectangle(box(4.5, 15 + press, 10, 22 + press), radius=2.6 * SCALE, fill=255)
+        lines = [[(14, 12.5 + press), (14, 17 + press)], [(18.5, 12.5 + press), (18.5, 17 + press)]]
+    elif shape == "grab":
+        flex = wave * 1.6
+        d.rounded_rectangle(box(8, 14, 24, 28), radius=4 * SCALE, fill=255)
+        for x, top in ((8.3, 7), (12, 4.5), (15.7, 5), (19.4, 7.5)):
+            d.rounded_rectangle(box(x, top + flex, x + 3.4, 17), radius=1.7 * SCALE, fill=255)
+        d.polygon(grid(rotated([(-1.8, -4.5), (1.8, -4.5), (1.8, 4.5), (-1.8, 4.5)], -0.7, 7, 19)), fill=255)
+    elif shape == "fleur":
+        spread = wave * 1.5
+        for quarter in range(4):
+            arm = [(-1.4, 0), (1.4, 0), (1.4, -8.5 - spread), (4.2, -8.5 - spread), (0, -13.5 - spread),
+                   (-4.2, -8.5 - spread), (-1.4, -8.5 - spread)]
+            d.polygon(grid(rotated(arm, quarter * math.pi / 2)), fill=255)
+    elif shape in AXES:
+        out = wave * 1.6
+        points = [(-12 - out, 0), (-6 - out, -6), (-6 - out, -2.5), (6 + out, -2.5), (6 + out, -6), (12 + out, 0),
+                  (6 + out, 6), (6 + out, 2.5), (-6 - out, 2.5), (-6 - out, 6)]
+        d.polygon(grid(rotated(points, math.atan2(AXES[shape][1], AXES[shape][0]))), fill=255)
+    elif shape == "not-allowed":
+        tilt = math.sin(k * 2 * math.pi) * 0.14
+        d.ellipse(box(5, 5, 27, 27), outline=255, width=round(3.6 * SCALE))
+        d.polygon(grid(rotated([(-10, -1.8), (10, -1.8), (10, 1.8), (-10, 1.8)], -math.pi / 4 + tilt)), fill=255)
+    elif shape == "xterm":
+        d.rectangle(box(14.8, 6, 17.2, 26), fill=255)
+        d.rounded_rectangle(box(11, 4.5, 21, 7.3), radius=1.2 * SCALE, fill=255)
+        d.rounded_rectangle(box(11, 24.7, 21, 27.5), radius=1.2 * SCALE, fill=255)
+    elif shape == "crosshair":
+        gap = 2.5 + wave * 1.5
+        for quarter in range(4):
+            d.polygon(grid(rotated([(-1.1, -gap), (1.1, -gap), (1.1, -12.5), (-1.1, -12.5)], quarter * math.pi / 2)),
+                      fill=255)
+        d.ellipse(box(15, 15, 17, 17), fill=255)
+    elif shape == "watch" and style == "tty":
+        # the dots of a terminal spinner, the lit one going round
         for i in range(8):
-            a = i / 8 * 2 * math.pi
             lit = (i - frame) % 8
-            color = c["accent"] if lit == 0 else (c["accent2"] if lit < 3 else c["fg"])
-            blob(draw, cx + math.cos(a) * r * 0.7, cy + math.sin(a) * r * 0.7, r * (0.2 if lit == 0 else 0.13),
-                 r * (0.2 if lit == 0 else 0.13), color + ((255,) if lit < 3 else (110,)))
-    elif style == "photographer":
-        blob(draw, cx, cy, r, r, (20, 18, 16), c["accent"], 1)
+            r = (2.6, 2.1, 1.7, 1.4, 1.2, 1.2, 1.2, 1.2)[lit]
+            x, y = 16 + math.cos(i * math.pi / 4) * 10, 16 + math.sin(i * math.pi / 4) * 10
+            d.ellipse(box(x - r, y - r, x + r, y + r), fill=255)
+    elif shape == "watch" and style == "photographer":
+        # an aperture turning, one blade a loop
+        d.ellipse(box(3.5, 3.5, 28.5, 28.5), outline=255, width=round(2.4 * SCALE))
         for i in range(6):
-            a = k * 0.5 + i * math.pi / 3
-            draw.polygon(grid([(cx + math.cos(a) * r * 0.9, cy + math.sin(a) * r * 0.9),
-                               (cx + math.cos(a + 1.2) * r * 0.9, cy + math.sin(a + 1.2) * r * 0.9),
-                               (cx + math.cos(a + 0.6) * r * 0.25, cy + math.sin(a + 0.6) * r * 0.25)]),
-                         fill=(60, 52, 40), outline=c["accent"], width=max(1, SCALE // 2))
-    else:
-        draw.arc(((cx - r) * SCALE, (cy - r) * SCALE, (cx + r) * SCALE, (cy + r) * SCALE), math.degrees(k), math.degrees(k) + 250,
-                 fill=c["accent"], width=round(r * 0.3 * SCALE))
-        draw.arc(((cx - r * 0.55) * SCALE, (cy - r * 0.55) * SCALE, (cx + r * 0.55) * SCALE, (cy + r * 0.55) * SCALE),
-                 -math.degrees(k) * 1.5, -math.degrees(k) * 1.5 + 200, fill=c["accent2"], width=round(r * 0.22 * SCALE))
+            a = (k + i) * math.pi / 3
+            d.polygon(grid([(16 + math.cos(a) * 10.5, 16 + math.sin(a) * 10.5),
+                            (16 + math.cos(a + 1.05) * 10.5, 16 + math.sin(a + 1.05) * 10.5),
+                            (16 + math.cos(a + 0.6) * 3.2, 16 + math.sin(a + 0.6) * 3.2)]), fill=255)
+            lines.append([(16 + math.cos(a + 0.6) * 3.2, 16 + math.sin(a + 0.6) * 3.2),
+                          (16 + math.cos(a + 1.05) * 10.5, 16 + math.sin(a + 1.05) * 10.5)])
+    elif shape == "watch":
+        d.arc(box(4.5, 4.5, 27.5, 27.5), k * 360, k * 360 + 260, fill=255, width=round(4 * SCALE))
+    return mask, lines, level
 
-def art_pointer(image: Image.Image, draw: ImageDraw.ImageDraw, style: str, c: dict, frame: int) -> None:
+def skin(style: str, c: dict, mask: Image.Image, frame: int, lines: list, level: float) -> Image.Image:
+    """the shape painted in the look of the style: system glass with a glow and a light passing over it, dev green
+    pixels with a scan line going down, tty iris turning to rose and back, photographer cream with an amber edge and a
+    glint; level: the part filled from the bottom (the rest dim)"""
+    size = mask.size
+    k = frame / FRAMES
+    wave = (1 - math.cos(k * 2 * math.pi)) / 2
+    image = Image.new("RGBA", size, (0, 0, 0, 0))
     if style == "dev":
-        # a pixel arrow, then the block cursor of a terminal blinking next to it
-        rows = ["X", "XX", "XGX", "XGGX", "XGGGX", "XGGGGX", "XGGGGGX", "XGGGGGGX", "XGGGGXXXX", "XGGXGX", "XGX XGX",
-                "XX  XGX", "X    XX"]
-        for y, row in enumerate(rows):
-            for x, cell in enumerate(row):
-                if cell != " ":
-                    draw.rectangle(((2 + x * 1.8) * SCALE, (2 + y * 1.8) * SCALE, (3.8 + x * 1.8) * SCALE, (3.8 + y * 1.8) * SCALE),
-                                   fill=(4, 7, 5) if cell == "X" else c["accent"])
-        if frame % 4 < 2:
-            draw.rectangle((20 * SCALE, 20 * SCALE, 26 * SCALE, 28 * SCALE), fill=c["accent"])
-    elif style == "tty":
-        gradient_polygon(image, ARROW, c["accent"], (154, 120, 200), c["accent2"])
-        stroke(draw, [(19, 20), (23, 23.5), (19, 27)], c["accent2"] if frame % 4 < 2 else c["fg"], 2)
+        # 24 cells: pixels of 2 at the 48 shown (the image is 96 wide, 4 a cell, kept sharp by xcursor)
+        cells = mask.resize((24, 24), Image.BOX).point(lambda v: 255 if v > 100 else 0)
+        image = Image.new("RGBA", (96, 96), (0, 0, 0, 0))
+        image.paste((4, 7, 5, 255), (0, 0), cells.filter(ImageFilter.MaxFilter(3)).resize((96, 96), Image.NEAREST))
+        fill = Image.new("RGBA", (24, 24), c["accent"] + (255,))
+        paint = ImageDraw.Draw(fill)
+        if level is not None:
+            top, bottom = cells.getbbox()[1], cells.getbbox()[3]
+            paint.rectangle((0, 0, 23, round(bottom - (bottom - top) * level) - 1), fill=mix(c["accent"], c["bg"], 0.65))
+        paint.line((0, frame * 3, 23, frame * 3), fill=mix(c["accent"], (255, 255, 255), 0.55))
+        image.paste(fill.resize((96, 96), Image.NEAREST), (0, 0), cells.resize((96, 96), Image.NEAREST))
+        return image
+    if style == "tty":
+        top, bottom, line = mix(c["accent"], c["accent2"], wave), (110, 90, 160), mix(c["accent2"], c["accent"], wave)
     elif style == "photographer":
-        gradient_polygon(image, ARROW, (250, 246, 238), (214, 204, 186), c["accent"])
-        blob(draw, 22, 23, 3, 3, (217, 76, 60) if frame % 4 < 2 else (90, 40, 30))
+        top, bottom, line = (250, 246, 238), (214, 204, 186), c["accent"]
     else:
-        glow(image, ARROW, c["accent"])
-        gradient_polygon(image, ARROW, (150, 205, 255), c["accent"], (240, 248, 255))
-
-def art_hand(image: Image.Image, draw: ImageDraw.ImageDraw, style: str, c: dict, frame: int) -> None:
-    art_pointer(image, draw, style, c, frame)
-    draw.ellipse((17 * SCALE, 17 * SCALE, 29 * SCALE, 29 * SCALE), outline=c["accent"], width=SCALE)
+        top, bottom, line = (150, 205, 255), c["accent"], (240, 248, 255)
+    edge = mask.filter(ImageFilter.MaxFilter(2 * round(1.4 * SCALE) + 1))
+    if style == "system":
+        halo = edge.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(5))
+        image.paste(c["accent"] + (255,), (0, 0), halo.point(lambda v: round(v * (0.3 + 0.25 * wave))))
+    image.paste(line + (255,), (0, 0), edge)
+    fill = Image.new("RGBA", size)
+    paint = ImageDraw.Draw(fill)
+    for y in range(size[1]):
+        paint.line(((0, y), (size[0], y)), fill=mix(top, bottom, y / size[1]) + (255,))
+    if level is not None:
+        y0, y1 = mask.getbbox()[1], mask.getbbox()[3]
+        paint.rectangle((0, 0, size[0], y1 - (y1 - y0) * level), fill=mix(top, c["bg"], 0.6) + (255,))
+    image.paste(fill, (0, 0), mask)
+    draw = ImageDraw.Draw(image)
+    for points in lines:
+        draw.line(grid(points), fill=line + (255,), width=round(1.1 * SCALE))
+    if style in ("system", "photographer"):
+        # a light passing over the shape once a loop
+        band = Image.new("L", size, 0)
+        v = (-0.5 + 2 * k) * size[0] * 2
+        ImageDraw.Draw(band).polygon([(v, 0), (v + size[0] * 0.4, 0), (0, v + size[0] * 0.4), (0, v)],
+                                     fill=140 if style == "system" else 110)
+        image.paste((255, 255, 255, 255) if style == "system" else (255, 238, 205, 255), (0, 0),
+                    ImageChops.multiply(band, mask))
+    return image
 
 def art_frames(style: str, c: dict, shape: str) -> tuple:
-    """(images, hot spot, delay) of an art shape (animated: the pointer, the hand, the wait cursors); None for the
-    shapes kept from wd-<style>"""
-    if shape not in ("left_ptr", "hand2", "watch", "left_ptr_watch"):
-        return None
+    """(images, hot spot, delay) of a shape of the art theme of system, dev, tty and photographer"""
     images = []
     for frame in range(FRAMES):
-        image = Image.new("RGBA", (32 * SCALE, 32 * SCALE), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image, "RGBA")
-        if shape == "watch":
-            spinner(draw, style, c, 16, 16, 11, frame)
-        elif shape == "hand2":
-            art_hand(image, draw, style, c, frame)
-        else:
-            art_pointer(image, draw, style, c, frame)
-            if shape == "left_ptr_watch":
-                spinner(draw, style, c, 24, 24, 5.5, frame)
-        images.append(image)
-    return images, ART_HOTSPOTS[shape], DELAY
+        mask, lines, level = silhouette(style, shape, frame)
+        images.append(skin(style, c, mask, frame, lines, level))
+    return images, ART_HOTSPOTS.get(shape, HOTSPOTS[shape]), DELAY
 
 # =========================
 # Chibis of miku and ado (pixel art on the 32 x 32 grid, a pose for each shape)
@@ -655,8 +698,6 @@ def chibi_frames(who: str, shape: str) -> tuple:
     hot = CHIBI_HOTSPOTS.get(shape, (16, 16))
     return images, hot, p["slow"] if shape == "watch" else 120
 
-ART_HOTSPOTS = {"left_ptr": (2, 2), "left_ptr_watch": (2, 2), "hand2": (2, 2), "watch": (16, 16)}
-
 HOTSPOTS = {"left_ptr": (2, 2), "left_ptr_watch": (2, 2), "hand2": (10, 2), "grab": (13, 13), "xterm": (16, 16),
             "watch": (16, 16), "fleur": (16, 16), "crosshair": (16, 16), "not-allowed": (16, 16),
             "sb_h_double_arrow": (16, 16), "sb_v_double_arrow": (16, 16), "fd_double_arrow": (16, 16),
@@ -678,7 +719,7 @@ def theme(style_dir: Path, icons: Path) -> None:
     (folder.parent / "index.theme").write_text(f"[Icon Theme]\nName=wd-{style_dir.name}\n"
                                                f"Comment=wayland-desktop {data['name']} cursors\nInherits=Adwaita\n")
 
-# The art theme: its own shapes (miku and ado: all but the crosshair), the others from wd-<style> (Inherits)
+# The art theme: its own shapes (miku and ado: all but the crosshair, kept from wd-<style> by Inherits)
 def art_theme(style_dir: Path, icons: Path) -> None:
     data = json.loads((style_dir / "theme.json").read_text())
     c = {key: rgb(data[key]) for key in ("bg", "fg", "accent", "accent2", "urgent")}
@@ -690,7 +731,7 @@ def art_theme(style_dir: Path, icons: Path) -> None:
         if not made:
             continue
         images, hot, delay = made
-        xcursor(folder / shape, images, hot, delay, chibi)
+        xcursor(folder / shape, images, hot, delay, chibi or style_dir.name == "dev")
         for alias in aliases:
             link = folder / alias
             if link.is_symlink() or link.exists():
