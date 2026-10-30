@@ -556,18 +556,13 @@ class Radio:
             self.process.terminate()
         self.process = None
 
-    # The download button of the player: a track kept offline goes back online, else it is saved where the user says
+    # The download button of the player: the track saved as an mp3 where the user says (a dialog), then played from it
     def keep(self, name, index):
         data = station(name)
         if not data or not 0 <= index < len(data["tracks"]):
             return
         track = data["tracks"][index]
-        if track.get("file") or track["downloading"]:
-            return
-        if track["offline"]:
-            set_offline(name, track, False)
-            self.refresh()
-        elif shutil.which("yt-dlp"):
+        if not track["downloading"] and (track.get("file") or shutil.which("yt-dlp")):
             GLib.idle_add(self.ask_save, name, track)
 
     def dialog(self, title, action, button):
@@ -593,8 +588,12 @@ class Radio:
         if path:
             threading.Thread(target=self.save, args=(name, track, Path(path).with_suffix(".mp3")), daemon=True).start()
 
-    # the track saved as an mp3 where the user said, then played from it (offline)
+    # the track saved as an mp3 where the user said (a copy for an mp3 of the folder), then played from it (offline)
     def save(self, name, track, path):
+        if track.get("file"):
+            shutil.copy2(track["file"], path)
+            self.refresh()
+            return
         DOWNLOADING.add(track["key"])
         self.refresh()
         file = download(track, path, mp3=True)

@@ -283,9 +283,8 @@ const wd = (() => {
 
     // The radio drawn by the page: player() plays the station of the style (its radio.json and the user's tracks, given
     // by wd-wallpaper with the tracks kept offline); the page draws its decor, then player.buttons(ctx, x, y, size,
-    // colors) (previous, play / pause, next, stop, loop the track (a setting, also while nothing plays), save it as an mp3
-    // (a save dialog) or back online, open the folder of the radio (its mp3 files and online.md)), the clicks are
-    // handled here
+    // colors) (previous, play / pause, next, stop, loop the track (a setting, also while nothing plays), download it as an
+    // mp3 (a save dialog), open the folder of the radio (its mp3 files and online.md)), the clicks are handled here
     let ownPlayer = false;
 
     function player(embedded = false) {
@@ -366,12 +365,8 @@ const wd = (() => {
             },
         };
 
-        // the offline button: a check when the track is kept offline, dots while it downloads, else an arrow down
-        self.keeping = () => {
-            const track = self.current();
-
-            return track.downloading ? "busy" : (track.offline && track.cached ? "saved" : "download");
-        };
+        // the download button: dots while it downloads
+        self.keeping = () => (self.current().downloading ? "busy" : "download");
         addEventListener("click", event => {
             const target = self.rects.find(rect => event.clientX >= rect.x && event.clientX <= rect.x + rect.w
                 && event.clientY >= rect.y && event.clientY <= rect.y + rect.h);
@@ -438,18 +433,6 @@ const wd = (() => {
             ctx.closePath();
             ctx.fill();
             ctx.fillRect(x - r * 0.85, y + r * 0.8, r * 1.7, r * 0.25);
-        } else if (name === "saved") {
-            ctx.save();
-            ctx.strokeStyle = ctx.fillStyle;
-            ctx.lineWidth = r * 0.36;
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            ctx.beginPath();
-            ctx.moveTo(x - r * 0.7, y);
-            ctx.lineTo(x - r * 0.15, y + r * 0.55);
-            ctx.lineTo(x + r * 0.75, y - r * 0.55);
-            ctx.stroke();
-            ctx.restore();
         } else if (name === "busy") {
             for (let i = 0; i < 3; i++) {
                 ctx.globalAlpha = 0.35 + 0.65 * (Math.floor(performance.now() / 250) % 3 === i ? 1 : 0);
