@@ -4,8 +4,10 @@
 > Documentation [TsukiNi22/wayland-desktop](https://tsukini22.github.io/wayland-desktop/) (v0.1.0) and
 > [live demo](https://tsukini22.github.io/wayland-desktop/poc/index.html).
 
-Six interactive desktop styles in HTML / CSS / JS, built on one small kit, to compare the looks before writing the real
-Wayland configuration. Every style has working windows, a lock screen, files, a browser, a terminal, music and settings.
+Six desktop styles, first made as interactive HTML / CSS / JS demos built on one small kit (working windows, a lock
+screen, files, a browser, a terminal, music and settings) to compare the looks, then as a real Wayland configuration:
+Hyprland, a live wallpaper with its radio, a live lock, animated cursors. The screenshots show the Wayland session; the
+names of the styles open their HTML demo.
 
 ### Table of Contents
  - [Themes](#themes)
@@ -21,21 +23,21 @@ Wayland configuration. Every style has working windows, a lock screen, files, a 
 | ---- | ---- | ---- |
 | <img src="docs/images/system-desktop.jpg" width="300"> | <img src="docs/images/dev-desktop.jpg" width="300"> | <img src="docs/images/jpop-desktop.jpg" width="300"> |
 | [**System**](https://tsukini22.github.io/wayland-desktop/poc/system.html) | [**Dev / low level**](https://tsukini22.github.io/wayland-desktop/poc/dev.html) | [**Ado / blue rose**](https://tsukini22.github.io/wayland-desktop/poc/jpop.html) |
-| Hyprland-like rice, live monitor, quick settings | playable debugger, registers, memory | Ado Box, Ado TV, 3D blue roses |
+| aurora, a sphere of points pushed by the music, light clock, radio | hex dump, registers, the music on a scope, `[ radio ]` | the Ado Box on stage, WORLD DOMINATION, live chat, vinyl radio |
 | | | |
 | <img src="docs/images/tty-desktop.jpg" width="300"> | <img src="docs/images/miku-desktop.jpg" width="300"> | <img src="docs/images/photographer-desktop.jpg" width="300"> |
 | [**Terminal / better-tty**](https://tsukini22.github.io/wayland-desktop/poc/tty.html) | [**Miku**](https://tsukini22.github.io/wayland-desktop/poc/miku.html) | [**Photographer**](https://tsukini22.github.io/wayland-desktop/poc/photographer.html) |
-| tmux tiling with `Ctrl+b`, rose-pine | vocal editor she sings, MIKU MIKU BEAM | photo wall, lightbox, real histogram |
+| block clock, ASCII torus in a tmux pane, rose-pine spectrum | ring of the music around the 39, sticky note of the beam, 39.39 FM | photo wall, light leak, bokeh, film grain, film radio |
 
 ## Lock screens
 
 | | | |
 | ---- | ---- | ---- |
 | <img src="docs/images/system-lock.jpg" width="300"> | <img src="docs/images/dev-lock.jpg" width="300"> | <img src="docs/images/jpop-lock.jpg" width="300"> |
-| **System** | **Dev / low level** (BIOS prompt) | **Ado / blue rose** |
+| **System** (glass, a ring of the music) | **Dev / low level** (getty console) | **Ado / blue rose** (HUD over her stage) |
 | | | |
 | <img src="docs/images/tty-lock.jpg" width="300"> | <img src="docs/images/miku-lock.jpg" width="300"> | <img src="docs/images/photographer-lock.jpg" width="300"> |
-| **Terminal / better-tty** (getty login) | **Miku** | **Photographer** (viewfinder) |
+| **Terminal / better-tty** (its shell) | **Miku** (disc of 39.39 FM) | **Photographer** (camera screen, film strip) |
 
 In the Wayland session, every style but Dev (its own console) locks with its live wallpaper: the lock surfaces get the
 page of the style, still moving (its animation, the radio, the music), and the page draws its lock over itself, the
@@ -122,9 +124,9 @@ missing), then the configs for the user; run through `sudo`, it installs the pac
 
 | Lock (`Super+L`) | |
 | ---------------- | - |
-| Terminal / better-tty | a shell: fastfetch block (the image of your fastfetch, the stats of the PC), `> ` prompt: `login` (then the password), `switch <profile>` (Tab completes), `whoami`, `profiles`, `help`, `music`, `suspend` / `reboot` / `poweroff`, and `sudo`, `sl`, `cowsay`, `matrix`, `hack`... for fun |
+| Terminal / better-tty | a shell over its live page: fastfetch block (the image of your fastfetch, the stats of the PC), `> ` prompt: `login` (then the password), `switch <profile>` (Tab completes), `whoami`, `profiles`, `help`, `music`, `suspend` / `reboot` / `poweroff`, and `sudo`, `sl`, `cowsay`, `matrix`, `hack`... for fun |
 | Dev / low level | a getty: the info of the lock, then `login:` and `Password:` |
-| the others | hyprlock, the lock screen of the style (the password shows as emojis in Ado and Miku) |
+| the others | the lock of the style drawn over its live wallpaper (see [Lock screens](#lock-screens)); hyprlock without the live wallpaper, or when it dies, or after three wrong passwords |
 
 > [!TIP]
 > The radios play their `radio.json` (Ado: 21 tracks, Miku: 18, the others: Value), every track kept offline: downloaded
