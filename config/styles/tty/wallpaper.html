@@ -18,9 +18,10 @@
 <script>
 "use strict";
 
-// the small radio of wd.js (shown: wd-style radio hide, Super+Shift+M hides it)
-wd.radioLook = { panel: "rgba(25, 23, 36, 0.92)", border: "#403d52", fg: "#e0def4", muted: "#908caa", accent: "#c4a7e7",
-    onAccent: "#191724", font: '"JetBrains Mono", monospace', corner: 4 };
+// the small radio of wd.js, fitted into this page (Super+Shift+M or wd-style radio hide: hidden)
+wd.radioLook = { layout: "pane", panel: "rgba(25, 23, 36, 0.78)", border: "#6e6a86", base: "#191724", fg: "#e0def4",
+    muted: "#908caa", accent: "#c4a7e7", onAccent: "#191724", font: '"JetBrains Mono", monospace', corner: 9,
+    title: "radio.sh \u2500 mpv", place: () => ({ x: 3 * cw, y: 30 * ch, w: 51 * cw }) };
 
 const C = {
     base: "#191724", surface: "#1f1d2e", overlay: "#26233a", muted: "#6e6a86", subtle: "#908caa", text: "#e0def4",

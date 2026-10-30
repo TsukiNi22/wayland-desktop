@@ -16,9 +16,9 @@
 <script>
 "use strict";
 
-// the small radio of wd.js (shown: wd-style radio hide, Super+Shift+M hides it)
-wd.radioLook = { panel: "rgba(14, 18, 23, 0.86)", border: "rgba(90, 169, 255, 0.35)", fg: "#d6dde7", muted: "#7b8798",
-    accent: "#5aa9ff", onAccent: "#0e1217", corner: 14 };
+// the small radio of wd.js, fitted into this page (Super+Shift+M or wd-style radio hide: hidden)
+wd.radioLook = { layout: "inline", fg: "#d6dde7", muted: "rgba(123, 135, 152, 0.9)", accent: "#5aa9ff",
+    onAccent: "#0e1217", title: "radio", place: () => ({ x: wd.width * 0.09 + 6, y: wd.height * 0.55, w: 560 }) };
 
 const ctx = wd.canvas("main");
 const POINTS = 1100;

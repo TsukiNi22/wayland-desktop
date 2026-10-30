@@ -11,7 +11,8 @@
 //   wd.radio, wd.radioCommand(action, extra)       state and control of the radio played by wd-wallpaper (mpv)
 //   wd.player(), wd.marquee(...), wd.cursor(on)    the radio of the style drawn by the page, scrolling text, hand pointer
 //                     (a page without its own player gets a small one when its radio is shown: wd-style radio show,
-//                     its colors from wd.radioLook = { panel, border, fg, muted, accent, onAccent, font, mono, corner })
+//                     shaped by wd.radioLook = { layout: box | terminal | pane | inline | osd, place: () => ({ x, y, w }),
+//                     title, panel, border, fg, muted, accent, onAccent, font, mono, corner })
 //   wd.video(key, { audio, loop })   a media of the page (radio.json "media": a clip made by wd-wallpaper), paused
 //                     with the wallpaper; null until it is made
 // The body fades in over the still wallpaper (or the previous page), then tells wd-wallpaper it is ready
@@ -356,8 +357,17 @@ const wd = (() => {
 
                     ctx.fillStyle = main || on ? colors.accent : (over ? colors.hover : colors.button);
                     ctx.beginPath();
-                    ctx.arc(cx, cy, size * (over ? 1.08 : 1), 0, Math.PI * 2);
+                    if (colors.square !== undefined) {
+                        ctx.roundRect(cx - size, cy - size, size * 2, size * 2, colors.square);
+                    } else {
+                        ctx.arc(cx, cy, size * (over ? 1.08 : 1), 0, Math.PI * 2);
+                    }
                     ctx.fill();
+                    if (colors.ring && !main && !on) {
+                        ctx.strokeStyle = colors.ring;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
                     ctx.fillStyle = main || on ? colors.onAccent : colors.icon;
                     icon(ctx, rect.action === "play" && self.playing() && !state.radio.paused ? "pause"
                         : (rect.action === "offline" ? self.keeping() : rect.action), cx, cy, size * 0.42);
@@ -446,7 +456,9 @@ const wd = (() => {
         }
     }
 
-    // The small radio of a page without its own: a panel in a corner when the radio of the style is shown
+    // The small radio of a page without its own, when the radio of the style is shown, shaped as the page asks
+    // (wd.radioLook.layout): "box" a panel in a corner, "terminal" a [ radio ] block, "pane" a pane with its title in
+    // its border, "inline" lines without a panel, "osd" the centered readout of a camera
     let builtIn = null;
     let radioLayer = null;
 
@@ -468,37 +480,107 @@ const wd = (() => {
             Object.assign(radioLayer.canvas.style, { position: "fixed", inset: "0", width: "100%", height: "100%",
                 zIndex: "5", pointerEvents: "none" });
         }
-        const look = Object.assign({ panel: "rgba(12, 14, 18, 0.86)", border: "rgba(255, 255, 255, 0.16)", fg: "#e9edf2",
-            muted: "#98a2b0", accent: "#5aa9ff", onAccent: "#0e1217", font: '"Adwaita Sans", sans-serif',
+        const look = Object.assign({ layout: "box", panel: "rgba(12, 14, 18, 0.86)", border: "rgba(255, 255, 255, 0.16)",
+            fg: "#e9edf2", muted: "#98a2b0", accent: "#5aa9ff", onAccent: "#0e1217", font: '"Adwaita Sans", sans-serif',
             mono: '"JetBrains Mono", monospace', corner: 14 }, state.radioLook);
-        const w = 420;
-        const h = 116;
-        const x = 40;
-        const y = state.height - h - 40;
+        const place = Object.assign({ x: 40, y: state.height - 156, w: 420 }, look.place ? look.place() : {});
+        const name = look.title || state.station.name || "RADIO";
+        const status = builtIn.status();
+        const title = builtIn.title();
+        const colors = { accent: look.accent, onAccent: look.onAccent, button: "rgba(255, 255, 255, 0.08)",
+            hover: "rgba(255, 255, 255, 0.2)", icon: look.fg };
         const g = radioLayer;
+        const { x, y, w } = place;
+        let rect;
 
-        if (!radioRect || radioRect.x !== x || radioRect.y !== y) {
-            radioRect = { x: x, y: y, w: w, h: h };
+        g.clearRect(0, 0, state.width, state.height);
+        g.textAlign = "start";
+        if (look.layout === "terminal") {
+            rect = { x: x, y: y, w: w, h: 124 };
+            g.fillStyle = look.panel;
+            g.fillRect(x, y, w, rect.h);
+            g.strokeStyle = look.border;
+            g.lineWidth = 1;
+            g.strokeRect(x + 0.5, y + 0.5, w, rect.h);
+            g.font = `13px ${look.mono}`;
+            g.fillStyle = look.accent;
+            g.fillText(`[ ${name} ]`, x + 18, y + 22);
+            g.fillStyle = look.muted;
+            g.fillText("TRK", x + 18, y + 48);
+            g.fillText("ST", x + 18, y + 68);
+            g.fillStyle = look.fg;
+            marquee(g, title, x + 62, y + 48, w - 80, t);
+            g.fillText(status, x + 62, y + 68);
+            builtIn.buttons(g, x + 18, y + 82, 12, Object.assign(colors, { square: 0 }));
+        } else if (look.layout === "pane") {
+            rect = { x: x, y: y, w: w, h: 128 };
+            g.fillStyle = look.panel;
+            g.strokeStyle = look.border;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.roundRect(x + 0.5, y + 9.5, w, rect.h - 10, look.corner);
+            g.fill();
+            g.stroke();
+            g.font = `14px ${look.mono}`;
+            const label = ` ${name} `;
+
+            g.fillStyle = look.base || "#191724";
+            g.fillRect(x + 14, y, g.measureText(label).width, 19);
+            g.fillStyle = look.accent;
+            g.fillText(label, x + 14, y + 14);
+            g.fillStyle = look.fg;
+            marquee(g, title, x + 18, y + 46, w - 36, t);
+            g.fillStyle = look.muted;
+            g.fillText(status, x + 18, y + 68);
+            builtIn.buttons(g, x + 18, y + 82, 12, Object.assign(colors, { square: 4, button: "rgba(224, 222, 244, 0.06)" }));
+        } else if (look.layout === "inline") {
+            rect = { x: x, y: y, w: w, h: 96 };
+            g.font = `400 13px ${look.mono}`;
+            g.fillStyle = look.muted;
+            g.fillText(`♪  ${name.toLowerCase()}  ·  ${status}`, x, y + 14);
+            g.font = `500 20px ${look.font}`;
+            g.fillStyle = look.fg;
+            marquee(g, title, x, y + 44, w, t);
+            builtIn.buttons(g, x, y + 58, 14, Object.assign(colors, { button: "rgba(255, 255, 255, 0.06)",
+                ring: "rgba(255, 255, 255, 0.12)" }));
+        } else if (look.layout === "osd") {
+            const size = 11;
+            const row = (builtIn.actions.length - 1) * size * 2.6 + size * 2;
+
+            rect = { x: x - w / 2, y: y, w: w, h: 76 };
+            g.save();
+            g.shadowColor = "rgba(0, 0, 0, 0.8)";
+            g.shadowBlur = 6;
+            builtIn.buttons(g, x - row / 2, y, size, Object.assign(colors, { button: "rgba(0, 0, 0, 0.25)", ring: look.fg }));
+            g.font = `13px ${look.mono}`;
+            g.textAlign = "center";
+            g.fillStyle = look.fg;
+            g.fillText(`♪ ${title}   ${status}`, x, y + 48);
+            g.restore();
+        } else {
+            rect = { x: x, y: y, w: w, h: 116 };
+            g.fillStyle = look.panel;
+            g.strokeStyle = look.border;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.roundRect(x, y, w, rect.h, look.corner);
+            g.fill();
+            g.stroke();
+            g.font = `700 11px ${look.mono}`;
+            g.fillStyle = look.accent;
+            g.fillText(name.toUpperCase(), x + 18, y + 24);
+            g.fillStyle = look.muted;
+            g.fillText(status, x + 18 + g.measureText(name.toUpperCase()).width + 16, y + 24);
+            g.font = `600 15px ${look.font}`;
+            g.fillStyle = look.fg;
+            marquee(g, title, x + 18, y + 50, w - 36, t);
+            builtIn.buttons(g, x + 18, y + 66, 14, colors);
+        }
+        g.textAlign = "start";
+        if (!radioRect || radioRect.x !== rect.x || radioRect.y !== rect.y || radioRect.w !== rect.w || radioRect.h !== rect.h) {
+            radioRect = rect;
             clickable(pageRects);
         }
-        g.clearRect(0, 0, state.width, state.height);
-        g.fillStyle = look.panel;
-        g.strokeStyle = look.border;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.roundRect(x, y, w, h, look.corner);
-        g.fill();
-        g.stroke();
-        g.font = `700 11px ${look.mono}`;
-        g.fillStyle = look.accent;
-        g.fillText((state.station.name || "RADIO").toUpperCase(), x + 18, y + 24);
-        g.fillStyle = look.muted;
-        g.fillText(builtIn.status(), x + 18 + g.measureText((state.station.name || "RADIO").toUpperCase()).width + 16, y + 24);
-        g.font = `600 15px ${look.font}`;
-        g.fillStyle = look.fg;
-        marquee(g, builtIn.title(), x + 18, y + 50, w - 36, t);
-        builtIn.buttons(g, x + 18, y + 66, 14, { accent: look.accent, onAccent: look.onAccent,
-            button: "rgba(255, 255, 255, 0.08)", hover: "rgba(255, 255, 255, 0.2)", icon: look.fg });
         cursor(builtIn.rects.some(hit));
     }
 
