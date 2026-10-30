@@ -984,7 +984,8 @@ function drawCrowd(t, show) {
 // their edges melted into the rose; the drawn stage above until one is made
 const STAGES = ["stage", "stage-red", "stage-fire", "stage-odo", "stage-gold", "stage-usseewa"];
 let stageVideo = null;
-let stageShown = false;
+// the time the first frame showed (0: not yet)
+let stageShown = 0;
 let stageTry = -1;
 const stageLayer = document.createElement("canvas");
 
@@ -1061,8 +1062,15 @@ function drawCage(t) {
         stageVideo.play().catch(() => {});
     }
     if (stageVideo && (stageShown || stageVideo.readyState >= 2)) {
-        stageShown = true;
+        // the first frame fades in
+        stageShown = stageShown || Math.max(t, 0.001);
+        ctx.globalAlpha = Math.min(1, (t - stageShown) / 0.6);
         drawConcert();
+        ctx.globalAlpha = 1;
+        return;
+    }
+    // nothing while the page waits for its clips (or the first frame): the drawn stage only when none is made
+    if (!wd.station || stageVideo) {
         return;
     }
     drawWall(t, s);
