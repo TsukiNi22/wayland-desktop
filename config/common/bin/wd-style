@@ -8,7 +8,8 @@
 #   overview | apps      GNOME-like overview / applications grid (quickshell, else the wofi launcher)
 #   help                 every key and control in a card (quickshell, Super+F1)
 #   wallpaper [mode]     live (animated, follows the music) | still | toggle
-#   cursor [mode]        on (animated cursors of the style, the default) | off (normal) | toggle
+#   cursor [mode]        art (drawn like emojis, the default) | badge (the arrow and the mascot of the style) | off
+#                        (normal) | next
 #   radio <command>      the radio of a style (its folder: mp3 files + online.md): list [style] | add <style>
 #                        <url|mp3|search> [title [subtitle]] | remove <style> <index> | offline <style> <index|all>
 #                        [on|off] | folder <style> | show | hide | toggle [style]
@@ -163,33 +164,52 @@ wallpaper() {
     fi
 }
 
-# Animated cursors of the style (wd-<style>, made by install.sh) when on (the default), else the normal one
+# Cursors of the style (made by install.sh), animated: art (wd-<style>-art, the default: drawn like emojis), badge
+# (wd-<style>: the arrow and the small mascot of the style), off (the normal one); "on" of before is art
 cursor_mode() {
-    cat "$CURSOR_FILE" 2> /dev/null || echo on
+    local mode
+
+    mode=$(cat "$CURSOR_FILE" 2> /dev/null || echo art)
+    echo "${mode/#on/art}"
 }
 
 cursor() {
-    if [[ "$(cursor_mode)" == "on" && -d "$ICONS_DIR/wd-$1" ]]; then
-        hyprctl setcursor "wd-$1" 32 > /dev/null
+    local theme=""
+
+    case "$(cursor_mode)" in
+        art) theme="wd-$1-art" ;;
+        badge) theme="wd-$1" ;;
+    esac
+    if [[ -n "$theme" && -d "$ICONS_DIR/$theme" ]]; then
+        hyprctl setcursor "$theme" 32 > /dev/null
     else
         hyprctl setcursor Adwaita 24 > /dev/null
     fi
 }
 
 set_cursor() {
-    local mode="${1:-toggle}"
+    local mode="${1:-next}"
 
-    if [[ "$mode" == "toggle" ]]; then
-        mode=$([[ "$(cursor_mode)" == "on" ]] && echo off || echo on)
+    if [[ "$mode" == "next" || "$mode" == "toggle" ]]; then
+        case "$(cursor_mode)" in
+            art) mode=badge ;;
+            badge) mode=off ;;
+            *) mode=art ;;
+        esac
     fi
-    if [[ "$mode" != "on" && "$mode" != "off" ]]; then
-        echo "wd-style: cursor on | off | toggle" >&2
+    mode="${mode/#on/art}"
+    if [[ "$mode" != "art" && "$mode" != "badge" && "$mode" != "off" ]]; then
+        echo "wd-style: cursor art | badge | off | next" >&2
         return 1
     fi
     echo "$mode" > "$CURSOR_FILE"
     if in_hyprland; then
         cursor "$(current)"
-        notify "Cursor: $([[ "$mode" == "on" ]] && echo "animated ($(meta "$(current)" NAME))" || echo normal)"
+        case "$mode" in
+            art) notify "Cursor: art ($(meta "$(current)" NAME))" ;;
+            badge) notify "Cursor: with the mascot of $(meta "$(current)" NAME)" ;;
+            *) notify "Cursor: normal" ;;
+        esac
     fi
 }
 
@@ -505,7 +525,7 @@ case "${1:-}" in
     apps) overview apps ;;
     help) overview help ;;
     wallpaper) set_wallpaper "${2:-toggle}" ;;
-    cursor) set_cursor "${2:-toggle}" ;;
+    cursor) set_cursor "${2:-next}" ;;
     radio) exec "$WALLPAPER_BIN" --radio "${@:2}" ;;
     power) power ;;
     lock) lock_screen ;;
@@ -519,7 +539,7 @@ case "${1:-}" in
         session "$(current)"
         ;;
     *)
-        sed -n '2,24s/^# \?//p' "$0"
+        sed -n '2,25s/^# \?//p' "$0"
         exit 1
         ;;
 esac

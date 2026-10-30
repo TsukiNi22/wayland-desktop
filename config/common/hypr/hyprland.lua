@@ -150,13 +150,13 @@ hl.bind(mainMod .. " + A", overview("apps"))
 -- every key and control in a card
 hl.bind(mainMod .. " + F1", overview("help"))
 
--- styles: menu / next, power menu, live or still wallpaper, animated or normal cursor, radio shown or hidden (the
+-- styles: menu / next, power menu, live or still wallpaper, art / mascot / normal cursor, radio shown or hidden (the
 -- styles that hide it by default) (wd-style)
 hl.bind(mainMod .. " + SHIFT + W", style("menu"))
 hl.bind(mainMod .. " + ALT + W", style("next"))
 hl.bind(mainMod .. " + X", style("power"))
 hl.bind(mainMod .. " + SHIFT + B", style("wallpaper toggle"))
-hl.bind(mainMod .. " + SHIFT + C", style("cursor toggle"))
+hl.bind(mainMod .. " + SHIFT + C", style("cursor next"))
 hl.bind(mainMod .. " + SHIFT + M", style("radio toggle"))
 
 -- notifications: show the last one again / dismiss them all

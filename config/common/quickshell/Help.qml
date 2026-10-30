@@ -49,7 +49,7 @@ PanelWindow {
             ["Super+Shift+W", "style menu"],
             ["Super+Alt+W", "next style"],
             ["Super+Shift+B", "live / still wallpaper"],
-            ["Super+Shift+C", "animated / normal cursor"],
+            ["Super+Shift+C", "art / mascot / normal cursor"],
             ["sticky note (Miku)", "MIKU MIKU BEAM"],
         ] },
         { title: "Radio", items: [
